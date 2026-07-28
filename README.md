@@ -13,7 +13,7 @@
 [![pnpm](https://img.shields.io/badge/pnpm-workspaces-F69220?logo=pnpm&logoColor=white)](https://pnpm.io/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](#license)
 
-[Live demo](https://web-eight-eta-40.vercel.app) · [Report a bug](https://github.com/Abudora-0/omnikit/issues)
+[Live demo](https://omniikit.vercel.app/) · [Report a bug](https://github.com/Abudora-0/omnikit/issues)
 
 *A full self-hosted deployment (all 43 tools, including downloaders) also runs on a personal VPS — not publicly linked here, but the setup below reproduces it exactly.*
 
