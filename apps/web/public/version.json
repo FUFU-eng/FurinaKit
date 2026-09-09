@@ -7,15 +7,15 @@
     "修复 B 站与全网视频解析后下载任务异常，完善内置 ffmpeg 路径解析与跨进程调用链路",
     "优化应用启动时本地存储目录（jobs/queue/uploads/results）预创建机制，增强多任务并发与系统稳定性"
   ],
-  "downloadUrl": "https://github.com/Abudora-0/FurinaKit/releases/download/v2.0.2/FurinaKit-Setup-2.0.2.exe",
+  "downloadUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.2/FurinaKit.Setup.2.0.2.exe",
   "mirrors": [
     {
       "name": "GitHub 官方直链",
-      "url": "https://github.com/Abudora-0/FurinaKit/releases/download/v2.0.2/FurinaKit-Setup-2.0.2.exe"
+      "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.2/FurinaKit.Setup.2.0.2.exe"
     },
     {
       "name": "国内高速镜像线路",
-      "url": "https://ghproxy.net/https://github.com/Abudora-0/FurinaKit/releases/download/v2.0.2/FurinaKit-Setup-2.0.2.exe"
+      "url": "https://ghproxy.net/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.2/FurinaKit.Setup.2.0.2.exe"
     }
   ]
 }

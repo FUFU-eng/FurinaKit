@@ -127,11 +127,11 @@ export const APP_CHANGELOG: ReleaseLog[] = [
 ];
 
 /** 默认检查更新源地址（用户或开发者可在设置中自定义） */
-export const DEFAULT_UPDATE_ENDPOINT = "https://raw.githubusercontent.com/Abudora-0/FurinaKit/master/version.json";
+export const DEFAULT_UPDATE_ENDPOINT = "https://raw.githubusercontent.com/FUFU-eng/FurinaKit/main/version.json";
 
 /** 备用与国内加速更新源列表 */
 export const FALLBACK_UPDATE_ENDPOINTS = [
-  "https://cdn.jsdelivr.net/gh/Abudora-0/FurinaKit@master/version.json",
-  "https://raw.githubusercontent.com/Abudora-0/FurinaKit/master/version.json",
-  "https://ghproxy.net/https://raw.githubusercontent.com/Abudora-0/FurinaKit/master/version.json",
+  "https://cdn.jsdelivr.net/gh/FUFU-eng/FurinaKit@main/version.json",
+  "https://raw.githubusercontent.com/FUFU-eng/FurinaKit/main/version.json",
+  "https://ghproxy.net/https://raw.githubusercontent.com/FUFU-eng/FurinaKit/main/version.json",
 ];

@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/github/v/release/Abudora-0/FurinaKit?style=flat-square&color=38bdf8" alt="Release" />
+  <img src="https://img.shields.io/github/v/release/FUFU-eng/FurinaKit?style=flat-square&color=38bdf8" alt="Release" />
   <img src="https://img.shields.io/badge/Tools-120%2B-00dc82?style=flat-square" alt="Tools Count" />
   <img src="https://img.shields.io/badge/Platform-Windows%20x64-0078d7?style=flat-square&logo=windows" alt="Windows" />
   <img src="https://img.shields.io/badge/Next.js-15-000000?style=flat-square&logo=next.js" alt="Next.js" />
@@ -129,7 +129,7 @@ FurinaKit 采用前后端同构的本地桌面双核架构：
 ### 方式一：下载 Windows 安装包 (推荐所有普通用户)
 
 1. 点击前往官方发布页下载最新版安装包：  
-   👉 **[FurinaKit Releases 最新发布页](https://github.com/Abudora-0/FurinaKit/releases/latest)**
+   👉 **[FurinaKit Releases 最新发布页](https://github.com/FUFU-eng/FurinaKit/releases/latest)**
 2. 下载 **`FurinaKit Setup 2.0.2.exe`**。
 3. 双击安装程序，自由选择安装目录并勾选创建桌面快捷方式，等待 10 秒即可安装完成。
 4. **后续升级**：软件内置自动更新功能，发布新版本后只需点击右上角设置内的「检查更新」，即可**一键自动下载并无感升级**，无需反复重新下载安装！
@@ -145,7 +145,7 @@ FurinaKit 采用前后端同构的本地桌面双核架构：
 
 #### 2. 克隆项目与安装依赖
 ```bash
-git clone https://github.com/Abudora-0/FurinaKit.git
+git clone https://github.com/FUFU-eng/FurinaKit.git
 cd FurinaKit
 pnpm install
 ```
