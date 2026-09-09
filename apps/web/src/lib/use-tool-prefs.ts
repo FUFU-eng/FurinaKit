@@ -1,15 +1,20 @@
 "use client";
 
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
 
 /**
- * Tiny localStorage-backed store of tool-id lists (favorites + recents),
- * shared reactively across components via useSyncExternalStore.
+ * 轻量 localStorage 存储：收藏、置顶、最近使用、每个分类的自定义排序、
+ * 以及单个工具上次使用的参数。通过 useSyncExternalStore 在组件间响应式共享。
  */
 
-const RECENT_KEY = "omnikit:recent";
-const FAV_KEY = "omnikit:favorites";
+const RECENT_KEY = "furinakit:recent";
+const FAV_KEY = "furinakit:favorites";
+const PIN_KEY = "furina:pins";
+const ORDER_PREFIX = "furina:order:";
 const RECENT_MAX = 8;
+
+const WATCHED = [RECENT_KEY, FAV_KEY, PIN_KEY];
+const orderKey = (category: string) => ORDER_PREFIX + category;
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
@@ -20,9 +25,15 @@ function emit() {
 
 function subscribe(listener: Listener) {
   listeners.add(listener);
-  // Reflect changes made in other tabs.
+  // 同步其它标签页的改动
   const onStorage = (e: StorageEvent) => {
-    if (e.key === RECENT_KEY || e.key === FAV_KEY) emit();
+    if (
+      !e.key ||
+      WATCHED.includes(e.key) ||
+      e.key.startsWith(ORDER_PREFIX)
+    ) {
+      emit();
+    }
   };
   window.addEventListener("storage", onStorage);
   return () => {
@@ -36,46 +47,57 @@ function read(key: string): string[] {
   try {
     const raw = window.localStorage.getItem(key);
     const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((x): x is string => typeof x === "string")
+      : [];
   } catch {
     return [];
   }
 }
 
-// Cache snapshots so useSyncExternalStore gets a stable reference until a write.
-let recentCache: string[] = [];
-let favCache: string[] = [];
-let recentRaw = "__init__";
-let favRaw = "__init__";
-
-function recentSnapshot(): string[] {
-  if (typeof window === "undefined") return EMPTY;
-  const raw = window.localStorage.getItem(RECENT_KEY) ?? "";
-  if (raw !== recentRaw) {
-    recentRaw = raw;
-    recentCache = read(RECENT_KEY);
-  }
-  return recentCache;
-}
-
-function favSnapshot(): string[] {
-  if (typeof window === "undefined") return EMPTY;
-  const raw = window.localStorage.getItem(FAV_KEY) ?? "";
-  if (raw !== favRaw) {
-    favRaw = raw;
-    favCache = read(FAV_KEY);
-  }
-  return favCache;
-}
-
 const EMPTY: string[] = [];
 const getServerSnapshot = () => EMPTY;
+
+function makeSnapshot(key: string) {
+  let cache: string[] = [];
+  let lastRaw = "__init__";
+  return () => {
+    if (typeof window === "undefined") return EMPTY;
+    const raw = window.localStorage.getItem(key) ?? "";
+    if (raw !== lastRaw) {
+      lastRaw = raw;
+      cache = read(key);
+    }
+    return cache;
+  };
+}
+
+const recentSnapshot = makeSnapshot(RECENT_KEY);
+const favSnapshot = makeSnapshot(FAV_KEY);
+const pinSnapshot = makeSnapshot(PIN_KEY);
+
+/* ── 分类排序快照（按 key 缓存，保证引用稳定，避免 #185 无限重渲染） ── */
+type OrderCache = { lastRaw: string; cache: string[] };
+const orderSnapCache = new Map<string, OrderCache>();
+
+function makeOrderSnapshot(key: string) {
+  return () => {
+    if (typeof window === "undefined") return EMPTY;
+    const raw = window.localStorage.getItem(key) ?? "";
+    let c = orderSnapCache.get(key);
+    if (!c || c.lastRaw !== raw) {
+      c = { lastRaw: raw, cache: read(key) };
+      orderSnapCache.set(key, c);
+    }
+    return c.cache;
+  };
+}
 
 function write(key: string, value: string[]) {
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    /* ignore quota / privacy-mode errors */
+    /* 忽略隐私模式/配额错误 */
   }
   emit();
 }
@@ -94,12 +116,59 @@ export function useRecentTools() {
   return { recent, recordTool, clearRecent };
 }
 
-/* ── Per-tool settings memory ─────────────────────────────────────────────
- * Remembers a tool's last-used option values (selects/numbers) so revisiting a
- * tool restores how you last set it up. Plain read/write — no reactive store
- * needed since the runner loads once on mount. */
+/* ── 收藏 ─────────────────────────────────────────────────────────────── */
+export function useFavorites() {
+  const favorites = useSyncExternalStore(subscribe, favSnapshot, getServerSnapshot);
 
-const SETTINGS_PREFIX = "omnikit:settings:";
+  const toggleFavorite = useCallback((id: string) => {
+    const current = read(FAV_KEY);
+    const nowFav = !current.includes(id);
+    const next = nowFav ? [id, ...current] : current.filter((x) => x !== id);
+    write(FAV_KEY, next);
+    return nowFav;
+  }, []);
+
+  const isFavorite = useCallback((id: string) => favorites.includes(id), [favorites]);
+
+  return { favorites, toggleFavorite, isFavorite };
+}
+
+/* ── 置顶（可多个）─────────────────────────────────────────────────────── */
+export function usePins() {
+  const pins = useSyncExternalStore(subscribe, pinSnapshot, getServerSnapshot);
+
+  const togglePin = useCallback((id: string) => {
+    const current = read(PIN_KEY);
+    const nowPinned = !current.includes(id);
+    const next = nowPinned ? [...current, id] : current.filter((x) => x !== id);
+    write(PIN_KEY, next);
+    return nowPinned;
+  }, []);
+
+  const isPinned = useCallback((id: string) => pins.includes(id), [pins]);
+
+  return { pins, togglePin, isPinned };
+}
+
+/* ── 每个分类的自定义排序（长按拖拽后持久化）────────────────────────────── */
+export function useCategoryOrder(category: string) {
+  const key = orderKey(category);
+  const snap = useMemo(() => makeOrderSnapshot(key), [key]);
+  const order = useSyncExternalStore(subscribe, snap, getServerSnapshot);
+
+  const setOrder = useCallback(
+    (next: string[]) => {
+      write(key, next);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [key],
+  );
+
+  return { order: order.length ? order : null, setOrder };
+}
+
+/* ── 单个工具的参数记忆 ───────────────────────────────────────────────── */
+const SETTINGS_PREFIX = "furinakit:settings:";
 
 export function loadToolSettings(toolId: string): Record<string, string> {
   if (typeof window === "undefined") return {};
@@ -124,21 +193,6 @@ export function saveToolSettings(toolId: string, values: Record<string, string>)
       window.localStorage.setItem(SETTINGS_PREFIX + toolId, JSON.stringify(values));
     }
   } catch {
-    /* ignore quota / privacy-mode errors */
+    /* 忽略配额/隐私模式错误 */
   }
-}
-
-export function useFavorites() {
-  const favorites = useSyncExternalStore(subscribe, favSnapshot, getServerSnapshot);
-
-  const toggleFavorite = useCallback((id: string) => {
-    const current = read(FAV_KEY);
-    const next = current.includes(id) ? current.filter((x) => x !== id) : [id, ...current];
-    write(FAV_KEY, next);
-    return !current.includes(id); // true if now favorited
-  }, []);
-
-  const isFavorite = useCallback((id: string) => favorites.includes(id), [favorites]);
-
-  return { favorites, toggleFavorite, isFavorite };
 }

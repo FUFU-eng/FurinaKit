@@ -1,12 +1,13 @@
 {
-  "name": "omnikit",
+  "name": "furinakit",
+  "version": "2.0.2",
   "private": true,
   "packageManager": "pnpm@9.15.4",
   "scripts": {
-    "dev": "pnpm --filter @omnikit/web dev",
-    "build": "pnpm --filter @omnikit/web build",
-    "start": "pnpm --filter @omnikit/web start",
-    "lint": "pnpm --filter @omnikit/web lint",
+    "dev": "pnpm --filter @furinakit/web dev",
+    "build": "pnpm --filter @furinakit/web build",
+    "start": "pnpm --filter @furinakit/web start",
+    "lint": "pnpm --filter @furinakit/web lint",
     "worker": "python services/worker/worker.py",
     "cleanup": "curl -X POST http://localhost:3000/api/cleanup"
   },

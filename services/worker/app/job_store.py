@@ -6,9 +6,9 @@ import redis
 
 from app.config import settings
 
-JOB_PREFIX = "omnikit:job:"
-ACTIVE_JOBS_KEY = "omnikit:active_jobs"
-JOB_QUEUE = "omnikit:job_queue"
+JOB_PREFIX = "furinakit:job:"
+ACTIVE_JOBS_KEY = "furinakit:active_jobs"
+JOB_QUEUE = "furinakit:job_queue"
 
 _client: redis.Redis | None = None
 

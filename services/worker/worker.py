@@ -6,7 +6,7 @@ import time
 # numba (pulled in by rembg → pymatting) caches compiled functions to disk. On Microsoft
 # Store Python it cannot write into site-packages/__pycache__, which crashes the import.
 # Redirect the cache to a writable temp dir BEFORE any import chain pulls numba in.
-os.environ.setdefault("NUMBA_CACHE_DIR", os.path.join(tempfile.gettempdir(), "omnikit-numba"))
+os.environ.setdefault("NUMBA_CACHE_DIR", os.path.join(tempfile.gettempdir(), "furinakit-numba"))
 
 from app.config import settings
 from app.ffmpeg import ensure_ffmpeg_on_path
@@ -15,7 +15,7 @@ from app.job_store import dequeue_job
 from app.tasks import process_job
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("omnikit.worker")
+logger = logging.getLogger("furinakit.worker")
 
 
 def redis_available() -> bool:
@@ -39,7 +39,7 @@ def main() -> None:
         _redis_ok = redis_available() if not settings.use_file_queue else False
     use_file = settings.use_file_queue or not _redis_ok
     mode = "file queue" if use_file else "redis"
-    logger.info("OmniKit worker started (%s)", mode)
+    logger.info("FurinaKit worker started (%s)", mode)
 
     ffmpeg_dir = ensure_ffmpeg_on_path()
     if ffmpeg_dir:

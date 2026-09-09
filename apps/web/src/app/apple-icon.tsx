@@ -15,7 +15,7 @@ export default function AppleIcon() {
           alignItems: "center",
           justifyContent: "center",
           gap: 18,
-          background: "linear-gradient(135deg, #7C6BF5, #C56BF0 55%, #38BDF8)",
+          background: "linear-gradient(135deg, #1e40af, #38bdf8 55%, #bae6fd)",
         }}
       >
         {/* 2×2 module mark */}
@@ -39,7 +39,7 @@ export default function AppleIcon() {
             opacity: 0.92,
           }}
         >
-          OMNIKIT
+          FURINAKIT
         </span>
       </div>
     ),

@@ -57,17 +57,31 @@ def _build_format_args(format_type: str, quality: str) -> list[str]:
 
 def _friendly_error(output: str) -> str:
     text = output.lower()
+    if "no video could be found in this tweet" in text or "no media found" in text:
+        return "该推文中未找到视频或动图（可能仅包含纯文字、静态图片，或推文已被删除/设为仅关注者可见）"
+    if "from a protected account" in text or "protected" in text:
+        return "该推文来自私密/上锁账号，无法直接提取"
     if "private video" in text or "sign in" in text:
-        return "This video is private or requires sign-in."
+        return "该视频为私密内容或需要登录账号后才能查看"
     if "video unavailable" in text or "removed" in text:
-        return "This video is unavailable or has been removed."
+        return "该视频已失效或已被作者删除"
     if "is not available in your country" in text or "geo" in text:
-        return "This video is geo-restricted and cannot be downloaded here."
+        return "该视频受到地区版权限制，请尝试切换代理节点"
     if "unsupported url" in text:
-        return "That URL isn't supported."
+        return "不支持该链接格式，请确认输入正确的视频或推文链接"
+    if "timeout" in text or "timed out" in text:
+        return "请求超时，请检查网络连接或科学上网代理是否正常开启"
+    if "10061" in text or "connection refused" in text or "proxyerror" in text:
+        return "代理连接失败，请确认系统代理/梯子软件已正常开启并在运行"
+    if "404" in text or "not found" in text:
+        return "视频或推文不存在，链接可能失效或已被删除"
+    if "403" in text or "forbidden" in text:
+        return "访问受限 (403 Forbidden)，内容可能需登录或已被平台风控保护"
+    if "412" in text:
+        return "视频平台安全验证/反爬机制拦截，请稍后重试"
     # Fall back to the last meaningful line of yt-dlp output.
     lines = [l.strip() for l in output.splitlines() if l.strip()]
-    return (lines[-1] if lines else "Download failed")[:300]
+    return (lines[-1] if lines else "下载失败")[:300]
 
 
 def download_video(

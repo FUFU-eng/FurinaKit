@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     redis_url: str = "redis://127.0.0.1:6379/0"
     storage_dir: str = "../../data/storage"
-    max_concurrent_jobs: int = 2
+    max_concurrent_jobs: int = 10
     job_ttl_hours: int = 24
     use_file_queue: bool = False
 

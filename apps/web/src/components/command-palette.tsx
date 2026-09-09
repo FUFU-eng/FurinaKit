@@ -3,21 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Search, CornerDownLeft, ArrowUp, ArrowDown, History } from "lucide-react";
-import { getAvailableTools, CATEGORY_LABELS, downloadsEnabled } from "@omnikit/shared";
-import type { OmniTool } from "@omnikit/shared";
+import { Search, CornerDownLeft, ArrowUp, ArrowDown, History, Heart, Home } from "lucide-react";
+import { getAvailableTools, CATEGORY_LABELS, downloadsEnabled } from "@furinakit/shared";
+import type { OmniTool } from "@furinakit/shared";
 import { getToolIcon } from "@/lib/tool-icons";
+import { CATEGORY_COLOR } from "@/components/tools/tool-card";
 import { cn } from "@/lib/utils";
 
-export const OPEN_COMMAND_EVENT = "omnikit:open-command";
-
-const catText: Record<string, string> = {
-  image: "text-sky-400",
-  pdf: "text-rose-400",
-  download: "text-emerald-400",
-  audio: "text-fuchsia-400",
-  utility: "text-primary",
-};
+export const OPEN_COMMAND_EVENT = "furinakit:open-command";
 
 type Item =
   | { type: "tool"; tool: OmniTool }
@@ -35,10 +28,11 @@ export function CommandPalette() {
 
   const links: Item[] = useMemo(() => {
     const base: Item[] = [
-      { type: "link", id: "home", name: "Home", description: "Browse all tools", href: "/" },
+      { type: "link", id: "home", name: "首页", description: "浏览全部工具", href: "/" },
+      { type: "link", id: "favorites", name: "我的收藏", description: "查看收藏的工具", href: "/favorites" },
     ];
     if (downloadsEnabled()) {
-      base.push({ type: "link", id: "jobs", name: "Jobs", description: "View download jobs", href: "/jobs" });
+      base.push({ type: "link", id: "jobs", name: "任务记录", description: "查看下载与处理任务", href: "/jobs" });
     }
     return base;
   }, []);
@@ -54,7 +48,7 @@ export function CommandPalette() {
           item.tool.name.toLowerCase().includes(q) ||
           item.tool.description.toLowerCase().includes(q) ||
           item.tool.id.includes(q) ||
-          item.tool.category.includes(q)
+          CATEGORY_LABELS[item.tool.category].toLowerCase().includes(q)
         );
       }
       return item.name.toLowerCase().includes(q) || item.description.toLowerCase().includes(q);
@@ -76,7 +70,6 @@ export function CommandPalette() {
     [router, close],
   );
 
-  // Global hotkeys + custom open event
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -93,7 +86,6 @@ export function CommandPalette() {
     };
   }, []);
 
-  // Focus input when opened
   useEffect(() => {
     if (open) {
       setActive(0);
@@ -102,10 +94,8 @@ export function CommandPalette() {
     }
   }, [open]);
 
-  // Reset highlight when the result set changes
   useEffect(() => setActive(0), [query]);
 
-  // Keyboard navigation within the list
   const onListKey = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
       e.preventDefault();
@@ -123,11 +113,12 @@ export function CommandPalette() {
     }
   };
 
-  // Keep the active row scrolled into view
   useEffect(() => {
     const node = listRef.current?.querySelector<HTMLElement>(`[data-idx="${active}"]`);
     node?.scrollIntoView({ block: "nearest" });
   }, [active]);
+
+  const linkIcon = (id: string) => (id === "jobs" ? History : id === "favorites" ? Heart : Home);
 
   return (
     <AnimatePresence>
@@ -139,53 +130,45 @@ export function CommandPalette() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
         >
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-background/70 backdrop-blur-sm"
-            onClick={close}
-            aria-hidden
-          />
+          <div className="absolute inset-0 bg-background/70 backdrop-blur-sm" onClick={close} aria-hidden />
 
-          {/* Panel */}
           <motion.div
             role="dialog"
             aria-modal="true"
-            aria-label="Command palette"
+            aria-label="搜索工具"
             initial={{ opacity: 0, y: -12, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 380, damping: 30 }}
             onKeyDown={onListKey}
-            className="glass gradient-border relative w-full max-w-xl overflow-hidden rounded-xl border border-border shadow-2xl shadow-black/60"
+            className="glass relative w-full max-w-xl overflow-hidden rounded-2xl border border-border bg-popover shadow-2xl"
           >
-            {/* Search row */}
             <div className="flex items-center gap-3 border-b border-border px-4">
               <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
               <input
                 ref={inputRef}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search tools and pages…"
+                placeholder="搜索工具或页面…"
                 className="h-14 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
               />
-              <kbd className="hidden shrink-0 rounded border border-border bg-secondary px-1.5 py-0.5 font-mono-accent text-[10px] text-muted-foreground sm:block">
+              <kbd className="hidden shrink-0 rounded border border-border bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground sm:block">
                 ESC
               </kbd>
             </div>
 
-            {/* Results */}
             <div ref={listRef} className="thin-scroll max-h-[52vh] overflow-y-auto p-2">
               {items.length === 0 ? (
                 <div className="px-3 py-10 text-center">
-                  <p className="font-mono-accent text-xs text-muted-foreground">
-                    No results for <span className="text-primary">&ldquo;{query}&rdquo;</span>
+                  <p className="text-xs text-muted-foreground">
+                    没有找到与「<span className="text-primary">{query}</span>」相关的工具
                   </p>
                 </div>
               ) : (
                 items.map((item, idx) => {
                   const isActive = idx === active;
                   if (item.type === "link") {
-                    const LinkIcon = item.id === "jobs" ? History : Search;
+                    const LinkIcon = linkIcon(item.id);
                     return (
                       <button
                         key={item.id}
@@ -193,11 +176,11 @@ export function CommandPalette() {
                         onClick={() => go(item)}
                         onMouseMove={() => setActive(idx)}
                         className={cn(
-                          "flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors",
+                          "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors",
                           isActive ? "bg-secondary" : "hover:bg-secondary/60",
                         )}
                       >
-                        <span className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-muted-foreground">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground">
                           <LinkIcon className="h-4 w-4" strokeWidth={1.6} />
                         </span>
                         <span className="min-w-0 flex-1">
@@ -209,6 +192,7 @@ export function CommandPalette() {
                     );
                   }
                   const Icon = getToolIcon(item.tool.icon);
+                  const accent = CATEGORY_COLOR[item.tool.category] ?? "#0ea5e9";
                   return (
                     <button
                       key={item.tool.id}
@@ -216,15 +200,13 @@ export function CommandPalette() {
                       onClick={() => go(item)}
                       onMouseMove={() => setActive(idx)}
                       className={cn(
-                        "flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors",
+                        "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors",
                         isActive ? "bg-secondary" : "hover:bg-secondary/60",
                       )}
                     >
                       <span
-                        className={cn(
-                          "flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card",
-                          catText[item.tool.category],
-                        )}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border"
+                        style={{ color: accent, background: `${accent}14`, borderColor: `${accent}30` }}
                       >
                         <Icon className="h-4 w-4" strokeWidth={1.6} />
                       </span>
@@ -232,13 +214,8 @@ export function CommandPalette() {
                         <span className="block truncate text-sm font-medium text-foreground">{item.tool.name}</span>
                         <span className="block truncate text-xs text-muted-foreground">{item.tool.description}</span>
                       </span>
-                      <span
-                        className={cn(
-                          "font-mono-accent shrink-0 text-[10px] uppercase tracking-widest",
-                          catText[item.tool.category],
-                        )}
-                      >
-                        {CATEGORY_LABELS[item.tool.category].split(" ")[0]}
+                      <span className="shrink-0 text-[11px]" style={{ color: accent }}>
+                        {CATEGORY_LABELS[item.tool.category]}
                       </span>
                     </button>
                   );
@@ -246,22 +223,19 @@ export function CommandPalette() {
               )}
             </div>
 
-            {/* Footer hints */}
             <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
-              <div className="flex items-center gap-3 font-mono-accent text-[10px] uppercase tracking-widest text-muted-foreground/70">
+              <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <ArrowUp className="h-3 w-3" />
                   <ArrowDown className="h-3 w-3" />
-                  navigate
+                  选择
                 </span>
                 <span className="flex items-center gap-1">
                   <CornerDownLeft className="h-3 w-3" />
-                  open
+                  打开
                 </span>
               </div>
-              <span className="font-mono-accent text-[10px] uppercase tracking-widest text-muted-foreground/70">
-                {items.length} result{items.length !== 1 ? "s" : ""}
-              </span>
+              <span className="text-[11px] text-muted-foreground">{items.length} 个结果</span>
             </div>
           </motion.div>
         </motion.div>

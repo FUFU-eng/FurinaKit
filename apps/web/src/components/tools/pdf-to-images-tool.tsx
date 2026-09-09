@@ -18,14 +18,14 @@ async function renderPdfToZip(file: File, scale: number, onProgress: (p: string)
   const doc = await pdfjs.getDocument({ data }).promise;
 
   for (let i = 1; i <= doc.numPages; i++) {
-    onProgress(`Rendering page ${i} of ${doc.numPages}…`);
+    onProgress(`正在渲染第 ${i} / ${doc.numPages} 页…`);
     const page = await doc.getPage(i);
     const viewport = page.getViewport({ scale });
     const canvas = document.createElement("canvas");
     canvas.width = Math.floor(viewport.width);
     canvas.height = Math.floor(viewport.height);
     const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("Canvas not supported in this browser");
+    if (!ctx) throw new Error("当前环境不支持 Canvas");
 
     const task = page.render({ canvasContext: ctx, viewport });
     // Guard against a stalled rasterization (e.g. a throttled background tab) so
@@ -36,20 +36,20 @@ async function renderPdfToZip(file: File, scale: number, onProgress: (p: string)
       new Promise((_, reject) => {
         timer = setTimeout(() => {
           task.cancel();
-          reject(new Error(`Page ${i} timed out while rendering. Try a lower resolution or keep this tab focused.`));
+          reject(new Error(`第 ${i} 页渲染超时，请降低分辨率或保持窗口在前台。`));
         }, 60_000);
       }),
     ]).finally(() => clearTimeout(timer));
 
     const blob: Blob = await new Promise((resolve, reject) =>
-      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Failed to render page"))), "image/png"),
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("页面渲染失败"))), "image/png"),
     );
     zip.file(`page-${String(i).padStart(3, "0")}.png`, blob);
     canvas.width = canvas.height = 0;
   }
 
   await doc.cleanup();
-  onProgress("Packaging ZIP…");
+  onProgress("正在打包 ZIP…");
   return zip.generateAsync({ type: "blob" });
 }
 
@@ -65,7 +65,7 @@ export function PdfToImagesTool() {
     setError(null);
     setResult(null);
     if (!files[0]) {
-      setError("Please add a PDF file.");
+      setError("请先添加 PDF 文件。");
       return;
     }
     setBusy(true);
@@ -74,7 +74,7 @@ export function PdfToImagesTool() {
       const name = files[0].name.replace(/\.pdf$/i, "") + "-images.zip";
       setResult({ url: URL.createObjectURL(blob), name });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to convert PDF");
+      setError(err instanceof Error ? err.message : "PDF 转换失败");
     } finally {
       setBusy(false);
       setStatus("");
@@ -83,25 +83,25 @@ export function PdfToImagesTool() {
 
   return (
     <div className="space-y-5">
-      <Alert>Runs entirely in your browser — your PDF never leaves this device.</Alert>
+      <Alert>全程在本机处理，PDF 不会上传到任何服务器。</Alert>
 
       <div className="space-y-2">
-        <Label>PDF file</Label>
+        <Label>PDF 文件</Label>
         <FileDropzone files={files} onChange={setFiles} accept={{ "application/pdf": [".pdf"] }} />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="scale">Resolution</Label>
+        <Label htmlFor="scale">输出分辨率</Label>
         <Select id="scale" value={scale} onChange={(e) => setScale(e.target.value)}>
-          <option value="1">Standard (1×)</option>
-          <option value="2">High (2×)</option>
-          <option value="3">Ultra (3×)</option>
+          <option value="1">标准（1×）</option>
+          <option value="2">高清（2×）</option>
+          <option value="3">超清（3×）</option>
         </Select>
       </div>
 
       <Button type="button" onClick={run} disabled={busy}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Images className="h-4 w-4" />}
-        {busy ? "Converting…" : "Convert to images"}
+        {busy ? "转换中…" : "转换为图片"}
       </Button>
 
       {busy && status && (
@@ -111,13 +111,13 @@ export function PdfToImagesTool() {
 
       {result && (
         <div className="space-y-3 border border-border bg-card p-5 animate-fade-in-up">
-          <p className="text-sm text-muted-foreground">Your images are ready.</p>
+          <p className="text-sm text-muted-foreground">图片已生成，点击下载 ZIP 压缩包。</p>
           <a
             href={result.url}
             download={result.name}
             className="inline-flex h-10 items-center justify-center gap-2 bg-primary px-4 font-mono-accent text-xs font-semibold uppercase tracking-widest text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            <Download className="h-4 w-4" /> Download ZIP
+            <Download className="h-4 w-4" /> 下载 ZIP
           </a>
         </div>
       )}

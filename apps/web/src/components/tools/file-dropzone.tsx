@@ -39,12 +39,12 @@ export function FileDropzone({
   onChange,
   multiple = false,
   accept,
-  maxFiles = multiple ? 20 : 1,
+  maxFiles,
 }: FileDropzoneProps) {
   const onDrop = useCallback(
     (accepted: File[]) => {
       if (multiple) {
-        onChange([...files, ...accepted].slice(0, maxFiles));
+        onChange(maxFiles ? [...files, ...accepted].slice(0, maxFiles) : [...files, ...accepted]);
       } else {
         onChange(accepted.slice(0, 1));
       }
@@ -56,17 +56,17 @@ export function FileDropzone({
     onDrop,
     multiple,
     accept,
-    maxFiles,
+    ...(maxFiles ? { maxFiles } : {}),
   });
 
   const removeFile = (index: number) => onChange(files.filter((_, i) => i !== index));
 
   return (
-    <div className="space-y-3" data-omnikit-dropzone>
+    <div className="space-y-3" data-furinakit-dropzone>
       <div
         {...getRootProps()}
         className={cn(
-          "group flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border bg-secondary/20 px-6 py-10 text-center transition-all duration-200",
+          "group flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-border bg-secondary/20 px-6 py-10 text-center transition-all duration-200",
           isDragActive
             ? "border-primary bg-primary/10 ring-4 ring-primary/15"
             : "hover:border-primary/50 hover:bg-secondary/40",
@@ -87,10 +87,10 @@ export function FileDropzone({
           />
         </span>
         <p className="text-sm font-medium">
-          {isDragActive ? "Drop files here" : "Drag & drop, or click to browse"}
+          {isDragActive ? "松开即可载入文件" : "点击选择文件，或将文件拖拽到此处"}
         </p>
         <p className="mt-1 font-mono-accent text-[10px] uppercase tracking-widest text-muted-foreground">
-          {multiple ? `up to ${maxFiles} files` : "single file"}
+          {multiple ? (maxFiles ? `最多 ${maxFiles} 个文件` : "支持批量导入，无文件数量限制") : "单个文件"}
         </p>
       </div>
 
@@ -112,7 +112,7 @@ export function FileDropzone({
                 type="button"
                 onClick={() => removeFile(index)}
                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-destructive"
-                aria-label="Remove file"
+                aria-label="移除文件"
               >
                 <X className="h-4 w-4" />
               </button>

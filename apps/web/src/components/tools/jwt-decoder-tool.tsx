@@ -34,7 +34,7 @@ export function JwtDecoderTool() {
     const t = token.trim();
     if (!t) return null;
     const parts = t.split(".");
-    if (parts.length < 2) return { error: "A JWT has three dot-separated parts (header.payload.signature)." };
+    if (parts.length < 2) return { error: "JWT 由三个用点号分隔的部分组成：header.payload.signature。" };
     try {
       const header = decodeSegment(parts[0]);
       const payload = decodeSegment(parts[1]) as Record<string, unknown>;
@@ -42,11 +42,11 @@ export function JwtDecoderTool() {
       const exp = fmtTimestamp(payload.exp);
       const iat = fmtTimestamp(payload.iat);
       const nbf = fmtTimestamp(payload.nbf);
-      if (iat) claims.push({ label: "Issued at", human: iat });
-      if (nbf) claims.push({ label: "Not before", human: nbf });
+      if (iat) claims.push({ label: "签发时间", human: iat });
+      if (nbf) claims.push({ label: "生效时间", human: nbf });
       if (exp) {
         const expired = typeof payload.exp === "number" && payload.exp * 1000 < Date.now();
-        claims.push({ label: "Expires", human: `${exp}${expired ? "  (expired)" : ""}` });
+        claims.push({ label: "过期时间", human: `${exp}${expired ? "（已过期）" : ""}` });
       }
       return {
         header: JSON.stringify(header, null, 2),
@@ -55,19 +55,19 @@ export function JwtDecoderTool() {
         claims,
       };
     } catch {
-      return { error: "Couldn’t decode this token — the header/payload isn’t valid Base64URL JSON." };
+      return { error: "无法解析该令牌：头部 / 载荷不是有效的 Base64URL JSON。" };
     }
   }, [token]);
 
   return (
     <div className="space-y-5">
       <div className="space-y-2">
-        <Label>JSON Web Token</Label>
+        <Label>JWT 令牌</Label>
         <Textarea
           value={token}
           onChange={(e) => setToken(e.target.value)}
           placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0In0.signature"
-          className="min-h-[100px] font-mono-accent text-xs break-all"
+          className="min-h-[160px] font-mono-accent text-xs break-all leading-relaxed"
         />
       </div>
 
@@ -79,9 +79,9 @@ export function JwtDecoderTool() {
 
       {result && "payload" in result && (
         <div className="space-y-4 animate-fade-in-up">
-          <div className="flex items-start gap-2 rounded-md border-l-2 border-l-amber-400/70 bg-amber-400/[0.07] px-4 py-2.5 font-mono-accent text-[11px] text-amber-300/90">
-            <ShieldAlert className="h-4 w-4 shrink-0" />
-            Signature is shown but <strong>not verified</strong> — decoding only, no secret required.
+          <div className="flex items-start gap-2 rounded-md border-l-2 border-l-amber-500/70 bg-amber-500/10 px-4 py-2.5 font-mono-accent text-xs text-amber-900 dark:text-amber-200">
+            <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+            <span>签名仅作展示，<strong>不会被校验</strong>；这里只做解码，无需提供密钥。</span>
           </div>
 
           {result.claims.length > 0 && (
@@ -96,8 +96,8 @@ export function JwtDecoderTool() {
           )}
 
           {[
-            { label: "Header", value: result.header },
-            { label: "Payload", value: result.payload },
+            { label: "头部 Header", value: result.header },
+            { label: "载荷 Payload", value: result.payload },
           ].map((block) => (
             <div key={block.label} className="space-y-2">
               <div className="flex items-center justify-between">
@@ -112,7 +112,7 @@ export function JwtDecoderTool() {
 
           {result.signature && (
             <div className="space-y-2">
-              <Label>Signature</Label>
+              <Label>签名 Signature</Label>
               <pre className="overflow-auto rounded-md border border-border bg-card p-4 font-mono-accent text-xs break-all text-muted-foreground">
                 {result.signature}
               </pre>

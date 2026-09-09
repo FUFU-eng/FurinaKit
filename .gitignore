@@ -23,3 +23,56 @@ apps/web/public/pdf.worker.min.mjs
 
 # Browser cookies export — never commit
 services/worker/cookies.txt
+
+# One-off AI repair scripts and scratch files at the repo root
+/_*.py
+/_*.png
+/_*.jpg
+/_*.jpeg
+/_*.ts
+/_*.js
+/_*.sh
+/_*.json
+/_shots/
+
+# Electron packaging & build outputs
+dist-installer/
+apps/web/dist-installer/
+apps/web/data/
+services/worker/dist/
+services/worker/build/
+services/worker/upscale/
+
+# Pre-compiled large binaries (exceeds GitHub 100MB limit, packaged via extraResources)
+apps/web/node.exe
+apps/web/ffmpeg.exe
+apps/web/yt-dlp.exe
+tools/
+
+# Temporary logs & debug outputs
+elog.txt
+el_out.txt
+apps/web/tools-info.json
+apps/web/test-tools*.js
+apps/web/extract-tools.js
+apps/web/list-tools.js
+apps/web/remove-tools.js
+remove-tools.js
+apps/web/add-subcategory.js
+
+# Design scratch assets & backups
+logo_designs/
+logo_designs_v2/
+*.bak*
+omnikit.ico.bak_*
+final_logo_*.png
+furina_tools_logo.png
+
+# Local startup scripts
+launcher.pyw
+furinakit-restart.*
+start-silent.*
+start.bat
+stop.ps1
+*启动 FurinaKit*
+*重启 FurinaKit*

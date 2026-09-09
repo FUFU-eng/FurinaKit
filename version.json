@@ -1,0 +1,21 @@
+{
+  "version": "2.0.2",
+  "releaseDate": "2026-09-09",
+  "changelog": [
+    "彻底修复桌面打包环境下缺失原生图像处理运行时（@img/sharp-win32-x64）导致的图片转换、压缩 500 异常",
+    "修复 PDF 转 Word、Office 文档转换等重型离线 Worker 任务队列调度与通信环境变量",
+    "修复 B 站与全网视频解析后下载任务异常，完善内置 ffmpeg 路径解析与跨进程调用链路",
+    "优化应用启动时本地存储目录（jobs/queue/uploads/results）预创建机制，增强多任务并发与系统稳定性"
+  ],
+  "downloadUrl": "https://github.com/Abudora-0/FurinaKit/releases/download/v2.0.2/FurinaKit-Setup-2.0.2.exe",
+  "mirrors": [
+    {
+      "name": "GitHub 官方直链",
+      "url": "https://github.com/Abudora-0/FurinaKit/releases/download/v2.0.2/FurinaKit-Setup-2.0.2.exe"
+    },
+    {
+      "name": "国内高速镜像线路",
+      "url": "https://ghproxy.net/https://github.com/Abudora-0/FurinaKit/releases/download/v2.0.2/FurinaKit-Setup-2.0.2.exe"
+    }
+  ]
+}

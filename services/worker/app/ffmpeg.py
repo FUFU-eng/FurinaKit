@@ -13,7 +13,17 @@ from typing import Optional
 
 
 def _candidate_paths() -> list[str]:
+    import sys
     candidates: list[str] = []
+
+    # 优先检查打包内置环境（furinakit-worker.exe 同级目录或 resources 目录）
+    exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+    candidates += [
+        os.path.join(exe_dir, "ffmpeg.exe"),
+        os.path.join(exe_dir, "resources", "ffmpeg.exe"),
+        os.path.join(os.path.dirname(exe_dir), "ffmpeg.exe"),
+        os.path.join(os.path.dirname(exe_dir), "resources", "ffmpeg.exe"),
+    ]
 
     local = os.environ.get("LOCALAPPDATA", "")
     if local:

@@ -8,7 +8,7 @@ import { useToast } from "@/components/ui/toast";
 /** Shared "Copy to clipboard" button with success feedback, used by client-side tools. */
 export function CopyButton({
   value,
-  label = "Copy",
+  label = "复制",
   disabled,
 }: {
   value: string;
@@ -23,17 +23,17 @@ export function CopyButton({
     try {
       await navigator.clipboard.writeText(value);
       setCopied(true);
-      toast({ title: "Copied to clipboard", variant: "success", duration: 1600 });
+      toast({ title: "已复制到剪贴板", variant: "success", duration: 1600 });
       setTimeout(() => setCopied(false), 1400);
     } catch {
-      toast({ title: "Couldn’t copy", variant: "error" });
+      toast({ title: "复制失败", variant: "error" });
     }
   };
 
   return (
     <Button type="button" variant="ghost" size="sm" onClick={copy} disabled={disabled || !value}>
       {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-      {copied ? "Copied" : label}
+      {copied ? "已复制" : label}
     </Button>
   );
 }

@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getToolById, downloadsEnabled } from "@omnikit/shared";
+import { getToolById, downloadsEnabled } from "@furinakit/shared";
 import { ToolRunner } from "@/components/tools/tool-runner";
 
 type ToolPageProps = {

@@ -3,49 +3,143 @@
 @tailwind utilities;
 
 /* ────────────────────────────────────────────────────────────────────────
-   OmniKit — "Sleek Dark Pro" design system
-   Linear / Vercel / Raycast-inspired: near-black canvas, indigo→violet→cyan
-   brand gradient, fine gradient borders, cursor spotlight, smooth springs.
+   Furina Tools — 芙宁娜风格设计系统
+   深色：深海蓝底 + 水蓝/鎏金点缀；浅色：干净的浅灰蓝 + 白色卡片。
+   所有表面/文字/边框一律走语义 HSL 变量，切换 data-theme 即整体换肤。
    ──────────────────────────────────────────────────────────────────────── */
 
 :root {
-  --background: 240 10% 3.5%;
-  --foreground: 240 12% 96%;
-  --card: 240 9% 6.5%;
-  --card-foreground: 240 12% 96%;
-  --popover: 240 10% 5%;
-  --popover-foreground: 240 12% 96%;
-  --primary: 252 88% 67%;
-  --primary-foreground: 240 14% 99%;
-  --secondary: 240 8% 12%;
-  --secondary-foreground: 240 12% 96%;
-  --muted: 240 8% 11%;
-  --muted-foreground: 240 6% 60%;
-  --accent: 252 50% 16%;
-  --accent-foreground: 252 90% 84%;
-  --destructive: 356 80% 62%;
-  --success: 158 72% 47%;
-  --border: 240 7% 15%;
-  --input: 240 7% 16%;
-  --ring: 252 88% 67%;
+  --background: 231 64% 11%;
+  --foreground: 210 40% 98%;
+  --card: 221 49% 10%;
+  --card-foreground: 210 40% 98%;
+  --popover: 221 46% 12%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 197 100% 71%;
+  --primary-foreground: 221 76% 10%;
+  --secondary: 222 44% 15%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 222 40% 16%;
+  --muted-foreground: 217 20% 61%;
+  --accent: 219 38% 20%;
+  --accent-foreground: 197 100% 80%;
+  --destructive: 358 75% 59%;
+  --success: 153 60% 53%;
+  --border: 217 33% 17%;
+  --input: 217 33% 19%;
+  --ring: 197 100% 71%;
   --radius: 0.7rem;
 
-  /* Render native controls (select option popups, scrollbars, date pickers)
-     in dark mode so they match the theme instead of defaulting to white. */
+  /* 原生控件（下拉选项、滚动条、日期选择器）跟随深色，避免先闪白底 */
   color-scheme: dark;
 
-  /* Brand gradient stops (indigo → violet → cyan) */
-  --brand-1: 252 90% 68%;
-  --brand-2: 286 84% 66%;
-  --brand-3: 198 92% 58%;
+  /* 品牌渐变（水蓝 → 靛蓝 → 淡紫） */
+  --brand-1: 197 100% 71%;
+  --brand-2: 227 100% 78%;
+  --brand-3: 266 77% 75%;
+
+  /* 环境光强度（深色明显、浅色几乎隐藏） */
+  --aurora-opacity: 1;
 }
 
-/* Belt-and-suspenders for the native <select> dropdown list: some browsers
-   ignore color-scheme for option backgrounds, so set them explicitly. */
+[data-theme="light"] {
+  --background: 210 40% 96%;
+  --foreground: 217 33% 17%;
+  --card: 0 0% 100%;
+  --card-foreground: 217 33% 17%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 217 33% 17%;
+  --primary: 200 98% 39%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 217 33% 17%;
+  --muted: 210 40% 94%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 204 94% 94%;
+  --accent-foreground: 200 98% 30%;
+  --destructive: 0 72% 51%;
+  --success: 161 94% 30%;
+  --border: 214 32% 91%;
+  --input: 214 32% 88%;
+  --ring: 200 98% 39%;
+
+  color-scheme: light;
+
+  --brand-1: 200 98% 39%;
+  --brand-2: 198 93% 50%;
+  --brand-3: 199 95% 62%;
+
+  --aurora-opacity: 0.35;
+}
+
+[data-theme="eye-care"] {
+  --background: 40 33% 93%;
+  --foreground: 30 18% 22%;
+  --card: 40 38% 97%;
+  --card-foreground: 30 18% 22%;
+  --popover: 40 38% 97%;
+  --popover-foreground: 30 18% 22%;
+  --primary: 34 85% 42%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 40 24% 88%;
+  --secondary-foreground: 30 18% 22%;
+  --muted: 40 20% 86%;
+  --muted-foreground: 30 10% 46%;
+  --accent: 38 40% 90%;
+  --accent-foreground: 34 85% 30%;
+  --destructive: 0 65% 50%;
+  --success: 152 50% 36%;
+  --border: 38 20% 83%;
+  --input: 38 20% 80%;
+  --ring: 34 85% 42%;
+
+  color-scheme: light;
+
+  --brand-1: 34 85% 44%;
+  --brand-2: 24 80% 50%;
+  --brand-3: 42 80% 55%;
+
+  --aurora-opacity: 0.25;
+}
+
+[data-theme="eye-care"] body::after {
+  opacity: 0;
+}
+
+/* 护眼模式高对比度增强：暖燕麦底色上将黄色/琥珀色小字自动转为深琥珀暖褐，保证清晰易读 */
+[data-theme="eye-care"] .text-amber-300,
+[data-theme="eye-care"] .text-amber-400,
+[data-theme="eye-care"] .text-amber-500,
+[data-theme="eye-care"] .text-amber-600,
+[data-theme="eye-care"] .text-amber-700,
+[data-theme="eye-care"] .text-yellow-300,
+[data-theme="eye-care"] .text-yellow-400,
+[data-theme="eye-care"] .text-yellow-500,
+[data-theme="eye-care"] [class*="text-amber-"],
+[data-theme="eye-care"] [class*="text-yellow-"] {
+  color: #78350f !important;
+}
+
+[data-theme="eye-care"] .border-amber-500\/20,
+[data-theme="eye-care"] .border-amber-500\/30,
+[data-theme="eye-care"] [class*="border-amber-"] {
+  border-color: rgba(180, 83, 9, 0.35) !important;
+}
+
+[data-theme="eye-care"] .bg-amber-500\/5,
+[data-theme="eye-care"] .bg-amber-500\/10,
+[data-theme="eye-care"] [class*="bg-amber-"] {
+  background-color: rgba(217, 119, 6, 0.12) !important;
+}
+
+/* 原生 <select> 下拉列表显式跟随主题，杜绝展开瞬间闪白 */
 select option,
 select optgroup {
   background-color: hsl(var(--popover));
   color: hsl(var(--popover-foreground));
+}
+select {
+  color-scheme: inherit;
 }
 
 * {
@@ -60,14 +154,15 @@ body {
   background: hsl(var(--background));
   color: hsl(var(--foreground));
   min-height: 100vh;
-  font-family: var(--font-sans), "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-sans), "Inter", "Microsoft YaHei", "PingFang SC",
+    system-ui, -apple-system, "Segoe UI", sans-serif;
   font-feature-settings: "ss01", "cv01", "cv02";
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Ambient aurora: slow-drifting brand glows fixed behind everything.
-   Uses only transform (GPU-composited) — no blur filter — to stay cheap. */
+/* 环境极光：缓慢漂移的品牌色光晕，只做 transform，浅色下自动减弱 */
 body::before {
   content: "";
   position: fixed;
@@ -75,32 +170,38 @@ body::before {
   z-index: -2;
   pointer-events: none;
   will-change: transform;
+  opacity: var(--aurora-opacity);
   background:
-    radial-gradient(38rem 38rem at 12% -8%, hsl(var(--brand-1) / 0.18), transparent 62%),
-    radial-gradient(34rem 34rem at 90% 0%, hsl(var(--brand-2) / 0.14), transparent 62%),
-    radial-gradient(40rem 40rem at 78% 108%, hsl(var(--brand-3) / 0.12), transparent 62%);
+    radial-gradient(38rem 38rem at 12% -8%, hsl(var(--brand-1) / 0.16), transparent 62%),
+    radial-gradient(34rem 34rem at 90% 0%, hsl(var(--brand-2) / 0.12), transparent 62%),
+    radial-gradient(40rem 40rem at 78% 108%, hsl(var(--brand-3) / 0.10), transparent 62%);
   animation: aurora-drift 30s ease-in-out infinite alternate;
+  transition: opacity 0.3s ease;
 }
 
-/* Fine film-grain noise overlay for depth (very subtle) */
+/* 细腻噪点，增加层次（非常淡，浅色下隐藏） */
 body::after {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  opacity: 0.035;
+  opacity: 0.03;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+[data-theme="light"] body::after {
+  opacity: 0;
 }
 
 /* ── Typography helpers ─────────────────────────────────────────────────── */
 .font-mono-accent {
-  font-family: var(--font-mono), ui-monospace, "JetBrains Mono", "Cascadia Code", monospace;
+  font-family: var(--font-mono), ui-monospace, "JetBrains Mono", "Cascadia Code",
+    "Consolas", monospace;
   letter-spacing: -0.01em;
   font-feature-settings: "ss01";
 }
 
-/* Animated brand-gradient text */
+/* 品牌渐变文字 */
 .text-gradient {
   background: linear-gradient(
     100deg,
@@ -119,12 +220,13 @@ body::after {
 
 /* ── Category accent variables ──────────────────────────────────────────── */
 .cat-image    { --cat: 198 92% 56%; }
-.cat-pdf      { --cat: 347 86% 62%; }
-.cat-download { --cat: 158 72% 47%; }
-.cat-audio    { --cat: 292 84% 66%; }
-.cat-utility  { --cat: 252 88% 67%; }
+.cat-pdf      { --cat: 347 80% 62%; }
+.cat-download { --cat: 153 60% 50%; }
+.cat-audio    { --cat: 268 76% 66%; }
+.cat-utility  { --cat: 205 90% 56%; }
+.cat-favorite { --cat: 38 95% 60%; }
 
-/* Category section header strip */
+/* 分类区块标题条 */
 .cat-section-strip {
   position: relative;
   border-radius: calc(var(--radius) - 0.15rem);
@@ -158,10 +260,9 @@ body::after {
   border: 1px solid hsl(var(--border));
   border-radius: var(--radius);
   transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.28s ease,
-    box-shadow 0.28s ease;
+    background-color 0.28s ease, box-shadow 0.28s ease;
   will-change: transform;
 }
-/* Inner radial wash that tracks the pointer (--mx / --my set in JS) */
 .spotlight-card::before {
   content: "";
   position: absolute;
@@ -177,7 +278,6 @@ body::after {
   );
   pointer-events: none;
 }
-/* Glowing gradient ring that tracks the pointer */
 .spotlight-card::after {
   content: "";
   position: absolute;
@@ -207,9 +307,9 @@ body::after {
   opacity: 1;
 }
 
-/* Legacy alias kept for any component still using it */
 .tool-card-hover {
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease,
+    background-color 0.2s ease;
 }
 .tool-card-hover:hover {
   border-color: hsl(var(--cat, var(--primary)) / 0.5);
@@ -236,7 +336,7 @@ body::after {
   animation: shimmer 1.4s ease-in-out infinite;
 }
 
-/* Sheen sweep used on primary buttons */
+/* 主按钮扫光 */
 .sheen {
   position: relative;
   overflow: hidden;
@@ -258,7 +358,7 @@ body::after {
   transform: translateX(120%);
 }
 
-/* ── Animated dot grid (hero accent) ────────────────────────────────────── */
+/* ── Animated dot grid ──────────────────────────────────────────────────── */
 .dot-grid {
   background-image: radial-gradient(hsl(var(--foreground) / 0.18) 1px, transparent 1px);
   background-size: 22px 22px;
@@ -282,6 +382,7 @@ body::after {
   border: 2px solid hsl(var(--background));
 }
 .thin-scroll::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary) / 0.6); }
+.thin-scroll::-webkit-scrollbar-track { background: transparent; }
 
 /* ── Keyframes ──────────────────────────────────────────────────────────── */
 @keyframes aurora-drift {
@@ -342,4 +443,15 @@ body::after {
   }
   .spotlight-card:hover,
   .tool-card-hover:hover { transform: none; }
+}
+
+/* 拖拽时全局禁用链接点击，防止拖拽结束后误触发打开工具 */
+body.furinakit-dragging a {
+  pointer-events: none !important;
+  cursor: grabbing !important;
+}
+
+body.furinakit-dragging {
+  cursor: grabbing !important;
+  user-select: none !important;
 }

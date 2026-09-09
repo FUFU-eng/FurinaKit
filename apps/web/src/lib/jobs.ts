@@ -1,7 +1,7 @@
 import Redis from "ioredis";
 import { v4 as uuidv4 } from "uuid";
-import type { Job, JobStatus } from "@omnikit/shared";
-import { JobSchema } from "@omnikit/shared";
+import type { Job, JobStatus } from "@furinakit/shared";
+import { JobSchema } from "@furinakit/shared";
 import {
   createFileJob,
   getFileJob,
@@ -11,10 +11,10 @@ import {
   isFileQueueEnabled,
 } from "./file-jobs";
 
-const JOB_PREFIX = "omnikit:job:";
-const ACTIVE_JOBS_KEY = "omnikit:active_jobs";
-const JOB_INDEX_KEY = "omnikit:job_index";
-export const JOB_QUEUE = "omnikit:job_queue";
+const JOB_PREFIX = "furinakit:job:";
+const ACTIVE_JOBS_KEY = "furinakit:active_jobs";
+const JOB_INDEX_KEY = "furinakit:job_index";
+export const JOB_QUEUE = "furinakit:job_queue";
 
 let redis: Redis | null = null;
 let redisAvailable: boolean | null = null;
@@ -76,7 +76,7 @@ function jobKey(id: string) {
 }
 
 export function getMaxConcurrentJobs(): number {
-  return Number(process.env.MAX_CONCURRENT_JOBS || 2);
+  return Number(process.env.MAX_CONCURRENT_JOBS || 10);
 }
 
 export async function countActiveJobs(): Promise<number> {
@@ -159,6 +159,24 @@ export async function updateJob(
   }
 
   return updateFileJob(id, updates);
+}
+
+// 取消任务（将状态标记为失败，错误信息为"已取消"）
+export async function cancelJob(id: string): Promise<Job | null> {
+  const existing = await getJob(id);
+  if (!existing) return null;
+  
+  // 只有进行中的任务才能取消
+  const status = existing.status as string;
+  if (status === "completed" || status === "failed") {
+    return existing;
+  }
+  
+  return updateJob(id, {
+    status: "failed",
+    error: "已取消",
+    progress: existing.progress || 0,
+  });
 }
 
 export async function listRecentJobs(limit = 50): Promise<Job[]> {

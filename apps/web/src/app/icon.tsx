@@ -14,7 +14,7 @@ export default function Icon() {
           alignItems: "center",
           justifyContent: "center",
           borderRadius: 8,
-          background: "linear-gradient(135deg, #7C6BF5, #C56BF0 55%, #38BDF8)",
+          background: "linear-gradient(135deg, #1e40af, #38bdf8 55%, #bae6fd)",
         }}
       >
         {/* 2×2 module mark */}

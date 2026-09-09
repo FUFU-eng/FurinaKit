@@ -31,7 +31,7 @@ export function Base64Tool() {
     try {
       return { output: mode === "encode" ? encodeB64(input) : decodeB64(input), error: null };
     } catch {
-      return { output: "", error: "That isn’t valid Base64." };
+      return { output: "", error: "这不是有效的 Base64。" };
     }
   }, [input, mode]);
 
@@ -50,24 +50,40 @@ export function Base64Tool() {
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
-            {m}
+            {m === "encode" ? "编码" : "解码"}
           </button>
         ))}
       </div>
 
       <div className="space-y-2">
-        <Label>{mode === "encode" ? "Plain text" : "Base64"}</Label>
+        <div className="flex items-center justify-between">
+          <Label>{mode === "encode" ? "原文内容" : "Base64 密文"}</Label>
+          <div className="flex items-center gap-2">
+            <span className="font-mono-accent text-[11px] text-muted-foreground">
+              {input.length} 字符
+            </span>
+            {input && (
+              <button
+                type="button"
+                onClick={() => setInput("")}
+                className="text-[11px] text-muted-foreground hover:text-destructive transition-colors"
+              >
+                清空
+              </button>
+            )}
+          </div>
+        </div>
         <Textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={mode === "encode" ? "Hello, OmniKit! 🚀" : "SGVsbG8sIE9tbmlLaXQhIPCfmoA="}
-          className="min-h-[120px] font-mono-accent text-xs"
+          placeholder={mode === "encode" ? "Hello, FurinaKit! 🚀" : "SGVsbG8sIEZ1cmluYUtpdCEg8J+agA=="}
+          className="min-h-[200px] md:min-h-[260px] font-mono-accent text-xs leading-relaxed resize-y"
         />
       </div>
 
       <div className="flex justify-center">
         <Button type="button" variant="outline" size="sm" onClick={() => setMode((m) => (m === "encode" ? "decode" : "encode"))}>
-          <ArrowRightLeft className="h-4 w-4" /> Swap direction
+          <ArrowRightLeft className="h-4 w-4" /> 切换编 / 解码
         </Button>
       </div>
 
@@ -80,10 +96,10 @@ export function Base64Tool() {
       {output && (
         <div className="space-y-2 animate-fade-in-up">
           <div className="flex items-center justify-between">
-            <Label>{mode === "encode" ? "Base64" : "Decoded"}</Label>
+            <Label>{mode === "encode" ? "Base64 编码结果" : "解码后文本"}</Label>
             <CopyButton value={output} />
           </div>
-          <pre className="thin-scroll max-h-[320px] overflow-auto rounded-md border border-border bg-card p-4 font-mono-accent text-xs leading-relaxed break-all whitespace-pre-wrap">
+          <pre className="thin-scroll min-h-[160px] max-h-[400px] overflow-auto rounded-xl border border-border bg-card p-4 font-mono-accent text-xs leading-relaxed break-all whitespace-pre-wrap select-text">
             {output}
           </pre>
         </div>

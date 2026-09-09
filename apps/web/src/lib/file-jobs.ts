@@ -2,11 +2,16 @@ import path from "path";
 import fs from "fs/promises";
 import { existsSync } from "fs";
 import { v4 as uuidv4 } from "uuid";
-import type { Job, JobStatus } from "@omnikit/shared";
-import { JobSchema } from "@omnikit/shared";
+import type { Job, JobStatus } from "@furinakit/shared";
+import { JobSchema } from "@furinakit/shared";
 import { getStoragePath } from "./storage";
 
 const JOB_INDEX_FILE = "job-index.json";
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidJobId(id: string): boolean {
+  return typeof id === "string" && UUID_RE.test(id);
+}
 
 function jobsDir(): string {
   return path.join(getStoragePath(), "jobs");
@@ -22,6 +27,9 @@ async function ensureDirs(): Promise<void> {
 }
 
 function jobFilePath(id: string): string {
+  if (!isValidJobId(id)) {
+    throw new Error("Invalid job id");
+  }
   return path.join(jobsDir(), `${id}.json`);
 }
 
@@ -88,6 +96,7 @@ export async function createFileJob(
 }
 
 export async function getFileJob(id: string): Promise<Job | null> {
+  if (!isValidJobId(id)) return null;
   try {
     const raw = await fs.readFile(jobFilePath(id), "utf8");
     return JobSchema.parse(JSON.parse(raw));
@@ -119,6 +128,7 @@ function isExpired(job: Job, now = Date.now()): boolean {
 
 /** Delete a job's state file plus any pending queue items referencing it. */
 async function purgeJobFiles(id: string): Promise<void> {
+  if (!isValidJobId(id)) return;
   await fs.rm(jobFilePath(id), { force: true }).catch(() => {});
   try {
     const files = await fs.readdir(queueDir());

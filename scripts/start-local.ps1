@@ -1,10 +1,10 @@
-# OmniKit local startup (Windows, no Docker)
+# FurinaKit local startup (Windows, no Docker)
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 
 Set-Location $Root
 
-Write-Host "OmniKit local setup" -ForegroundColor Cyan
+Write-Host "FurinaKit local setup" -ForegroundColor Cyan
 Write-Host "Using file-based job queue (Redis not required)." -ForegroundColor Gray
 Write-Host ""
 
@@ -28,7 +28,7 @@ Write-Host "Starting Python worker in a new window..." -ForegroundColor Cyan
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$Root\services\worker'; `$env:USE_FILE_QUEUE='true'; .\.venv\Scripts\python.exe worker.py"
 
 Write-Host ""
-Write-Host "Starting OmniKit web app at http://localhost:3000" -ForegroundColor Green
+Write-Host "Starting FurinaKit web app at http://localhost:3000" -ForegroundColor Green
 Write-Host ""
 
 Set-Location $Root

@@ -12,7 +12,7 @@ export function getStoragePath(): string {
   // On Vercel the project dir is read-only; only /tmp is writable (and ephemeral).
   // Async tools are disabled there anyway, but keep this defensive.
   if (process.env.VERCEL) {
-    return path.join(os.tmpdir(), "omnikit-storage");
+    return path.join(os.tmpdir(), "furinakit-storage");
   }
   return path.resolve(process.cwd(), "../../data/storage");
 }

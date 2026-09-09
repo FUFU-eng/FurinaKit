@@ -6,11 +6,11 @@ import { Label, Input, Textarea } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 
 const FLAG_OPTIONS = [
-  { flag: "g", label: "global" },
-  { flag: "i", label: "ignore case" },
-  { flag: "m", label: "multiline" },
-  { flag: "s", label: "dotall" },
-  { flag: "u", label: "unicode" },
+  { flag: "g", label: "全局匹配" },
+  { flag: "i", label: "忽略大小写" },
+  { flag: "m", label: "多行模式" },
+  { flag: "s", label: "点匹配换行" },
+  { flag: "u", label: "Unicode" },
 ];
 
 type MatchInfo = { index: number; length: number; text: string; groups: string[] };
@@ -18,7 +18,7 @@ type MatchInfo = { index: number; length: number; text: string; groups: string[]
 export function RegexTesterTool() {
   const [pattern, setPattern] = useState("\\b\\w+@\\w+\\.\\w+\\b");
   const [flags, setFlags] = useState("gi");
-  const [sample, setSample] = useState("Reach us at hi@omnikit.dev or support@example.com.");
+  const [sample, setSample] = useState("Reach us at hi@furinakit.dev or support@example.com.");
 
   const { matches, error, segments } = useMemo(() => {
     if (!pattern) return { matches: [] as MatchInfo[], error: null as string | null, segments: null };
@@ -26,7 +26,7 @@ export function RegexTesterTool() {
     try {
       re = new RegExp(pattern, flags.includes("g") ? flags : flags + "g");
     } catch (e) {
-      return { matches: [], error: e instanceof Error ? e.message : "Invalid regular expression", segments: null };
+      return { matches: [], error: e instanceof Error ? e.message : "无效的正则表达式", segments: null };
     }
 
     const found: MatchInfo[] = [];
@@ -53,7 +53,7 @@ export function RegexTesterTool() {
   return (
     <div className="space-y-5">
       <div className="space-y-2">
-        <Label>Pattern</Label>
+        <Label>正则表达式</Label>
         <div className="flex items-center gap-2">
           <span className="font-mono-accent text-sm text-muted-foreground">/</span>
           <Input
@@ -85,11 +85,17 @@ export function RegexTesterTool() {
       </div>
 
       <div className="space-y-2">
-        <Label>Test string</Label>
+        <div className="flex items-center justify-between">
+          <Label>测试文本</Label>
+          <span className="font-mono-accent text-[11px] text-muted-foreground">
+            {sample.length} 字符 · {sample.split("\n").length} 行
+          </span>
+        </div>
         <Textarea
           value={sample}
           onChange={(e) => setSample(e.target.value)}
-          className="min-h-[120px] font-mono-accent text-xs"
+          className="min-h-[220px] md:min-h-[280px] font-mono-accent text-xs leading-relaxed resize-y"
+          placeholder="在此输入待匹配的测试文本..."
         />
       </div>
 
@@ -100,12 +106,12 @@ export function RegexTesterTool() {
       ) : pattern ? (
         <div className="space-y-3 animate-fade-in-up">
           <div className="flex items-center justify-between">
-            <Label>Matches</Label>
+            <Label>匹配结果高亮</Label>
             <span className="font-mono-accent text-[11px] text-muted-foreground">
-              {matches.length} match{matches.length === 1 ? "" : "es"}
+              {matches.length} 个匹配
             </span>
           </div>
-          <div className="thin-scroll max-h-[260px] overflow-auto whitespace-pre-wrap rounded-md border border-border bg-card p-4 font-mono-accent text-xs leading-relaxed">
+          <div className="thin-scroll min-h-[160px] max-h-[380px] overflow-auto whitespace-pre-wrap rounded-xl border border-border bg-card p-4 font-mono-accent text-xs leading-relaxed">
             {segments && segments.length > 0 ? (
               segments.map((s, i) =>
                 s.match ? (
@@ -117,7 +123,7 @@ export function RegexTesterTool() {
                 ),
               )
             ) : (
-              <span className="text-muted-foreground">No matches.</span>
+              <span className="text-muted-foreground">暂无匹配。</span>
             )}
           </div>
 
@@ -128,7 +134,7 @@ export function RegexTesterTool() {
                   <span className="text-primary">{JSON.stringify(m.text)}</span>
                   {m.groups.length > 0 && (
                     <span className="text-muted-foreground">
-                      {"  →  groups: "}
+                      {"  →  分组："}
                       {m.groups.map((g, gi) => (
                         <span key={gi} className="text-foreground">
                           {gi > 0 ? ", " : ""}

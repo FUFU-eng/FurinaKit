@@ -1,6 +1,6 @@
 <div align="center">
 
-# OmniKit
+# FurinaKit
 
 **A self-hosted, all-in-one web toolkit — image, PDF, and utility tools processed entirely in-browser, plus optional video/audio downloaders through a self-hosted Python worker.**
 
@@ -13,17 +13,28 @@
 [![pnpm](https://img.shields.io/badge/pnpm-workspaces-F69220?logo=pnpm&logoColor=white)](https://pnpm.io/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](#license)
 
-[Live demo](https://omniikit.vercel.app/) · [Report a bug](https://github.com/Abudora-0/omnikit/issues)
+[Live demo](https://furinakit.vercel.app/) · [Download Windows Desktop](https://github.com/Abudora-0/FurinaKit/releases/latest) · [Report a bug](https://github.com/Abudora-0/furinakit/issues)
 
-*A full self-hosted deployment (all 43 tools, including downloaders) also runs on a personal VPS — not publicly linked here, but the setup below reproduces it exactly.*
+*A full self-hosted deployment (all 43+ tools, including downloaders) also runs on Windows as a standalone desktop app with dual-core offline engine.*
 
 </div>
 
 ---
 
+## 🚀 FurinaKit Desktop (Windows)
+
+FurinaKit 2.0+ is also packaged as an independent, fully offline desktop application powered by **Electron + Next.js + Python Worker + FFmpeg**:
+- **100+ Offline Tools**: Integrated image processing, PDF manipulation, audio/video converters, and developer utilities.
+- **Pure Local & Private**: All tasks execute on your local machine with zero external uploads.
+- **One-Click Updates**: In-app automatic version checking, fast CDN download, and seamless installer upgrade.
+
+Download the latest installer from [GitHub Releases](https://github.com/Abudora-0/FurinaKit/releases/latest).
+
+---
+
 ## Overview
 
-OmniKit bundles **43 tools** across image editing, PDF manipulation, text/data utilities, and media downloading into a single Next.js app with a polished, animated UI. Most tools run **entirely in memory or in the browser** — nothing is written to disk, nothing is uploaded to a third party — which makes them safe to deploy on serverless platforms like Vercel. A smaller set of heavier tools (video/audio downloaders, AI background removal) route through an optional self-hosted Python worker for users who want the full feature set on their own hardware.
+FurinaKit bundles **43 tools** across image editing, PDF manipulation, text/data utilities, and media downloading into a single Next.js app with a polished, animated UI. Most tools run **entirely in memory or in the browser** — nothing is written to disk, nothing is uploaded to a third party — which makes them safe to deploy on serverless platforms like Vercel. A smaller set of heavier tools (video/audio downloaders, AI background removal) route through an optional self-hosted Python worker for users who want the full feature set on their own hardware.
 
 | | |
 |---|---|
@@ -52,7 +63,7 @@ This split is what lets the same codebase deploy cleanly to Vercel (fast, free, 
 
 ### Option A — Vercel (image/PDF/utility tools only)
 
-The fastest way to try OmniKit. Downloaders and GPU background removal are unavailable here since Vercel has no persistent worker, but everything else works out of the box.
+The fastest way to try FurinaKit. Downloaders and GPU background removal are unavailable here since Vercel has no persistent worker, but everything else works out of the box.
 
 1. [Import this repo into Vercel](https://vercel.com/new)
 2. Set **Root Directory** to `apps/web`
@@ -65,8 +76,8 @@ The fastest way to try OmniKit. Downloaders and GPU background removal are unava
 Requires [Docker](https://www.docker.com/) and Docker Compose.
 
 ```bash
-git clone https://github.com/Abudora-0/omnikit.git
-cd omnikit
+git clone https://github.com/Abudora-0/furinakit.git
+cd furinakit
 cp .env.example .env
 docker compose up -d --build
 ```
@@ -133,7 +144,7 @@ docker compose restart worker
 
 *Remote VPS (from your local machine):*
 ```powershell
-scp -i "path\to\your-ssh-key" "path\to\new\cookies.txt" user@your-vps-ip:~/omnikit/services/worker/cookies.txt
+scp -i "path\to\your-ssh-key" "path\to\new\cookies.txt" user@your-vps-ip:~/furinakit/services/worker/cookies.txt
 ```
 then on the VPS:
 ```bash
@@ -142,7 +153,7 @@ docker compose restart worker
 
 **3. Verify it worked**
 ```bash
-docker exec omnikit-worker-1 python -m yt_dlp --cookies /app/cookies.txt --list-formats "https://www.youtube.com/watch?v=<any-video-id>"
+docker exec furinakit-worker-1 python -m yt_dlp --cookies /app/cookies.txt --list-formats "https://www.youtube.com/watch?v=<any-video-id>"
 ```
 If it lists real video/audio formats (not just `sb0`–`sb3` storyboard entries), the session is valid — retry the download from the UI.
 
@@ -185,7 +196,7 @@ See [`.env.example`](.env.example) for the full annotated list.
 ## Project structure
 
 ```
-omnikit/
+furinakit/
 ├── apps/web/              Next.js frontend + sync-tool API routes
 ├── packages/shared/       Tool registry, types, gating logic
 ├── services/worker/       Python async worker (downloaders, bg-remove)

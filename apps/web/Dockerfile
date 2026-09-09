@@ -24,7 +24,7 @@ ARG NEXT_PUBLIC_ENABLE_HEAVY_WORKER_TOOLS=1
 ENV NEXT_PUBLIC_ENABLE_HEAVY_WORKER_TOOLS=$NEXT_PUBLIC_ENABLE_HEAVY_WORKER_TOOLS
 # Emit .next/standalone for the runner stage below.
 ENV NEXT_OUTPUT_STANDALONE=1
-RUN pnpm --filter @omnikit/web build
+RUN pnpm --filter @furinakit/web build
 
 FROM base AS runner
 WORKDIR /app

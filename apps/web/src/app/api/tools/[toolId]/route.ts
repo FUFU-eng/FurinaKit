@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getToolById, downloadsEnabled, heavyWorkerToolsEnabled } from "@omnikit/shared";
+import { getToolById, downloadsEnabled, heavyWorkerToolsEnabled } from "@furinakit/shared";
 import { saveUpload, getMaxFileSizeBytes } from "@/lib/storage";
 import { SYNC_HANDLERS, type SyncInput } from "@/lib/tools/registry";
 import { createJob } from "@/lib/jobs";
@@ -80,9 +80,13 @@ async function handleAsyncTool(formData: FormData, toolId: string) {
   const payload: Record<string, unknown> = {};
   for (const input of tool.inputs) {
     if (input.type === "file") {
-      const file = formData.get(input.id);
-      if (file instanceof File && file.size > 0) {
-        payload[input.id] = await saveUpload(file, toolId);
+      // 支持多文件上传（如 PDF 合并、图片转 PDF）
+      const uploaded = formData.getAll(input.id);
+      const validFiles = uploaded.filter((f): f is File => f instanceof File && f.size > 0);
+      if (validFiles.length === 1) {
+        payload[input.id] = await saveUpload(validFiles[0], toolId);
+      } else if (validFiles.length > 1) {
+        payload[input.id] = await Promise.all(validFiles.map((f) => saveUpload(f, toolId)));
       }
     } else {
       const value = formData.get(input.id);
@@ -93,21 +97,15 @@ async function handleAsyncTool(formData: FormData, toolId: string) {
   if (toolId === "bg-remove" && !payload.file) {
     return NextResponse.json({ error: "Image file is required" }, { status: 400 });
   }
-  const VIDEO_TOOL_IDS = ["video-download", "youtube-download", "instagram-download", "tiktok-download", "twitter-download", "mp3-download"];
+  const VIDEO_TOOL_IDS = ["video-download", "bilibili-download", "twitter-download"];
   if ((VIDEO_TOOL_IDS.includes(toolId) || toolId === "spotify-download") && !payload.url) {
     return NextResponse.json({ error: "A URL is required" }, { status: 400 });
   }
 
-  // mp3-download always outputs MP3 regardless of what the payload says.
-  if (toolId === "mp3-download") payload.format = "mp3";
-
   // All video/social downloaders route to the video-download worker handler (yt-dlp handles all platforms).
   const VIDEO_RESOLVER: Record<string, string> = {
-    "youtube-download":   "video-download",
-    "instagram-download": "video-download",
-    "tiktok-download":    "video-download",
+    "bilibili-download":  "video-download",
     "twitter-download":   "video-download",
-    "mp3-download":       "video-download",
   };
   try {
     const resolvedToolId = VIDEO_RESOLVER[toolId] ?? toolId;

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { downloadsEnabled } from "@omnikit/shared";
+import { downloadsEnabled } from "@furinakit/shared";
 import { getJob } from "@/lib/jobs";
 
 export const runtime = "nodejs";

@@ -114,7 +114,7 @@ export function ColorConverterTool() {
   return (
     <div className="space-y-5">
       <div className="space-y-2">
-        <Label>Color (HEX, RGB, or HSL)</Label>
+        <Label>颜色值（支持 HEX / RGB / HSL）</Label>
         <div className="flex items-center gap-3">
           <Input
             value={input}
@@ -138,14 +138,14 @@ export function ColorConverterTool() {
             onClick={() => setInput(c)}
             className="h-7 w-7 rounded-full border border-border/60 transition-transform hover:scale-110"
             style={{ background: c }}
-            aria-label={`Use ${c}`}
+            aria-label={`使用 ${c}`}
           />
         ))}
       </div>
 
       {!rgb && input.trim() && (
         <div className="flex items-center gap-2 rounded-md border-l-2 border-l-destructive bg-destructive/10 px-4 py-3 font-mono-accent text-xs text-destructive">
-          <AlertTriangle className="h-4 w-4 shrink-0" /> Couldn’t parse that color.
+          <AlertTriangle className="h-4 w-4 shrink-0" /> 无法识别该颜色，请检查格式。
         </div>
       )}
 

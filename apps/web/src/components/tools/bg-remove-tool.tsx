@@ -1,29 +1,33 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Loader2, Download, Sparkles, RotateCcw, ChevronsLeftRight } from "lucide-react";
+import { Loader2, Download, Sparkles, RotateCcw, ChevronsLeftRight, Check, AlertCircle } from "lucide-react";
 import { Button, Alert, ProgressBar } from "@/components/ui/primitives";
 import { FileDropzone } from "@/components/tools/file-dropzone";
-import { formatBytes } from "@/lib/utils";
-import { cn } from "@/lib/utils";
+import { formatBytes, cn } from "@/lib/utils";
+import { useToast } from "@/components/ui/toast";
 
-type BgMode = "transparent" | "white" | "black" | "custom";
+type BgMode = "transparent" | "white" | "black" | "blue" | "red" | "custom";
 
 const BG_OPTIONS: { id: BgMode; label: string; preview: string }[] = [
-  { id: "transparent", label: "Transparent", preview: "repeating-conic-gradient(#555 0% 25%, #333 0% 50%) 0 0 / 12px 12px" },
-  { id: "white",       label: "White",       preview: "#ffffff" },
-  { id: "black",       label: "Black",       preview: "#000000" },
-  { id: "custom",      label: "Custom",      preview: "" },
+  { id: "transparent", label: "透明背景", preview: "repeating-conic-gradient(#aaa 0% 25%, #eee 0% 50%) 0 0 / 10px 10px" },
+  { id: "white",       label: "纯白底",   preview: "#ffffff" },
+  { id: "black",       label: "纯黑底",   preview: "#000000" },
+  { id: "blue",        label: "证件蓝",   preview: "#438edb" },
+  { id: "red",         label: "证件红",   preview: "#d92027" },
+  { id: "custom",      label: "自定义颜色", preview: "" },
 ];
 
 async function flattenWithBackground(pngUrl: string, color: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new window.Image();
+    img.crossOrigin = "anonymous";
     img.onload = () => {
       const canvas = document.createElement("canvas");
       canvas.width = img.naturalWidth;
       canvas.height = img.naturalHeight;
-      const ctx = canvas.getContext("2d")!;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return resolve(pngUrl);
       ctx.fillStyle = color;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0);
@@ -35,6 +39,7 @@ async function flattenWithBackground(pngUrl: string, color: string): Promise<str
 }
 
 export function BgRemoveTool() {
+  const { toast } = useToast();
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -51,11 +56,19 @@ export function BgRemoveTool() {
   const [sliderX, setSliderX] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const pngBlobRef = useRef<Blob | null>(null);
+  const activeJobIdRef = useRef<string | null>(null);
+  const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Preview URL for the selected-but-not-yet-processed file
+  // 清理
+  useEffect(() => {
+    return () => {
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+    };
+  }, []);
+
   const previewUrl = files[0] ? URL.createObjectURL(files[0]) : null;
 
+  // 滑块对比控制
   const getSliderX = useCallback((e: MouseEvent | TouchEvent | React.MouseEvent | React.TouchEvent) => {
     if (!containerRef.current) return 50;
     const rect = containerRef.current.getBoundingClientRect();
@@ -89,33 +102,91 @@ export function BgRemoveTool() {
     setError(null);
     setResult(null);
     setProgress(0);
-    if (!files[0]) { setError("Please add an image file."); return; }
+    if (!files[0]) {
+      setError("请先选择一张图片");
+      return;
+    }
     setBusy(true);
     const beforeUrl = URL.createObjectURL(files[0]);
+
     try {
-      setStatusText("Loading AI model…");
-      const { removeBackground } = await import("@imgly/background-removal");
-      setStatusText("Analysing image…");
-      const blob = await removeBackground(files[0], {
-        progress: (key, current, total) => {
-          if (key === "compute:inference") {
-            const pct = Math.round((current / total) * 100);
-            setProgress(pct);
-            setStatusText(`Processing… ${pct}%`);
-          }
-        },
+      setStatusText("正在提交任务至 AI 服务…");
+      setProgress(15);
+
+      const formData = new FormData();
+      formData.append("file", files[0]);
+      formData.append("model", "u2net");
+
+      // 提交至后台任务调度器 (悬浮球会立即捕获并展示进行中任务)
+      const res = await fetch("/api/tools/bg-remove", {
+        method: "POST",
+        body: formData,
       });
-      pngBlobRef.current = blob;
-      const pngUrl = URL.createObjectURL(blob);
-      const name = files[0].name.replace(/\.[^.]+$/, "") + "-nobg.png";
-      setResult({ pngUrl, name, size: blob.size, beforeUrl });
-      setProgress(100);
-      setSliderX(50);
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "创建抠图任务失败，请确认后台服务已启动");
+      }
+
+      const { job } = await res.json();
+      if (!job || !job.id) {
+        throw new Error("未能获取有效的任务编号");
+      }
+
+      activeJobIdRef.current = job.id;
+      window.dispatchEvent(new CustomEvent("furinakit:jobs-updated"));
+      setStatusText("AI 智能主体分析与轮廓提取中…");
+      setProgress(40);
+
+      // 轮询任务状态
+      let pollCount = 0;
+      const poll = async (): Promise<void> => {
+        pollCount++;
+        const statusRes = await fetch(`/api/jobs/${job.id}`, { cache: "no-store" });
+        if (!statusRes.ok) {
+          throw new Error("查询任务进度失败");
+        }
+        const resData = await statusRes.json();
+        const jobObj = resData.job || resData;
+
+        if (jobObj.status === "completed") {
+          setProgress(100);
+          setStatusText("正在生成超清透明图…");
+
+          // 获取结果 Blob
+          const dlRes = await fetch(`/api/jobs/${job.id}/download`, { cache: "no-store" });
+          if (!dlRes.ok) throw new Error("下载抠图结果失败");
+          const blob = await dlRes.blob();
+          const pngUrl = URL.createObjectURL(blob);
+          const name = files[0].name.replace(/\.[^.]+$/, "") + "-nobg.png";
+
+          setResult({ pngUrl, name, size: blob.size, beforeUrl });
+          setSliderX(50);
+          setBusy(false);
+          window.dispatchEvent(new CustomEvent("furinakit:jobs-updated"));
+          toast({ title: "AI 抠图完成！", variant: "success" });
+          return;
+        } else if (jobObj.status === "failed") {
+          window.dispatchEvent(new CustomEvent("furinakit:jobs-updated"));
+          throw new Error(jobObj.error || "抠图处理失败");
+        } else {
+          // 更新动态进度条
+          const currentPct = Math.min(92, 40 + pollCount * 8);
+          setProgress(currentPct);
+          setStatusText(jobObj.progress?.message || `AI 运算处理中 (${currentPct}%)…`);
+          await new Promise((r) => setTimeout(r, 600));
+          return poll();
+        }
+      };
+
+      await poll();
     } catch (err) {
       URL.revokeObjectURL(beforeUrl);
-      setError(err instanceof Error ? err.message : "Background removal failed");
-    } finally {
+      const msg = err instanceof Error ? err.message : "自动抠图失败";
+      setError(msg);
+      toast({ title: "处理失败", description: msg, variant: "error" });
       setBusy(false);
+    } finally {
       setStatusText("");
     }
   };
@@ -125,14 +196,22 @@ export function BgRemoveTool() {
     setResult(null);
     setError(null);
     setProgress(0);
-    pngBlobRef.current = null;
   };
 
   const handleDownload = async () => {
     if (!result) return;
     let src = result.pngUrl;
     if (bgMode !== "transparent") {
-      const color = bgMode === "custom" ? customColor : bgMode === "white" ? "#ffffff" : "#000000";
+      const color =
+        bgMode === "white"
+          ? "#ffffff"
+          : bgMode === "black"
+          ? "#000000"
+          : bgMode === "blue"
+          ? "#438edb"
+          : bgMode === "red"
+          ? "#d92027"
+          : customColor;
       src = await flattenWithBackground(result.pngUrl, color);
     }
     const a = document.createElement("a");
@@ -143,200 +222,219 @@ export function BgRemoveTool() {
 
   const bgForPreview =
     bgMode === "transparent"
-      ? "repeating-conic-gradient(#555 0% 25%, #333 0% 50%) 0 0 / 14px 14px"
+      ? "repeating-conic-gradient(#bbb 0% 25%, #f4f4f5 0% 50%) 0 0 / 16px 16px"
       : bgMode === "white"
-        ? "#ffffff"
-        : bgMode === "black"
-          ? "#000000"
-          : customColor;
+      ? "#ffffff"
+      : bgMode === "black"
+      ? "#09090b"
+      : bgMode === "blue"
+      ? "#438edb"
+      : bgMode === "red"
+      ? "#d92027"
+      : customColor;
 
   return (
-    <div className="space-y-5">
-      <Alert>
-        Runs entirely in your browser using WebAssembly — your image never leaves this device. Model weights (~50 MB)
-        are downloaded from CDN on first use and cached automatically.
-      </Alert>
+    <div className="space-y-5 max-w-5xl mx-auto">
+      {/* 顶部标题与提示 */}
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-xs flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+            <Sparkles size={18} className="text-primary" />
+            AI 一键抠图、移除图片背景
+          </h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            基于领先的深度学习 AI 模型，精准识别并保留人像、商品、素材等主体元素，支持在线比对与底色自由切换
+          </p>
+        </div>
+        {result && (
+          <Button variant="outline" size="sm" onClick={reset} className="gap-1.5 text-xs">
+            <RotateCcw size={13} /> 上传新图
+          </Button>
+        )}
+      </div>
 
       {!result && (
-        <>
+        <div className="space-y-4">
           <FileDropzone
             files={files}
             onChange={setFiles}
-            accept={{ "image/*": [".png", ".jpg", ".jpeg", ".webp", ".avif", ".tiff", ".gif"] }}
+            accept={{ "image/*": [".png", ".jpg", ".jpeg", ".webp"] }}
           />
 
-          {/* Thumbnail preview before processing */}
-          {files[0] && !busy && previewUrl && (
-            <div className="relative border border-border overflow-hidden">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={previewUrl} alt="preview" className="max-h-64 w-full object-contain bg-secondary" />
-            </div>
-          )}
-
-          {/* Processing state */}
-          {busy && files[0] && previewUrl && (
-            <div className="relative border border-border overflow-hidden">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={previewUrl} alt="processing" className="max-h-64 w-full object-contain bg-secondary opacity-40" />
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/60 backdrop-blur-sm">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="font-mono-accent text-xs uppercase tracking-widest text-foreground">{statusText}</p>
-              </div>
-            </div>
-          )}
-
-          {busy && (
-            <div className="space-y-1.5">
-              <ProgressBar value={progress} />
-              <p className="font-mono-accent text-[10px] uppercase tracking-widest text-muted-foreground">
-                {progress > 0 ? `${progress}% complete` : "Initialising…"}
-              </p>
-            </div>
-          )}
-
-          <div className="flex items-center gap-3">
-            <Button type="button" onClick={run} disabled={busy || !files[0]}>
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {busy ? "Processing…" : "Remove background"}
-            </Button>
-            {files[0] && !busy && (
-              <button
-                type="button"
-                onClick={reset}
-                className="font-mono-accent text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        </>
-      )}
-
-      {error && <Alert variant="destructive">{error}</Alert>}
-
-      {/* Result panel */}
-      {result && (
-        <div className="space-y-5 animate-fade-in-up">
-          {/* Success header */}
-          <div className="flex items-center justify-between">
-            <p className="font-mono-accent text-xs font-semibold uppercase tracking-widest text-emerald-400">
-              ✓ Ready · {formatBytes(result.size)}
-            </p>
-            <button
-              type="button"
-              onClick={reset}
-              className="flex items-center gap-1.5 font-mono-accent text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              New image
-            </button>
-          </div>
-
-          {/* Before / After comparison slider */}
-          <div className="space-y-1.5">
-            <p className="font-mono-accent text-[10px] uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
-              <ChevronsLeftRight className="h-3 w-3" />
-              Drag to compare
-            </p>
-            <div
-              ref={containerRef}
-              className={cn(
-                "relative border border-border overflow-hidden select-none",
-                isDragging ? "cursor-col-resize" : "cursor-col-resize",
-              )}
-              style={{ background: bgForPreview }}
-              onMouseDown={onMouseDown}
-              onTouchStart={onMouseDown}
-            >
-              {/* After image (full) — shown as the base */}
+          {/* 缩略图与处理中状态 */}
+          {files[0] && previewUrl && (
+            <div className="relative rounded-2xl border border-border overflow-hidden bg-muted/40 p-4 flex flex-col items-center justify-center min-h-[280px]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={result.pngUrl}
-                alt="result"
-                className="w-full block"
-                draggable={false}
+                src={previewUrl}
+                alt="preview"
+                className={cn("max-h-72 max-w-full object-contain rounded-xl transition-all", busy && "opacity-40 blur-xs")}
               />
-              {/* Before image clipped to the right portion */}
-              <div
-                className="absolute inset-0"
-                style={{ clipPath: `inset(0 0 0 ${sliderX}%)` }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={result.beforeUrl}
-                  alt="original"
-                  className="w-full h-full object-cover"
-                  draggable={false}
-                />
-              </div>
 
-              {/* Divider line */}
-              <div
-                className="absolute top-0 bottom-0 w-px bg-white/90 shadow-[0_0_8px_rgba(0,0,0,0.6)]"
-                style={{ left: `${sliderX}%`, transform: "translateX(-50%)" }}
-              >
-                {/* Handle */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-9 h-9 bg-white shadow-lg flex items-center justify-center">
-                  <ChevronsLeftRight className="h-4 w-4 text-gray-800" />
+              {busy && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/70 backdrop-blur-sm p-6">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  </div>
+                  <p className="text-sm font-semibold text-foreground">{statusText}</p>
+                  <div className="w-full max-w-xs space-y-1.5">
+                    <ProgressBar value={progress} />
+                    <p className="text-center text-xs text-muted-foreground font-mono">{progress}%</p>
+                  </div>
                 </div>
-              </div>
+              )}
+            </div>
+          )}
 
-              {/* Labels */}
-              <span className="absolute bottom-2 left-2 font-mono-accent text-[9px] uppercase tracking-widest bg-black/60 text-white px-1.5 py-0.5 pointer-events-none">
-                After
-              </span>
-              <span className="absolute bottom-2 right-2 font-mono-accent text-[9px] uppercase tracking-widest bg-black/60 text-white px-1.5 py-0.5 pointer-events-none">
-                Before
+          <div className="flex items-center gap-3 pt-2">
+            <Button type="button" onClick={run} disabled={busy || !files[0]} className="gap-2 px-6">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {busy ? "AI 抠图中…" : "开始自动抠图"}
+            </Button>
+            {files[0] && !busy && (
+              <Button variant="ghost" size="sm" onClick={reset} className="text-muted-foreground text-xs">
+                清空文件
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <Alert variant="destructive" className="flex items-center gap-2">
+          <AlertCircle size={16} />
+          <span>{error}</span>
+        </Alert>
+      )}
+
+      {/* 结果对比面板 */}
+      {result && (
+        <div className="space-y-6">
+          {/* 背景填充切换栏 */}
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-xs space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-bold text-foreground">背景底色切换</span>
+              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                <Check size={14} /> 抠图完成 · {formatBytes(result.size)}
               </span>
             </div>
-          </div>
 
-          {/* Background options */}
-          <div className="space-y-2">
-            <p className="font-mono-accent text-[10px] uppercase tracking-widest text-muted-foreground">
-              Background fill
-            </p>
-            <div className="flex flex-wrap gap-2 items-center">
+            <div className="flex flex-wrap items-center gap-2 pt-1">
               {BG_OPTIONS.map((opt) => (
                 <button
                   key={opt.id}
                   type="button"
                   onClick={() => setBgMode(opt.id)}
                   className={cn(
-                    "flex items-center gap-2 border px-2.5 py-1.5 font-mono-accent text-[10px] uppercase tracking-widest transition-colors",
+                    "flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium transition-all",
                     bgMode === opt.id
-                      ? "border-primary/50 bg-primary/15 text-primary"
-                      : "border-border text-muted-foreground hover:text-foreground hover:bg-secondary/50",
+                      ? "border-primary bg-primary/10 text-primary shadow-xs"
+                      : "border-border text-muted-foreground hover:bg-accent hover:text-foreground"
                   )}
                 >
                   {opt.id !== "custom" && (
                     <span
-                      className="h-3 w-3 border border-white/20"
+                      className="h-3.5 w-3.5 rounded-full border border-black/10 shadow-xs"
                       style={{ background: opt.preview }}
                     />
                   )}
                   {opt.label}
                 </button>
               ))}
+
               {bgMode === "custom" && (
-                <input
-                  type="color"
-                  value={customColor}
-                  onChange={(e) => setCustomColor(e.target.value)}
-                  className="h-8 w-12 cursor-pointer border border-border bg-transparent p-0.5"
-                  title="Pick background color"
-                />
+                <div className="flex items-center gap-1.5 ml-1">
+                  <input
+                    type="color"
+                    value={customColor}
+                    onChange={(e) => setCustomColor(e.target.value)}
+                    className="h-8 w-10 cursor-pointer rounded-lg border border-border bg-transparent p-0.5"
+                    title="选择自定义背景颜色"
+                  />
+                  <span className="text-xs font-mono text-muted-foreground">{customColor}</span>
+                </div>
               )}
             </div>
           </div>
 
-          {/* Download */}
-          <Button type="button" onClick={handleDownload}>
-            <Download className="h-4 w-4" />
-            Download{bgMode !== "transparent" ? ` (${bgMode === "custom" ? customColor : bgMode} bg)` : " PNG"}
-          </Button>
+          {/* 前后效果比对滑块大视口 */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+              <span className="flex items-center gap-1.5 font-medium text-foreground">
+                <ChevronsLeftRight size={14} className="text-primary" />
+                左右拖动滑块，对比抠图前后细节
+              </span>
+              <span>左侧：抠图后主体 · 右侧：原始图片</span>
+            </div>
+
+            <div
+              ref={containerRef}
+              className="relative min-h-[380px] max-h-[580px] w-full rounded-2xl border border-border overflow-hidden select-none cursor-col-resize shadow-md"
+              style={{ background: bgForPreview }}
+              onMouseDown={onMouseDown}
+              onTouchStart={onMouseDown}
+            >
+              {/* 抠图后（底层） */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={result.pngUrl}
+                alt="抠图结果"
+                className="w-full h-full object-contain block max-h-[580px]"
+                draggable={false}
+              />
+
+              {/* 原图（上层，向右裁切） */}
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{ clipPath: `inset(0 0 0 ${sliderX}%)` }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={result.beforeUrl}
+                  alt="原始图片"
+                  className="w-full h-full object-contain block max-h-[580px] bg-background/20"
+                  draggable={false}
+                />
+              </div>
+
+              {/* 中缝中轴分割线 */}
+              <div
+                className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_12px_rgba(0,0,0,0.8)] pointer-events-none"
+                style={{ left: `${sliderX}%`, transform: "translateX(-50%)" }}
+              >
+                {/* 中间圆形滑块手柄 */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-xl border border-gray-200">
+                  <ChevronsLeftRight className="h-4 w-4 text-slate-800" />
+                </div>
+              </div>
+
+              {/* 左右指示浮标 */}
+              <span className="absolute bottom-3 left-3 rounded-lg bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur-xs pointer-events-none">
+                抠图主体
+              </span>
+              <span className="absolute bottom-3 right-3 rounded-lg bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur-xs pointer-events-none">
+                原始原图
+              </span>
+            </div>
+          </div>
+
+          {/* 底部下载栏 */}
+          <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
+            <Button variant="outline" onClick={reset} className="gap-2 text-xs">
+              <RotateCcw size={14} /> 重新上传图片
+            </Button>
+
+            <Button onClick={handleDownload} className="gap-2 px-8 font-semibold shadow-md">
+              <Download size={16} />
+              下载
+              {bgMode === "transparent"
+                ? "无损透明 PNG 图片"
+                : `（${bgMode === "custom" ? customColor : BG_OPTIONS.find((b) => b.id === bgMode)?.label}）`}
+            </Button>
+          </div>
         </div>
       )}
     </div>
   );
 }
+

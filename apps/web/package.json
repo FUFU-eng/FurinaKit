@@ -1,23 +1,32 @@
 {
-  "name": "@omnikit/web",
-  "version": "0.1.0",
+  "name": "@furinakit/web",
+  "version": "2.0.2",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "predev": "node scripts/copy-pdf-worker.mjs",
     "dev": "next dev",
     "prebuild": "node scripts/copy-pdf-worker.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@furinakit/shared": "workspace:*",
     "@imgly/background-removal": "^1.7.0",
-    "@omnikit/shared": "workspace:*",
     "@tanstack/react-query": "^5.66.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "echarts": "^6.1.0",
+    "echarts-for-react": "^3.0.6",
     "framer-motion": "^11.18.2",
     "ioredis": "^5.4.2",
+    "jsqr": "^1.4.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.474.0",
     "next": "^15.1.6",
@@ -32,6 +41,9 @@
     "uuid": "^11.0.5",
     "zod": "^3.24.1"
   },
+  "optionalDependencies": {
+    "@img/sharp-win32-x64": "0.33.5"
+  },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
     "@types/node": "^22.10.7",
@@ -40,10 +52,72 @@
     "@types/react-dom": "^19.0.3",
     "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.20",
+    "electron": "^44.1.1",
+    "electron-builder": "^26.15.3",
     "eslint": "^9.18.0",
     "eslint-config-next": "^15.1.6",
     "postcss": "^8.5.1",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3"
+  },
+  "build": {
+    "appId": "com.furinakit.app",
+    "productName": "FurinaKit",
+    "directories": {
+      "output": "dist-installer"
+    },
+    "compression": "maximum",
+    "files": [
+      "electron/**/*",
+      ".next/**/*",
+      "!.next/cache/**/*",
+      "public/**/*",
+      "package.json",
+      "node_modules/**/*",
+      "node_modules/@img/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../../services/worker/dist/furinakit-worker.exe",
+        "to": "furinakit-worker.exe"
+      },
+      {
+        "from": "ffmpeg.exe",
+        "to": "ffmpeg.exe"
+      },
+      {
+        "from": "../../furinakit.ico",
+        "to": "furinakit.ico"
+      },
+      {
+        "from": "node.exe",
+        "to": "node.exe"
+      },
+      {
+        "from": "yt-dlp.exe",
+        "to": "yt-dlp.exe"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "../../furinakit.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "FurinaKit",
+      "installerIcon": "../../furinakit.ico",
+      "uninstallerIcon": "../../furinakit.ico"
+    },
+    "asar": false
   }
 }

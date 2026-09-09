@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-app = FastAPI(title="OmniKit Worker", version="0.1.0")
+app = FastAPI(title="FurinaKit Worker", version="0.1.0")
 
 
 @app.get("/health")

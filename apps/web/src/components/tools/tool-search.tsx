@@ -7,8 +7,8 @@ import {
   toolCategories,
   CATEGORY_LABELS,
   CATEGORY_DESCRIPTIONS,
-} from "@omnikit/shared";
-import type { ToolCategory } from "@omnikit/shared";
+} from "@furinakit/shared";
+import type { ToolCategory } from "@furinakit/shared";
 import { ToolCard } from "@/components/tools/tool-card";
 import { categoryIcon } from "@/lib/tool-icons";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,9 @@ const categoryText: Record<string, string> = {
   pdf:      "text-rose-400",
   download: "text-emerald-400",
   audio:    "text-fuchsia-400",
+  text:     "text-teal-400",
+  dev:      "text-indigo-400",
+  encode:   "text-orange-400",
   utility:  "text-primary",
 };
 
@@ -26,6 +29,9 @@ const categoryDot: Record<string, string> = {
   pdf:      "bg-rose-400",
   download: "bg-emerald-400",
   audio:    "bg-fuchsia-400",
+  text:     "bg-teal-400",
+  dev:      "bg-indigo-400",
+  encode:   "bg-orange-400",
   utility:  "bg-primary",
 };
 

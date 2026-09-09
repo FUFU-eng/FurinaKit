@@ -5,6 +5,9 @@ export const toolCategories = [
   "pdf",
   "download",
   "audio",
+  "text",
+  "dev",
+  "encode",
   "utility",
 ] as const;
 
@@ -19,7 +22,7 @@ export const jobStatuses = [
 
 export type JobStatus = (typeof jobStatuses)[number];
 
-export const toolInputTypes = ["file", "url", "text", "select", "number"] as const;
+export const toolInputTypes = ["file", "url", "text", "select", "number", "color"] as const;
 export type ToolInputType = (typeof toolInputTypes)[number];
 
 export const ToolInputSchema = z.object({
@@ -32,6 +35,7 @@ export const ToolInputSchema = z.object({
   accept: z.string().optional(),
   min: z.number().optional(),
   max: z.number().optional(),
+  step: z.number().optional(),
   help: z.string().optional(),
   options: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
   defaultValue: z.union([z.string(), z.number()]).optional(),
@@ -57,6 +61,8 @@ export const OmniToolSchema = z.object({
   clientSide: z.boolean().optional(),
   /** Short tagline shown on the tool card / runner header. */
   badge: z.string().optional(),
+  /** 二级子分类（主要用于“其他工具”板块内部的分组）。 */
+  subcategory: z.string().optional(),
 });
 
 export type OmniTool = z.infer<typeof OmniToolSchema>;
@@ -85,17 +91,23 @@ export const JobSchema = z.object({
 export type Job = z.infer<typeof JobSchema>;
 
 export const CATEGORY_LABELS: Record<ToolCategory, string> = {
-  image: "Image Tools",
-  pdf: "PDF Tools",
-  download: "Video Download",
-  audio: "Audio Download",
-  utility: "Utilities",
+  image: "图片工具",
+  pdf: "PDF 工具",
+  download: "视频工具",
+  audio: "音频工具",
+  text: "文本办公",
+  dev: "开发运维",
+  encode: "密码编码",
+  utility: "实用生活",
 };
 
 export const CATEGORY_DESCRIPTIONS: Record<ToolCategory, string> = {
-  image: "Convert, resize, crop, watermark, and more — all in your browser",
-  pdf: "Merge, split, rotate, watermark, and transform PDF documents",
-  download: "Download videos from YouTube, Instagram, TikTok, Twitter/X, and more",
-  audio: "Download Spotify tracks or extract MP3 audio from YouTube, SoundCloud, TikTok, and more",
-  utility: "QR codes, hashing, JSON, Base64, color, JWT, regex, and Markdown — all in your browser",
+  image: "图片格式转换、压缩、裁剪、抠图、强化与水印等图像处理",
+  pdf: "PDF 与文档互转、合并、拆分、压缩、页面管理与加密解密",
+  download: "网页与各平台视频下载、格式转换、码率压缩与动图制作",
+  audio: "音频提取、格式互转、无缝拼接、音量调节与音频倒放",
+  text: "字数统计、文本对比查重、内容替换、思维导图与数据图表制作",
+  dev: "JSON/JS/HTML 格式化、正则测试、JWT 解析、时间戳与网络查询",
+  encode: "Base64、URL 编解码、哈希计算、密码生成、对称加解密与进制转换",
+  utility: "ARCHPR 压缩包密码恢复、二维码、批量重命名、财务与生活便民计算",
 };
