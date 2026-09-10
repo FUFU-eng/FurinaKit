@@ -1,21 +1,21 @@
 {
-  "version": "2.0.2",
-  "releaseDate": "2026-09-09",
+  "version": "2.0.3",
+  "releaseDate": "2026-09-10",
   "changelog": [
-    "彻底修复桌面打包环境下缺失原生图像处理运行时（@img/sharp-win32-x64）导致的图片转换、压缩 500 异常",
-    "修复 PDF 转 Word、Office 文档转换等重型离线 Worker 任务队列调度与通信环境变量",
-    "修复 B 站与全网视频解析后下载任务异常，完善内置 ffmpeg 路径解析与跨进程调用链路",
-    "优化应用启动时本地存储目录（jobs/queue/uploads/results）预创建机制，增强多任务并发与系统稳定性"
+    "彻底修复 B 站与全网音视频下载任务在桌面打包环境下卡死在 40% 的致命死锁 Bug",
+    "重构视频下载执行链路，改由 Node.js 服务层原生调度内置独立 yt-dlp.exe 与 ffmpeg.exe",
+    "实现真实流式下载进度实时回传，修复进度条无法显示与不更新问题",
+    "优化 DASH 分块流自动合成与 MP3 音频提取，全面提升 Bilibili、YouTube 等平台下载成功率"
   ],
-  "downloadUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.2/FurinaKit.Setup.2.0.2.exe",
+  "downloadUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.3/FurinaKit.Setup.2.0.3.exe",
   "mirrors": [
     {
       "name": "GitHub 官方直链",
-      "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.2/FurinaKit.Setup.2.0.2.exe"
+      "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.3/FurinaKit.Setup.2.0.3.exe"
     },
     {
       "name": "国内高速镜像线路",
-      "url": "https://ghproxy.net/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.2/FurinaKit.Setup.2.0.2.exe"
+      "url": "https://ghproxy.net/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.3/FurinaKit.Setup.2.0.3.exe"
     }
   ]
 }

@@ -49,9 +49,13 @@ export async function checkForUpdates(customUrl?: string): Promise<UpdateCheckRe
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 4500);
 
-      const res = await fetch(endpoint, {
+      const cacheBustUrl = endpoint.includes("?")
+        ? `${endpoint}&_t=${Date.now()}`
+        : `${endpoint}?_t=${Date.now()}`;
+
+      const res = await fetch(cacheBustUrl, {
         signal: controller.signal,
-        headers: { "Cache-Control": "no-cache" },
+        cache: "no-store",
       }).catch(() => null);
 
       clearTimeout(timer);

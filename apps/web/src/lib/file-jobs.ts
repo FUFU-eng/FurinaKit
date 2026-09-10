@@ -95,6 +95,30 @@ export async function createFileJob(
   return job;
 }
 
+export async function createLocalFileJob(
+  toolId: string,
+  payload: Record<string, unknown>,
+): Promise<Job> {
+  await ensureDirs();
+  const now = new Date().toISOString();
+  const ttlHours = Number(process.env.JOB_TTL_HOURS || 24);
+  const expiresAt = new Date(Date.now() + ttlHours * 60 * 60 * 1000).toISOString();
+
+  const job: Job = {
+    id: uuidv4(),
+    toolId,
+    status: "pending",
+    progress: 0,
+    message: "准备中...",
+    createdAt: now,
+    updatedAt: now,
+    expiresAt,
+  };
+
+  await saveJob(job);
+  return job;
+}
+
 export async function getFileJob(id: string): Promise<Job | null> {
   if (!isValidJobId(id)) return null;
   try {

@@ -76,3 +76,14 @@ start.bat
 stop.ps1
 *启动 FurinaKit*
 *重启 FurinaKit*
+
+# Patch creation scratch files & tests
+*Patch*
+*补丁*
+*.nsi
+test_nsis.py
+build_patch.py
+patch_payload/
+releases_repo/
+create_shortcut.*
+test_patch.exe

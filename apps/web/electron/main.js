@@ -205,6 +205,7 @@ async function startWebServer() {
     ...process.env,
     PATH: nodeDir + ';' + binDir + ';' + process.env.PATH,
     FURINAKIT_YTDLP_PATH: IS_PACKAGED ? path.join(RESOURCES_DIR, "yt-dlp.exe") : "",
+    FURINAKIT_FFMPEG_PATH: FFMPEG_PATH,
     FURINAKIT_DEFAULT_OUTPUT_DIR: DEFAULT_OUTPUT_DIR,
     FURINAKIT_STORAGE_PATH: STORAGE_DIR,
     STORAGE_PATH: STORAGE_DIR,

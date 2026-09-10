@@ -84,6 +84,45 @@ def _friendly_error(output: str) -> str:
     return (lines[-1] if lines else "下载失败")[:300]
 
 
+def _find_ytdlp_cmd() -> list[str]:
+    env_ytdlp = os.environ.get("FURINAKIT_YTDLP_PATH")
+    if env_ytdlp and Path(env_ytdlp).is_file():
+        return [env_ytdlp]
+    if getattr(sys, "frozen", False):
+        worker_exe_dir = Path(sys.executable).parent
+        candidates = [
+            worker_exe_dir / "yt-dlp.exe",
+            worker_exe_dir / "resources" / "yt-dlp.exe",
+            worker_exe_dir.parent / "resources" / "yt-dlp.exe",
+        ]
+        for c in candidates:
+            if c.is_file():
+                return [str(c)]
+        which = shutil.which("yt-dlp")
+        if which:
+            return [which]
+    return [sys.executable, "-m", "yt_dlp"]
+
+
+def _find_ffmpeg_dir() -> Optional[str]:
+    env_ffmpeg = os.environ.get("FURINAKIT_FFMPEG_PATH")
+    if env_ffmpeg and Path(env_ffmpeg).is_file():
+        return str(Path(env_ffmpeg).parent)
+    worker_exe_dir = Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[4]
+    candidates = [
+        worker_exe_dir / "ffmpeg.exe",
+        worker_exe_dir / "resources" / "ffmpeg.exe",
+        worker_exe_dir.parent / "resources" / "ffmpeg.exe",
+    ]
+    for c in candidates:
+        if c.is_file():
+            return str(c.parent)
+    which = shutil.which("ffmpeg")
+    if which:
+        return str(Path(which).parent)
+    return None
+
+
 def download_video(
     url: str,
     format_type: str = "mp4",
@@ -93,12 +132,8 @@ def download_video(
     output_dir = results_dir()
     output_template = str(output_dir / "%(title).200s-%(id)s.%(ext)s")
 
-    # Invoke yt-dlp as a module via the worker's own interpreter. On Windows the
-    # yt-dlp.exe script dir is often not on PATH, which would raise WinError 2.
     cmd = [
-        sys.executable,
-        "-m",
-        "yt_dlp",
+        *_find_ytdlp_cmd(),
         url,
         "-o",
         output_template,
@@ -111,6 +146,9 @@ def download_video(
         *_auth_args(),
         *_build_format_args(format_type, quality),
     ]
+    ffmpeg_dir = _find_ffmpeg_dir()
+    if ffmpeg_dir:
+        cmd.extend(["--ffmpeg-location", ffmpeg_dir])
 
     proc = subprocess.Popen(
         cmd,

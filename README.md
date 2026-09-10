@@ -130,7 +130,7 @@ FurinaKit 采用前后端同构的本地桌面双核架构：
 
 1. 点击前往官方发布页下载最新版安装包：  
    👉 **[FurinaKit Releases 最新发布页](https://github.com/FUFU-eng/FurinaKit/releases/latest)**
-2. 下载 **`FurinaKit Setup 2.0.2.exe`**。
+2. 下载 **`FurinaKit Setup 2.0.3.exe`**。
 3. 双击安装程序，自由选择安装目录并勾选创建桌面快捷方式，等待 10 秒即可安装完成。
 4. **后续升级**：软件内置自动更新功能，发布新版本后只需点击右上角设置内的「检查更新」，即可**一键自动下载并无感升级**，无需反复重新下载安装！
 
@@ -174,7 +174,7 @@ python worker.py
 pnpm --filter @furinakit/web build
 pnpm --filter @furinakit/web dist
 ```
-打包成功后，安装包将输出至 `apps/web/dist-installer/FurinaKit Setup 2.0.2.exe`。
+打包成功后，安装包将输出至 `apps/web/dist-installer/FurinaKit Setup 2.0.3.exe`。
 
 ---
 

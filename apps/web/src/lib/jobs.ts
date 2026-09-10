@@ -4,6 +4,7 @@ import type { Job, JobStatus } from "@furinakit/shared";
 import { JobSchema } from "@furinakit/shared";
 import {
   createFileJob,
+  createLocalFileJob,
   getFileJob,
   listFileJobs,
   updateFileJob,
@@ -85,6 +86,35 @@ export async function countActiveJobs(): Promise<number> {
     return client.scard(ACTIVE_JOBS_KEY);
   }
   return countActiveFileJobs();
+}
+
+export async function createLocalJob(toolId: string, payload: Record<string, unknown>): Promise<Job> {
+  if (!(await checkRedisAvailable())) {
+    return createLocalFileJob(toolId, payload);
+  }
+
+  const client = getRedisClient();
+  const now = new Date().toISOString();
+  const ttlHours = Number(process.env.JOB_TTL_HOURS || 24);
+  const expiresAt = new Date(Date.now() + ttlHours * 60 * 60 * 1000).toISOString();
+
+  const job: Job = {
+    id: uuidv4(),
+    toolId,
+    status: "pending",
+    progress: 0,
+    message: "准备中...",
+    createdAt: now,
+    updatedAt: now,
+    expiresAt,
+  };
+
+  await client.set(jobKey(job.id), JSON.stringify(job));
+  await client.sadd(ACTIVE_JOBS_KEY, job.id);
+  await client.lpush(JOB_INDEX_KEY, job.id);
+  await client.ltrim(JOB_INDEX_KEY, 0, 199);
+
+  return job;
 }
 
 export async function createJob(toolId: string, payload: Record<string, unknown>): Promise<Job> {

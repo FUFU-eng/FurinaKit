@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getToolById, downloadsEnabled, heavyWorkerToolsEnabled } from "@furinakit/shared";
 import { saveUpload, getMaxFileSizeBytes } from "@/lib/storage";
 import { SYNC_HANDLERS, type SyncInput } from "@/lib/tools/registry";
-import { createJob } from "@/lib/jobs";
+import { createJob, createLocalJob } from "@/lib/jobs";
+import { runVideoDownloadJob } from "@/lib/video-downloader";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -102,14 +103,23 @@ async function handleAsyncTool(formData: FormData, toolId: string) {
     return NextResponse.json({ error: "A URL is required" }, { status: 400 });
   }
 
-  // All video/social downloaders route to the video-download worker handler (yt-dlp handles all platforms).
-  const VIDEO_RESOLVER: Record<string, string> = {
-    "bilibili-download":  "video-download",
-    "twitter-download":   "video-download",
-  };
+  // All video/social downloaders run directly in Node.js via local job & bundled yt-dlp/ffmpeg
+  if (VIDEO_TOOL_IDS.includes(toolId)) {
+    try {
+      const job = await createLocalJob(toolId, payload);
+      // Run video download asynchronously in background
+      runVideoDownloadJob(job.id, payload).catch((err) => {
+        console.error(`[video-download] Background job ${job.id} failed:`, err);
+      });
+      return NextResponse.json({ job });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to create video download job";
+      return NextResponse.json({ error: message }, { status: 429 });
+    }
+  }
+
   try {
-    const resolvedToolId = VIDEO_RESOLVER[toolId] ?? toolId;
-    const job = await createJob(resolvedToolId, payload);
+    const job = await createJob(toolId, payload);
     return NextResponse.json({ job });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to create job";

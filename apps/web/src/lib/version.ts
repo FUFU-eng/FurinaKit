@@ -1,7 +1,7 @@
-export const APP_VERSION = "2.0.2";
+export const APP_VERSION = "2.0.3";
 export const APP_NAME = "FurinaKit 芙宁娜工具箱";
 export const APP_SUBTITLE = "轻量、优雅且全能的原神芙宁娜主题工具箱";
-export const RELEASE_DATE = "2026-09-09";
+export const RELEASE_DATE = "2026-09-10";
 
 export interface VersionInfo {
   version: string;
@@ -27,10 +27,38 @@ export interface ReleaseLog {
 /** 软件官方版本发布与更新日志 */
 export const APP_CHANGELOG: ReleaseLog[] = [
   {
+    version: "2.0.3",
+    releaseDate: "2026-09-10",
+    title: "视频下载引擎深度重构与任务死锁彻底修复",
+    badge: "当前版本",
+    highlights: [
+      "彻底解决 B 站与全网视频下载在桌面打包环境下卡死在 40% 的致命 Bug",
+      "重构视频下载执行链路：改由 Node.js 服务层原生调度内置 yt-dlp.exe 与 ffmpeg.exe，彻底切断 Python 打包进程死锁",
+      "实现真实流式进度上报：实时解析标准输出流百分比，进度条从 0% 到 100% 丝滑过渡",
+      "优化 DASH 媒体流自动合并与音视频提取，提升 Bilibili、YouTube、X (Twitter) 等平台的下载稳定性",
+    ],
+    details: [
+      {
+        category: "视频下载引擎与执行链路重构",
+        items: [
+          "排查并彻底拔除 PyInstaller 二进制可执行文件调用 `sys.executable -m yt_dlp` 导致无限派生空 Worker 造成的读取死锁",
+          "在服务层直接调用内置打包的 standalone yt-dlp.exe 与 ffmpeg.exe，下载过程脱离外部 Python 依赖，保障 100% 可用",
+          "增加智能进度解析正则，将底层下载百分比平滑映射到任务队列状态流中，用户可实时获知下载进度与速率",
+        ],
+      },
+      {
+        category: "媒体流处理与平台兼容优化",
+        items: [
+          "完善 B 站多画质（1080p/720p/480p）与纯音频 MP3 自动提取合成机制",
+          "优化内置 FFmpeg 路径检测，无论在源码开发环境还是打包安装路径下均能精准寻址",
+        ],
+      },
+    ],
+  },
+  {
     version: "2.0.2",
     releaseDate: "2026-09-09",
     title: "图像核心引擎与离线服务链路深度修复",
-    badge: "当前版本",
     highlights: [
       "彻底修复桌面打包环境下缺失原生图像处理运行时（@img/sharp-win32-x64）导致的图片转换、压缩 500 异常",
       "修复 PDF 转 Word、Office 文档转换等重型离线 Worker 任务队列调度与通信环境变量",
@@ -127,11 +155,13 @@ export const APP_CHANGELOG: ReleaseLog[] = [
 ];
 
 /** 默认检查更新源地址（用户或开发者可在设置中自定义） */
-export const DEFAULT_UPDATE_ENDPOINT = "https://raw.githubusercontent.com/FUFU-eng/FurinaKit/main/version.json";
+export const DEFAULT_UPDATE_ENDPOINT = "https://cdn.jsdelivr.net/gh/furinakit/releases@main/version.json";
 
 /** 备用与国内加速更新源列表 */
 export const FALLBACK_UPDATE_ENDPOINTS = [
+  "https://cdn.jsdelivr.net/gh/furinakit/releases@main/version.json",
+  "https://raw.githubusercontent.com/furinakit/releases/main/version.json",
+  "https://ghproxy.net/https://raw.githubusercontent.com/furinakit/releases/main/version.json",
   "https://cdn.jsdelivr.net/gh/FUFU-eng/FurinaKit@main/version.json",
   "https://raw.githubusercontent.com/FUFU-eng/FurinaKit/main/version.json",
-  "https://ghproxy.net/https://raw.githubusercontent.com/FUFU-eng/FurinaKit/main/version.json",
 ];
