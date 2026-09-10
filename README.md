@@ -178,6 +178,18 @@ pnpm --filter @furinakit/web dist
 
 ---
 
+## 🙏 致谢与鸣谢 (Acknowledgements)
+
+本项目在开发与架构演进过程中，特别鸣谢以下杰出的开源先驱与开源项目：
+
+- **[OmniKit](https://github.com/Abudora-0)** by **[Abdullah (@Abudora-0)](https://github.com/Abudora-0)**:  
+  衷心感谢 Abdullah 设计并开源了优秀的 OmniKit 工具箱架构。FurinaKit 早期版本基于其优秀的多工具体系与双核驱动构想，在此坚实基础之上完成了芙宁娜主题重构、全离线桌面原生固化、视频下载链路重构及上百款功能套件扩展。向其开源探索与卓越贡献致以崇高敬意！
+- **[yt-dlp](https://github.com/yt-dlp/yt-dlp)**：强大的跨平台全网多媒体流提取引擎。
+- **[FFmpeg](https://ffmpeg.org/)**：顶级的开源音视频多媒体处理基石。
+- **[Next.js](https://nextjs.org/)** & **[Electron](https://www.electronjs.org/)**：现代跨平台桌面与 Web 应用工程体系。
+
+---
+
 ## 📜 免责声明 (Disclaimer)
 
 1. 本项目涉及的《原神》及「芙宁娜」相关角色形象、名称及音画元素知识产权均归 **米哈游（miHoYo / HoYoverse）** 所有。本项目仅为粉丝爱好者出于对角色的喜爱所制作的非营利开源同人作品，严禁用于任何侵犯版权的商业营利行为。

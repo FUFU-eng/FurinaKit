@@ -52,5 +52,11 @@
 
 ---
 
+## 🙏 致谢与致敬 (Special Thanks)
+
+特别感谢开源开发者 **[Abdullah (@Abudora-0)](https://github.com/Abudora-0)** 及其优秀作品 **OmniKit**。FurinaKit 的桌面双核驱动理念与工程架构深受其开创性工作的启发。向优秀的开源先驱致以诚挚的感谢与崇高敬意！
+
+---
+
 ## 📥 下载文件清单
 - **Windows 64位 安装包**：`FurinaKit Setup 2.0.3.exe`
