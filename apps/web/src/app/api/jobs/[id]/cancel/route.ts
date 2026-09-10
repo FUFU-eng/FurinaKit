@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cancelJob, getJob } from "@/lib/jobs";
+import { cancelMagnetJob } from "@/lib/magnet-downloader";
 
 export const runtime = "nodejs";
 
@@ -15,6 +16,10 @@ export async function POST(
       return NextResponse.json({ error: "任务不存在" }, { status: 404 });
     }
     
+    if (job.toolId === "magnet-download") {
+      cancelMagnetJob(id);
+    }
+
     const cancelled = await cancelJob(id);
     return NextResponse.json({ job: cancelled, success: true });
   } catch (err) {

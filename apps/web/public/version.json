@@ -1,21 +1,23 @@
 {
-  "version": "2.0.3",
+  "version": "2.0.4",
   "releaseDate": "2026-09-10",
   "changelog": [
-    "彻底修复 B 站与全网音视频下载任务在桌面打包环境下卡死在 40% 的致命死锁 Bug",
-    "重构视频下载执行链路，改由 Node.js 服务层原生调度内置独立 yt-dlp.exe 与 ffmpeg.exe",
-    "实现真实流式下载进度实时回传，修复进度条无法显示与不更新问题",
-    "优化 DASH 分块流自动合成与 MP3 音频提取，全面提升 Bilibili、YouTube 等平台下载成功率"
+    "全新上线「磁力与BT种子下载」工具：大文件、大视频直接下，无需安装第三方软件",
+    "超贴心「先预览后下载」：粘贴链接秒出视频名字、准确大小与文件清单，绝不下错资源",
+    "内置 40+ 全球高速加速节点与协议伪装，冷门资源也能轻松连接、跑满网速",
+    "下载视频的同时自动留存 .torrent 种子备份，方便转存网盘或分享给好友",
+    "已下载资源智能识别：已下好的视频直接秒开，绝不误删、不重复下载",
+    "软件更新通道与后台服务全面优化，后续升级一键全自动检测与安装"
   ],
-  "downloadUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.3/FurinaKit.Setup.2.0.3.exe",
+  "downloadUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.4/FurinaKit.Setup.2.0.4.exe",
   "mirrors": [
     {
       "name": "GitHub 官方直链",
-      "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.3/FurinaKit.Setup.2.0.3.exe"
+      "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.4/FurinaKit.Setup.2.0.4.exe"
     },
     {
       "name": "国内高速镜像线路",
-      "url": "https://ghproxy.net/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.3/FurinaKit.Setup.2.0.3.exe"
+      "url": "https://ghproxy.net/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.4/FurinaKit.Setup.2.0.4.exe"
     }
   ]
 }

@@ -24,6 +24,7 @@ import { RegexTesterTool } from "@/components/tools/regex-tester-tool";
 import { MarkdownPreviewTool } from "@/components/tools/markdown-preview-tool";
 import { ImageCropTool } from "@/components/tools/image-crop-tool";
 import { VideoDownloadTool } from "@/components/tools/video-download-tool";
+import { MagnetDownloadTool } from "@/components/tools/magnet-download-tool";
 import { ImagesToPdfTool } from "@/components/tools/images-to-pdf-tool";
 import { WatermarkTool } from "@/components/tools/watermark-tool";
 import { ImageCompressTool } from "@/components/tools/image-compress-tool";
@@ -178,6 +179,15 @@ export function ToolRunner({ toolId }: ToolRunnerProps) {
     return (
       <ToolShell tool={tool}>
         <VideoDownloadTool toolId={toolId} />
+      </ToolShell>
+    );
+  }
+
+  // 磁力种子下载：内置 aria2c 高速引擎与 Tracker 加速工作台
+  if (toolId === "magnet-download") {
+    return (
+      <ToolShell tool={tool}>
+        <MagnetDownloadTool />
       </ToolShell>
     );
   }

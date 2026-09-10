@@ -1585,6 +1585,25 @@ export const TOOLS: OmniTool[] = [
       }
     ]
   },
+  {
+    "id": "magnet-download",
+    "name": "磁力种子下载",
+    "description": "极速磁力链接与 BT 种子下载，内置优质 Tracker 加速与实时速度监控",
+    "category": "download",
+    "mode": "async",
+    "icon": "Magnet",
+    "selfHostOnly": true,
+    "disclaimer": "仅供个人下载合规资源，请遵守当地法律法规与版权协议。",
+    "inputs": [
+      {
+        "id": "url",
+        "type": "text",
+        "label": "磁力链接 / Torrent 文件",
+        "placeholder": "magnet:?xt=urn:btih:... 或拖入 .torrent 文件",
+        "required": true
+      }
+    ]
+  },
   // ─────────────────────────────────────────────  音频工具 (audio)  ──────────
   {
     "id": "video-to-audio",

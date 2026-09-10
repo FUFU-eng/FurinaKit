@@ -4,6 +4,7 @@ import { saveUpload, getMaxFileSizeBytes } from "@/lib/storage";
 import { SYNC_HANDLERS, type SyncInput } from "@/lib/tools/registry";
 import { createJob, createLocalJob } from "@/lib/jobs";
 import { runVideoDownloadJob } from "@/lib/video-downloader";
+import { runMagnetDownloadJob } from "@/lib/magnet-downloader";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -114,6 +115,25 @@ async function handleAsyncTool(formData: FormData, toolId: string) {
       return NextResponse.json({ job });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to create video download job";
+      return NextResponse.json({ error: message }, { status: 429 });
+    }
+  }
+
+  // Magnet / BitTorrent 下载器通过内置 aria2c 引擎在后台异步运行
+  if (toolId === "magnet-download") {
+    const torrentPath = formData.get("torrentPath");
+    if (torrentPath) payload.torrentPath = String(torrentPath);
+    if (!payload.url && !payload.torrentPath) {
+      return NextResponse.json({ error: "请输入磁力链接或上传种子文件" }, { status: 400 });
+    }
+    try {
+      const job = await createLocalJob(toolId, payload);
+      runMagnetDownloadJob(job.id, payload).catch((err) => {
+        console.error(`[magnet-download] Background job ${job.id} failed:`, err);
+      });
+      return NextResponse.json({ job });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "创建磁力下载任务失败";
       return NextResponse.json({ error: message }, { status: 429 });
     }
   }

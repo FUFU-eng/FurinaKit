@@ -1,6 +1,6 @@
 {
   "name": "@furinakit/web",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
@@ -96,6 +96,10 @@
       {
         "from": "yt-dlp.exe",
         "to": "yt-dlp.exe"
+      },
+      {
+        "from": "aria2c.exe",
+        "to": "aria2c.exe"
       }
     ],
     "win": {

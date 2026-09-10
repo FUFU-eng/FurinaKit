@@ -47,6 +47,7 @@ services/worker/upscale/
 apps/web/node.exe
 apps/web/ffmpeg.exe
 apps/web/yt-dlp.exe
+apps/web/aria2c.exe
 /tools/
 
 # Temporary logs & debug outputs
