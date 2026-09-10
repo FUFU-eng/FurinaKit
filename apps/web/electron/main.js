@@ -496,6 +496,25 @@ function createWindow() {
     return { action: 'deny' };
   });
 
+  // 严格拦截主窗口意外跳转：确保主窗口永远停留在 SPA 界面，
+  // 彻底防止点击音视频链接、下载接口或外部网页把整个软件窗口冲成视频播放器或外部页面
+  mainWindow.webContents.on('will-navigate', (e, reqUrl) => {
+    // 允许本地 Next.js 应用内的客户端路由跳转
+    if (reqUrl.startsWith(URL)) {
+      // 如果跳转到下载接口或音视频文件，坚决阻止页面级刷新导航，交由后台下载逻辑
+      if ((reqUrl.includes('/api/jobs/') && reqUrl.includes('/download')) || /\.(mp4|mp3|m4a|mkv|webm|flv|avi)(\?.*)?$/i.test(reqUrl)) {
+        e.preventDefault();
+        return;
+      }
+      return;
+    }
+    // 其它非应用内页面（blob:、外部链接、文件协议等）一律拦截
+    e.preventDefault();
+    if (reqUrl.startsWith('http://') || reqUrl.startsWith('https://')) {
+      shell.openExternal(reqUrl);
+    }
+  });
+
   // 关闭时根据用户设置：最小化到托盘或彻底退出
   mainWindow.on('close', (e) => {
     if (!isQuitting) {
@@ -637,6 +656,19 @@ ipcMain.handle('open-path', async (_event, targetPath) => {
     }
     
     return { success: false, error: '路径不存在' };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// 在系统默认浏览器中打开外部链接
+ipcMain.handle('open-external', async (_event, targetUrl) => {
+  try {
+    if (targetUrl && (targetUrl.startsWith('http://') || targetUrl.startsWith('https://'))) {
+      shell.openExternal(targetUrl);
+      return { success: true };
+    }
+    return { success: false, error: '链接无效' };
   } catch (err) {
     return { success: false, error: err.message };
   }
@@ -977,6 +1009,51 @@ app.whenReady().then(async () => {
   try {
     session.fromPartition('persist:datatool').on('will-download', handleDownload);
   } catch (e) {}
+
+  // ============ 网络层劫持：将所有直接导航的音视频流强制转为 attachment 下载 ============
+  // 核心防止用户点击音视频下载链接或直链时，Chromium 将其当作 MediaDocument 直接在窗口内全屏播放
+  const forceDownloadDisposition = (details, callback) => {
+    const responseHeaders = details.responseHeaders || {};
+    const ctHeader = Object.keys(responseHeaders).find(k => k.toLowerCase() === 'content-type');
+    const contentType = (ctHeader && responseHeaders[ctHeader] ? responseHeaders[ctHeader][0] : '').toLowerCase();
+    
+    // 仅针对顶层框架或子框架页面级导航 (mainFrame / subFrame)：
+    // 如果返回的是音视频内容，且非应用内置 <video>/<audio> 标签发起的媒体流 (resourceType !== 'media')
+    if (details.resourceType === 'mainFrame' || details.resourceType === 'subFrame') {
+      const isMedia = contentType.startsWith('video/') ||
+                      contentType.startsWith('audio/') ||
+                      contentType === 'application/octet-stream' ||
+                      /\.(mp4|mp3|m4a|mkv|webm|flv|avi)(\?.*)?$/i.test(details.url);
+      if (isMedia) {
+        responseHeaders['Content-Disposition'] = ['attachment'];
+        responseHeaders['content-disposition'] = ['attachment'];
+      }
+    }
+    callback({ responseHeaders });
+  };
+
+  session.defaultSession.webRequest.onHeadersReceived(forceDownloadDisposition);
+  try {
+    session.fromPartition('persist:datatool').webRequest.onHeadersReceived(forceDownloadDisposition);
+  } catch (e) {}
+
+  // 监听所有创建的 webview 内容，防止 webview 内部直接播放音视频
+  app.on('web-contents-created', (_event, contents) => {
+    if (contents.getType() === 'webview') {
+      contents.on('will-navigate', (e, navUrl) => {
+        if (/\.(mp4|mp3|m4a|mkv|webm|flv|avi)(\?.*)?$/i.test(navUrl)) {
+          e.preventDefault();
+          shell.openExternal(navUrl);
+        }
+      });
+      contents.setWindowOpenHandler(({ url }) => {
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+          shell.openExternal(url);
+        }
+        return { action: 'deny' };
+      });
+    }
+  });
 
   // 设置应用图标
   if (process.platform === 'win32') {

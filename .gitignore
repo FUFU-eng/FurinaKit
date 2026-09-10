@@ -47,7 +47,7 @@ services/worker/upscale/
 apps/web/node.exe
 apps/web/ffmpeg.exe
 apps/web/yt-dlp.exe
-tools/
+/tools/
 
 # Temporary logs & debug outputs
 elog.txt

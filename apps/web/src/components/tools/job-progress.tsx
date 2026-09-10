@@ -149,7 +149,7 @@ export function JobProgress({
   const isVideo = VIDEO_EXTS.has(resultExt);
   const isAudio = AUDIO_EXTS.has(resultExt);
   const isPdf = resultExt === "pdf";
-  const downloadUrl = job.id ? `/api/jobs/${job.id}/download` : "";
+  const downloadUrl = job.id ? `/api/jobs/${job.id}/download?preview=1` : "";
 
   return (
     <motion.div

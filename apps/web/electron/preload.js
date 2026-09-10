@@ -35,6 +35,8 @@ contextBridge.exposeInMainWorld('furinakit', {
   applySettings: (settings) => ipcRenderer.invoke('apply-settings', settings),
   // 打开文件夹（在资源管理器中显示）
   openPath: (path) => ipcRenderer.invoke('open-path', path),
+  // 在外部默认浏览器打开链接
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
   // 打开全平台视频下载窗口（datatool.vip）
   openDatatool: () => ipcRenderer.invoke('open-datatool'),
   // ============ BrowserView：datatool.vip 嵌入（比 webview 更稳定） ============

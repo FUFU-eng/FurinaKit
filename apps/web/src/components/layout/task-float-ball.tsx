@@ -162,15 +162,24 @@ export function TaskFloatBall() {
   // 球靠近左半边时面板左对齐，否则右对齐
   const onLeftSide = mounted && pos.x + BALL_SIZE / 2 < window.innerWidth / 2;
 
-  const downloadResult = (jobId: string, e: React.MouseEvent) => {
+  const downloadResult = async (jobId: string, e: React.MouseEvent, filename?: string) => {
     e.stopPropagation();
-    // 用隐藏 a 标签触发下载，避免 window.open 新开窗口/跳转网页
-    const a = document.createElement("a");
-    a.href = `/api/jobs/${jobId}/download`;
-    a.style.display = "none";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    try {
+      const res = await fetch(`/api/jobs/${jobId}/download?download=1`);
+      if (!res.ok) throw new Error("下载失败");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename || "download";
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } catch (err) {
+      console.error("下载失败:", err);
+    }
   };
 
   const goToTool = (toolId: string) => {
@@ -352,7 +361,7 @@ export function TaskFloatBall() {
                         </span>
                         {job.status === "completed" && job.resultFilename && (
                           <button
-                            onClick={(e) => downloadResult(job.id, e)}
+                            onClick={(e) => downloadResult(job.id, e, job.resultFilename)}
                             className="rounded p-1 transition-colors hover:bg-white/10"
                             style={{ color: "#3ecf8e" }}
                             title="下载结果"

@@ -122,10 +122,10 @@ export async function GET(
         });
       }
 
-      // 常规完整文件下载或初次流式读取
+      // 常规完整文件下载或初次流式读取（默认必须为 attachment，防止浏览器或窗口直接作为网页/播放器跳转）
       const urlObj = new URL(_request.url);
-      const isForceDownload = urlObj.searchParams.get("download") === "1";
-      const dispositionType = isForceDownload ? "attachment" : "inline";
+      const isPreview = urlObj.searchParams.get("preview") === "1";
+      const dispositionType = isPreview ? "inline" : "attachment";
 
       const data = await fs.readFile(filePath);
       return new NextResponse(data, {
