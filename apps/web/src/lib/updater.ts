@@ -74,6 +74,7 @@ export async function checkForUpdates(customUrl?: string): Promise<UpdateCheckRe
 
   // 严格过滤合法 URL 并去重
   const endpoints = Array.from(new Set(candidateEndpoints.filter(isValidUpdateUrl)));
+  let bestResult: UpdateCheckResult | null = null;
 
   for (const endpoint of endpoints) {
     const controller = new AbortController();
@@ -96,16 +97,29 @@ export async function checkForUpdates(customUrl?: string): Promise<UpdateCheckRe
       if (!data || typeof data.version !== "string") continue;
 
       const isNewer = compareSemver(data.version, APP_VERSION) > 0;
-
-      return {
-        hasUpdate: isNewer,
-        currentVersion: APP_VERSION,
-        latestVersion: data.version,
-        releaseDate: data.releaseDate,
-        changelog: Array.isArray(data.changelog) ? data.changelog : [],
-        downloadUrl: data.downloadUrl,
-        mirrors: data.mirrors,
-      };
+      if (isNewer) {
+        // 发现更高版本，立即返回新版本更新信息
+        return {
+          hasUpdate: true,
+          currentVersion: APP_VERSION,
+          latestVersion: data.version,
+          releaseDate: data.releaseDate,
+          changelog: Array.isArray(data.changelog) ? data.changelog : [],
+          downloadUrl: data.downloadUrl,
+          mirrors: data.mirrors,
+        };
+      } else if (!bestResult) {
+        // 若该镜像暂未同步到最新版（<= 本地版本），暂存该有效响应，继续探测备用镜像
+        bestResult = {
+          hasUpdate: false,
+          currentVersion: APP_VERSION,
+          latestVersion: data.version,
+          releaseDate: data.releaseDate,
+          changelog: Array.isArray(data.changelog) ? data.changelog : ["当前已是最新稳定版本。"],
+          downloadUrl: data.downloadUrl,
+          mirrors: data.mirrors,
+        };
+      }
     } catch {
       // 网络请求超时、被取消或 JSON 解析异常，平滑尝试下一个可用镜像源
       continue;
@@ -115,7 +129,7 @@ export async function checkForUpdates(customUrl?: string): Promise<UpdateCheckRe
     }
   }
 
-  return {
+  return bestResult ?? {
     hasUpdate: false,
     currentVersion: APP_VERSION,
     latestVersion: APP_VERSION,
