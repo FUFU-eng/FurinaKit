@@ -13,7 +13,7 @@
   "fullSize": "约 570 MB",
   "patchUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.4/FurinaKit.Patch.2.0.4.exe",
   "patchSize": "约 14.1 MB",
-  "minPatchVersion": "2.0.2",
+  "minPatchVersion": "2.0.3",
   "mirrors": [
     {
       "name": "GitHub 官方直链",

@@ -257,7 +257,7 @@ def update_version_json(version, full_size_desc, patch_size_desc):
         "fullSize": full_size_desc,
         "patchUrl": f"https://github.com/FUFU-eng/FurinaKit/releases/download/v{version}/FurinaKit.Patch.{version}.exe",
         "patchSize": patch_size_desc,
-        "minPatchVersion": "2.0.2",
+        "minPatchVersion": "2.0.3",
         "mirrors": [
             {
                 "name": "GitHub 官方直链",

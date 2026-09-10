@@ -103,7 +103,7 @@ export async function checkForUpdates(customUrl?: string): Promise<UpdateCheckRe
       if (!data || typeof data.version !== "string") continue;
 
       const isNewer = compareSemver(data.version, APP_VERSION) > 0;
-      const minPatchVer = data.minPatchVersion || "2.0.2";
+      const minPatchVer = data.minPatchVersion || "2.0.3";
       const isPatchEligible = Boolean(data.patchUrl && compareSemver(APP_VERSION, minPatchVer) >= 0);
 
       if (isNewer) {
