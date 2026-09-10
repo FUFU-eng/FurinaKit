@@ -43,6 +43,23 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
   const [updateFinished, setUpdateFinished] = useState(false);
   const [downloadedInstallerPath, setDownloadedInstallerPath] = useState<string | null>(null);
   const [selectedVersion, setSelectedVersion] = useState<string>(APP_VERSION);
+  const [packageType, setPackageType] = useState<"patch" | "full">("patch");
+
+  // 根据检测结果与补丁兼容性自动决策默认安装包类型
+  useEffect(() => {
+    if (result?.hasUpdate) {
+      if (result.isPatchEligible && result.patchUrl) {
+        setPackageType("patch");
+      } else {
+        setPackageType("full");
+      }
+    }
+  }, [result]);
+
+  const activeTargetUrl =
+    packageType === "patch" && result?.patchUrl
+      ? result.patchUrl
+      : result?.downloadUrl;
 
   useEffect(() => {
     if (open) {
@@ -51,11 +68,13 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
   }, [open, initialTab]);
 
   const startOneClickUpdate = async () => {
-    const targetUrl = result?.downloadUrl;
+    const targetUrl = activeTargetUrl;
     if (!targetUrl) {
       toast({ title: "未获取到下载链接", variant: "error" });
       return;
     }
+
+    const isPatch = packageType === "patch" && Boolean(result?.patchUrl);
 
     const electronWin = typeof window !== "undefined"
       ? (window as unknown as {
@@ -70,7 +89,7 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
     if (electronWin?.furinakit?.downloadUpdate) {
       setUpdating(true);
       setUpdateProgress(0);
-      setUpdateStepText("正在连接高速通道下载最新安装包...");
+      setUpdateStepText(`正在连接高速通道下载${isPatch ? "增量补丁包" : "完整安装包"}...`);
 
       let unsubscribe: (() => void) | null = null;
       if (electronWin.furinakit.onUpdateDownloadProgress) {
@@ -79,7 +98,7 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
           if (data.totalBytes > 0) {
             const mbRecv = (data.receivedBytes / (1024 * 1024)).toFixed(1);
             const mbTotal = (data.totalBytes / (1024 * 1024)).toFixed(1);
-            setUpdateStepText(`正在下载安装包 (${mbRecv}MB / ${mbTotal}MB)...`);
+            setUpdateStepText(`正在下载${isPatch ? "增量补丁" : "安装包"} (${mbRecv}MB / ${mbTotal}MB)...`);
           } else {
             setUpdateStepText("正在接收数据流...");
           }
@@ -155,7 +174,7 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
   }, [open, performCheck]);
 
   const handleDownload = (url?: string) => {
-    const target = url || result?.downloadUrl;
+    const target = url || activeTargetUrl;
     if (!target) return;
     const win = typeof window !== "undefined" ? (window as unknown as { furinakit?: { openExternal?: (u: string) => void } }) : null;
     if (win?.furinakit?.openExternal) {
@@ -166,7 +185,7 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
   };
 
   const handleCopyLink = (url?: string) => {
-    const target = url || result?.downloadUrl;
+    const target = url || activeTargetUrl;
     if (!target) return;
     navigator.clipboard.writeText(target);
     setCopied(true);
@@ -314,6 +333,73 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
                     </div>
                   </div>
 
+                  {/* 升级安装包类型选择（若支持极速增量补丁则展示双选卡片） */}
+                  {result.patchUrl && result.isPatchEligible && (
+                    <div
+                      className="rounded-xl border p-3"
+                      style={{ borderColor: colors.borderSolid, background: colors.bg }}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-semibold" style={{ color: colors.text }}>
+                          选择升级方式：
+                        </span>
+                        <span className="text-[11px] font-medium text-primary">
+                          {packageType === "patch" ? "⚡ 仅下载改动代码，极速升级" : "📦 全量重新下载安装"}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setPackageType("patch")}
+                          className={cn(
+                            "flex flex-col items-start p-2.5 rounded-lg border text-left transition-all relative overflow-hidden",
+                            packageType === "patch"
+                              ? "border-primary bg-primary/10 shadow-xs"
+                              : "hover:border-primary/50 text-muted-foreground"
+                          )}
+                          style={{ borderColor: packageType === "patch" ? undefined : colors.borderSolid }}
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <span className={cn("text-xs font-bold", packageType === "patch" ? "text-primary" : "")}>
+                              ⚡ 极速增量升级
+                            </span>
+                            <span className="rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                              {result.patchSize || "约 15MB"}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
+                            推荐首选！几秒即可升级完毕，本地历史数据完整保留
+                          </p>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setPackageType("full")}
+                          className={cn(
+                            "flex flex-col items-start p-2.5 rounded-lg border text-left transition-all",
+                            packageType === "full"
+                              ? "border-primary bg-primary/10 shadow-xs"
+                              : "hover:border-primary/50 text-muted-foreground"
+                          )}
+                          style={{ borderColor: packageType === "full" ? undefined : colors.borderSolid }}
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <span className={cn("text-xs font-bold", packageType === "full" ? "text-primary" : "")}>
+                              📦 完整安装包
+                            </span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {result.fullSize || "约 570MB"}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
+                            全量重新下载内置 Python Worker 与 FFmpeg 运行环境
+                          </p>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* 更新内容 */}
                   {result.changelog && result.changelog.length > 0 && (
                     <div className="rounded-xl border p-4" style={{ borderColor: colors.borderSolid, background: colors.bg }}>
@@ -355,24 +441,33 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
                   )}
 
                   {/* 备用镜像 */}
-                  {!updating && result.mirrors && result.mirrors.length > 0 && (
-                    <div className="space-y-1.5">
-                      <p className="text-[11px] text-muted-foreground">备用高速下载线路：</p>
-                      <div className="flex flex-wrap gap-2">
-                        {result.mirrors.map((mirror, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => handleDownload(mirror.url)}
-                            className="flex items-center gap-1 text-xs rounded-lg border px-2.5 py-1.5 hover:border-primary text-primary transition-all"
-                            style={{ borderColor: colors.borderSolid }}
-                          >
-                            <Download size={13} />
-                            {mirror.name}
-                          </button>
-                        ))}
+                  {!updating && (() => {
+                    const mirrorsToUse =
+                      packageType === "patch" && result.patchMirrors && result.patchMirrors.length > 0
+                        ? result.patchMirrors
+                        : (result.mirrors || []);
+                    if (mirrorsToUse.length === 0) return null;
+                    return (
+                      <div className="space-y-1.5">
+                        <p className="text-[11px] text-muted-foreground">
+                          {packageType === "patch" ? "增量补丁高速下载线路：" : "备用高速下载线路："}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {mirrorsToUse.map((mirror, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => handleDownload(mirror.url)}
+                              className="flex items-center gap-1 text-xs rounded-lg border px-2.5 py-1.5 hover:border-primary text-primary transition-all"
+                              style={{ borderColor: colors.borderSolid }}
+                            >
+                              <Download size={13} />
+                              {mirror.name}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* 操作按钮 */}
                   <div className="flex items-center justify-between pt-2">
@@ -385,7 +480,7 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
                     </button>
 
                     <div className="flex items-center gap-2">
-                      {result.downloadUrl && !updating && (
+                      {activeTargetUrl && !updating && (
                         <button
                           onClick={() => handleCopyLink()}
                           className="flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs transition-colors"
@@ -416,10 +511,12 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
                       ) : (
                         <button
                           onClick={startOneClickUpdate}
-                          className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-5 text-xs font-semibold text-primary-foreground shadow-sm hover:brightness-110 transition-all"
+                          className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-5 text-xs font-semibold text-primary-foreground shadow-sm hover:brightness-110 transition-all shrink-0 whitespace-nowrap"
                         >
                           <Sparkles size={14} />
-                          一键自动更新并安装
+                          {packageType === "patch" && result.patchUrl
+                            ? `极速一键升级 (${result.patchSize || "约 15MB"})`
+                            : `全量下载安装 (${result.fullSize || "约 570MB"})`}
                         </button>
                       )}
                     </div>

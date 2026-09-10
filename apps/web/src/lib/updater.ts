@@ -7,7 +7,13 @@ export interface UpdateCheckResult {
   releaseDate?: string;
   changelog: string[];
   downloadUrl?: string;
+  fullSize?: string;
+  patchUrl?: string;
+  patchSize?: string;
+  minPatchVersion?: string;
+  isPatchEligible?: boolean;
   mirrors?: Array<{ name: string; url: string }>;
+  patchMirrors?: Array<{ name: string; url: string }>;
   error?: string;
 }
 
@@ -97,6 +103,9 @@ export async function checkForUpdates(customUrl?: string): Promise<UpdateCheckRe
       if (!data || typeof data.version !== "string") continue;
 
       const isNewer = compareSemver(data.version, APP_VERSION) > 0;
+      const minPatchVer = data.minPatchVersion || "2.0.2";
+      const isPatchEligible = Boolean(data.patchUrl && compareSemver(APP_VERSION, minPatchVer) >= 0);
+
       if (isNewer) {
         // 发现更高版本，立即返回新版本更新信息
         return {
@@ -106,7 +115,13 @@ export async function checkForUpdates(customUrl?: string): Promise<UpdateCheckRe
           releaseDate: data.releaseDate,
           changelog: Array.isArray(data.changelog) ? data.changelog : [],
           downloadUrl: data.downloadUrl,
+          fullSize: data.fullSize || "约 570 MB",
+          patchUrl: data.patchUrl,
+          patchSize: data.patchSize || "约 15 MB",
+          minPatchVersion: minPatchVer,
+          isPatchEligible,
           mirrors: data.mirrors,
+          patchMirrors: data.patchMirrors,
         };
       } else if (!bestResult) {
         // 若该镜像暂未同步到最新版（<= 本地版本），暂存该有效响应，继续探测备用镜像
@@ -117,7 +132,13 @@ export async function checkForUpdates(customUrl?: string): Promise<UpdateCheckRe
           releaseDate: data.releaseDate,
           changelog: Array.isArray(data.changelog) ? data.changelog : ["当前已是最新稳定版本。"],
           downloadUrl: data.downloadUrl,
+          fullSize: data.fullSize,
+          patchUrl: data.patchUrl,
+          patchSize: data.patchSize,
+          minPatchVersion: minPatchVer,
+          isPatchEligible,
           mirrors: data.mirrors,
+          patchMirrors: data.patchMirrors,
         };
       }
     } catch {

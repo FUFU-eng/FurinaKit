@@ -10,6 +10,10 @@
     "软件更新通道与后台服务全面优化，后续升级一键全自动检测与安装"
   ],
   "downloadUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.4/FurinaKit.Setup.2.0.4.exe",
+  "fullSize": "约 570 MB",
+  "patchUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.4/FurinaKit.Patch.2.0.4.exe",
+  "patchSize": "约 14.1 MB",
+  "minPatchVersion": "2.0.2",
   "mirrors": [
     {
       "name": "GitHub 官方直链",
@@ -18,6 +22,16 @@
     {
       "name": "国内高速镜像线路",
       "url": "https://ghproxy.net/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.4/FurinaKit.Setup.2.0.4.exe"
+    }
+  ],
+  "patchMirrors": [
+    {
+      "name": "GitHub 官方直链",
+      "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.4/FurinaKit.Patch.2.0.4.exe"
+    },
+    {
+      "name": "国内高速镜像线路",
+      "url": "https://ghproxy.net/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.4/FurinaKit.Patch.2.0.4.exe"
     }
   ]
 }
