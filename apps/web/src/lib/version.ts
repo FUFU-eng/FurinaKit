@@ -8,12 +8,15 @@ export interface VersionInfo {
   releaseDate: string;
   changelog: string[];
   downloadUrl: string;
+  fullDownloadUrl?: string;
   fullSize?: string;
+  fullSetupSize?: string;
   patchUrl?: string;
   patchSize?: string;
   minPatchVersion?: string;
   mirrors?: Array<{ name: string; url: string }>;
   patchMirrors?: Array<{ name: string; url: string }>;
+  fullMirrors?: Array<{ name: string; url: string }>;
   isMandatory?: boolean;
 }
 

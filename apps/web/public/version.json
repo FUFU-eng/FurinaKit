@@ -9,19 +9,21 @@
     "全新重构「税金税率计算」与「高级函数计算」：个人所得税/增值税/企业所得税全税种专业计算",
     "视觉主题新增「跟随系统」模式与护眼高对比度优化，全局任务断点接管与悬浮球无缝续展"
   ],
-  "downloadUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Setup.2.0.5.exe",
-  "fullSize": "约 578 MB",
+  "downloadUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Patch.2.0.5.exe",
+  "fullSize": "约 45.1 MB",
   "patchUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Patch.2.0.5.exe",
   "patchSize": "约 45.1 MB",
+  "fullDownloadUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Setup.2.0.5.exe",
+  "fullSetupSize": "约 578 MB",
   "minPatchVersion": "2.0.3",
   "mirrors": [
     {
       "name": "GitHub 官方直链",
-      "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Setup.2.0.5.exe"
+      "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Patch.2.0.5.exe"
     },
     {
       "name": "国内高速镜像线路",
-      "url": "https://ghproxy.net/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Setup.2.0.5.exe"
+      "url": "https://ghproxy.net/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Patch.2.0.5.exe"
     }
   ],
   "patchMirrors": [
@@ -32,6 +34,16 @@
     {
       "name": "国内高速镜像线路",
       "url": "https://ghproxy.net/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Patch.2.0.5.exe"
+    }
+  ],
+  "fullMirrors": [
+    {
+      "name": "GitHub 官方直链",
+      "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Setup.2.0.5.exe"
+    },
+    {
+      "name": "国内高速镜像线路",
+      "url": "https://ghproxy.net/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Setup.2.0.5.exe"
     }
   ]
 }

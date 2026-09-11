@@ -59,7 +59,7 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
   const activeTargetUrl =
     packageType === "patch" && result?.patchUrl
       ? result.patchUrl
-      : result?.downloadUrl;
+      : (result?.fullDownloadUrl || result?.downloadUrl);
 
   useEffect(() => {
     if (open) {
@@ -389,7 +389,7 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
                               📦 完整安装包
                             </span>
                             <span className="text-[10px] text-muted-foreground">
-                              {result.fullSize || "约 570MB"}
+                              {result.fullSetupSize || result.fullSize || "约 578MB"}
                             </span>
                           </div>
                           <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
@@ -445,7 +445,7 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
                     const mirrorsToUse =
                       packageType === "patch" && result.patchMirrors && result.patchMirrors.length > 0
                         ? result.patchMirrors
-                        : (result.mirrors || []);
+                        : (result.fullMirrors || result.mirrors || []);
                     if (mirrorsToUse.length === 0) return null;
                     return (
                       <div className="space-y-1.5">
@@ -515,8 +515,8 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
                         >
                           <Sparkles size={14} />
                           {packageType === "patch" && result.patchUrl
-                            ? `极速一键升级 (${result.patchSize || "约 15MB"})`
-                            : `全量下载安装 (${result.fullSize || "约 570MB"})`}
+                            ? `极速一键升级 (${result.patchSize || "约 45.1MB"})`
+                            : `全量下载安装 (${result.fullSetupSize || result.fullSize || "约 578MB"})`}
                         </button>
                       )}
                     </div>

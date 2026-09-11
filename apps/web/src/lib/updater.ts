@@ -7,13 +7,16 @@ export interface UpdateCheckResult {
   releaseDate?: string;
   changelog: string[];
   downloadUrl?: string;
+  fullDownloadUrl?: string;
   fullSize?: string;
+  fullSetupSize?: string;
   patchUrl?: string;
   patchSize?: string;
   minPatchVersion?: string;
   isPatchEligible?: boolean;
   mirrors?: Array<{ name: string; url: string }>;
   patchMirrors?: Array<{ name: string; url: string }>;
+  fullMirrors?: Array<{ name: string; url: string }>;
   error?: string;
 }
 
@@ -115,13 +118,16 @@ export async function checkForUpdates(customUrl?: string): Promise<UpdateCheckRe
           releaseDate: data.releaseDate,
           changelog: Array.isArray(data.changelog) ? data.changelog : [],
           downloadUrl: data.downloadUrl,
-          fullSize: data.fullSize || "约 570 MB",
+          fullDownloadUrl: data.fullDownloadUrl,
+          fullSize: data.fullSize || "约 45.1 MB",
+          fullSetupSize: data.fullSetupSize || "约 578 MB",
           patchUrl: data.patchUrl,
-          patchSize: data.patchSize || "约 15 MB",
+          patchSize: data.patchSize || "约 45.1 MB",
           minPatchVersion: minPatchVer,
           isPatchEligible,
           mirrors: data.mirrors,
           patchMirrors: data.patchMirrors,
+          fullMirrors: data.fullMirrors,
         };
       } else if (!bestResult) {
         // 若该镜像暂未同步到最新版（<= 本地版本），暂存该有效响应，继续探测备用镜像
@@ -132,13 +138,16 @@ export async function checkForUpdates(customUrl?: string): Promise<UpdateCheckRe
           releaseDate: data.releaseDate,
           changelog: Array.isArray(data.changelog) ? data.changelog : ["当前已是最新稳定版本。"],
           downloadUrl: data.downloadUrl,
+          fullDownloadUrl: data.fullDownloadUrl,
           fullSize: data.fullSize,
+          fullSetupSize: data.fullSetupSize,
           patchUrl: data.patchUrl,
           patchSize: data.patchSize,
           minPatchVersion: minPatchVer,
           isPatchEligible,
           mirrors: data.mirrors,
           patchMirrors: data.patchMirrors,
+          fullMirrors: data.fullMirrors,
         };
       }
     } catch {
