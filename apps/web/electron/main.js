@@ -799,6 +799,9 @@ ipcMain.handle('install-update', async (_event, filePath) => {
       stdio: 'ignore',
       windowsHide: false,
     });
+    child.on('error', (err) => {
+      console.error('Failed to spawn installer:', err);
+    });
     child.unref();
 
     // 立即终止当前所有子服务并退出应用
