@@ -3,6 +3,123 @@ import type { OmniTool } from "./types";
 export const TOOLS: OmniTool[] = [
   // ─────────────────────────────────────────────  图片工具 (image)  ──────────
   {
+    "id": "image-upscale",
+    "name": "图片强化",
+    "description": "使用 Real-ESRGAN AI 模型批量超分放大 2/3/4 倍，高清重绘对比",
+    "category": "image",
+    "mode": "async",
+    "icon": "ZoomIn",
+    "selfHostOnly": true,
+    "heavyWorkerOnly": true,
+    "inputs": [
+      {
+        "id": "file",
+        "type": "file",
+        "label": "图片文件",
+        "required": true
+      },
+      {
+        "id": "model",
+        "type": "select",
+        "label": "AI 模型",
+        "required": true,
+        "defaultValue": "anime-x2",
+        "options": [
+          {
+            "label": "动漫 2倍 (anime-x2)",
+            "value": "anime-x2"
+          },
+          {
+            "label": "动漫 3倍 (anime-x3)",
+            "value": "anime-x3"
+          },
+          {
+            "label": "动漫 4倍 (anime-x4)",
+            "value": "anime-x4"
+          },
+          {
+            "label": "通用 4倍 (real-x4)",
+            "value": "real-x4"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "image-obfuscate",
+    "name": "图片混淆",
+    "description": "空间填充曲线与混沌像素映射算法，支持方块/全像素打乱与可逆解密",
+    "category": "image",
+    "mode": "sync",
+    "icon": "EyeOff",
+    "inputs": []
+  },
+  {
+    "id": "image-to-pdf",
+    "name": "图片转 PDF",
+    "description": "将一张或多张图片合并为 PDF 文件，支持自定义页面与多画质压缩",
+    "category": "image",
+    "mode": "async",
+    "icon": "FileText",
+    "inputs": [
+      {
+        "id": "files",
+        "type": "file",
+        "label": "图片文件（可多选）",
+        "required": true,
+        "multiple": true
+      },
+      {
+        "id": "page_size",
+        "type": "select",
+        "label": "页面大小",
+        "required": true,
+        "defaultValue": "a4",
+        "options": [
+          {
+            "label": "A4",
+            "value": "a4"
+          },
+          {
+            "label": "Letter",
+            "value": "letter"
+          },
+          {
+            "label": "原始图片大小",
+            "value": "original"
+          }
+        ]
+      },
+      {
+        "id": "orientation",
+        "type": "select",
+        "label": "方向",
+        "required": true,
+        "defaultValue": "portrait",
+        "options": [
+          {
+            "label": "纵向",
+            "value": "portrait"
+          },
+          {
+            "label": "横向",
+            "value": "landscape"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "file-hide-image",
+    "name": "文件伪装为图片",
+    "description": "将任意私密文件无损伪装隐藏入图片，或一键提取还原藏匿文件",
+    "category": "image",
+    "mode": "sync",
+    "icon": "FileImage",
+    "clientSide": true,
+    "inputs": []
+  },
+  {
     "id": "bg-remove",
     "name": "自动抠图",
     "description": "AI 智能去除图片背景，支持人像、商品、动物等",
@@ -231,49 +348,6 @@ export const TOOLS: OmniTool[] = [
     ]
   },
   {
-    "id": "image-upscale",
-    "name": "图片强化",
-    "description": "使用 Real-ESRGAN AI 模型将图片放大 2/3/4 倍，高清重绘",
-    "category": "image",
-    "mode": "async",
-    "icon": "ZoomIn",
-    "selfHostOnly": true,
-    "heavyWorkerOnly": true,
-    "inputs": [
-      {
-        "id": "file",
-        "type": "file",
-        "label": "图片文件",
-        "required": true
-      },
-      {
-        "id": "model",
-        "type": "select",
-        "label": "AI 模型",
-        "required": true,
-        "defaultValue": "anime-x2",
-        "options": [
-          {
-            "label": "动漫 2倍 (anime-x2)",
-            "value": "anime-x2"
-          },
-          {
-            "label": "动漫 3倍 (anime-x3)",
-            "value": "anime-x3"
-          },
-          {
-            "label": "动漫 4倍 (anime-x4)",
-            "value": "anime-x4"
-          },
-          {
-            "label": "通用 4倍 (real-x4)",
-            "value": "real-x4"
-          }
-        ]
-      }
-    ]
-  },
-  {
     "id": "image-watermark",
     "name": "图片加水印",
     "description": "给图片添加文字水印，支持位置、大小、透明度、旋转角度调整",
@@ -480,61 +554,6 @@ export const TOOLS: OmniTool[] = [
           }
         ],
         "help": "选择生成的 ICO 图标内包含的分辨率尺寸"
-      }
-    ]
-  },
-  {
-    "id": "image-to-pdf",
-    "name": "图片转 PDF",
-    "description": "将一张或多张图片合并为 PDF 文件",
-    "category": "image",
-    "mode": "async",
-    "icon": "FileText",
-    "inputs": [
-      {
-        "id": "files",
-        "type": "file",
-        "label": "图片文件（可多选）",
-        "required": true,
-        "multiple": true
-      },
-      {
-        "id": "page_size",
-        "type": "select",
-        "label": "页面大小",
-        "required": true,
-        "defaultValue": "a4",
-        "options": [
-          {
-            "label": "A4",
-            "value": "a4"
-          },
-          {
-            "label": "Letter",
-            "value": "letter"
-          },
-          {
-            "label": "原始图片大小",
-            "value": "original"
-          }
-        ]
-      },
-      {
-        "id": "orientation",
-        "type": "select",
-        "label": "方向",
-        "required": true,
-        "defaultValue": "portrait",
-        "options": [
-          {
-            "label": "纵向",
-            "value": "portrait"
-          },
-          {
-            "label": "横向",
-            "value": "landscape"
-          }
-        ]
       }
     ]
   },
@@ -2841,6 +2860,17 @@ export const TOOLS: OmniTool[] = [
   },
   // ─────────────────────────────────────────────  实用生活 (utility)  ──────────
   {
+    "id": "lan-transfer",
+    "name": "跨设备互传",
+    "description": "手机电脑极速跨端快传，连接同一 Wi-Fi 或手机热点，手机免装 App 扫码即传，双向秒通",
+    "category": "utility",
+    "mode": "sync",
+    "icon": "Share2",
+    "clientSide": true,
+    "subcategory": "network",
+    "inputs": []
+  },
+  {
     "id": "archpr",
     "name": "压缩包密码恢复",
     "description": "专业级 ZIP / RAR / 7Z / ACE 密码恢复利器 (ARCHPR)，支持纯暴力破解、掩码搜索、密码字典碰撞与已知明文攻击",
@@ -3054,39 +3084,6 @@ export const TOOLS: OmniTool[] = [
     ]
   },
   {
-    "id": "income-tax-calculator",
-    "name": "个人所得税计算器",
-    "description": "计算工资薪金个人所得税，支持五险一金扣除",
-    "category": "utility",
-    "mode": "sync",
-    "icon": "Wallet",
-    "clientSide": true,
-    "subcategory": "finance",
-    "inputs": [
-      {
-        "id": "salary",
-        "type": "number",
-        "label": "税前工资（元）",
-        "required": true,
-        "defaultValue": "10000"
-      },
-      {
-        "id": "social",
-        "type": "number",
-        "label": "五险一金（元）",
-        "required": false,
-        "defaultValue": "0"
-      },
-      {
-        "id": "special",
-        "type": "number",
-        "label": "专项附加扣除（元）",
-        "required": false,
-        "defaultValue": "0"
-      }
-    ]
-  },
-  {
     "id": "exchange-rate",
     "name": "汇率换算器",
     "description": "主要货币汇率换算（固定汇率参考）",
@@ -3173,46 +3170,25 @@ export const TOOLS: OmniTool[] = [
   },
   {
     "id": "tax-calculator",
-    "name": "税金税率计算器",
-    "description": "计算含税金额、未含税金额、税额及税率",
+    "name": "综合税金税率计算器",
+    "description": "囊括个人所得税、增值税、企业所得税、附加税、印花税、消费税与进出口退税",
     "category": "utility",
     "mode": "sync",
     "icon": "Receipt",
     "clientSide": true,
     "subcategory": "finance",
-    "inputs": [
-      {
-        "id": "amount",
-        "type": "number",
-        "label": "金额",
-        "required": true,
-        "defaultValue": "10000"
-      },
-      {
-        "id": "rate",
-        "type": "number",
-        "label": "税率（%）",
-        "required": true,
-        "defaultValue": "13"
-      },
-      {
-        "id": "type",
-        "type": "select",
-        "label": "金额类型",
-        "required": true,
-        "defaultValue": "withTax",
-        "options": [
-          {
-            "label": "含税金额",
-            "value": "withTax"
-          },
-          {
-            "label": "不含税金额",
-            "value": "withoutTax"
-          }
-        ]
-      }
-    ]
+    "inputs": []
+  },
+  {
+    "id": "func-calc",
+    "name": "函数计算器",
+    "description": "外贸进出口单价、人带料核算、复利金融工程与自定义函数动态公式计算",
+    "category": "utility",
+    "mode": "sync",
+    "icon": "FunctionSquare",
+    "clientSide": true,
+    "subcategory": "finance",
+    "inputs": []
   },
   {
     "id": "credit-card-calculator",
@@ -3718,24 +3694,6 @@ export const TOOLS: OmniTool[] = [
     "inputs": []
   },
   {
-    "id": "number-sum",
-    "name": "数字求和工具",
-    "description": "智能解析多行数字数据，计算总和、平均数、最大值、最小值",
-    "category": "utility",
-    "mode": "sync",
-    "icon": "Sigma",
-    "clientSide": true,
-    "subcategory": "calc",
-    "inputs": [
-      {
-        "id": "numbers",
-        "type": "text",
-        "label": "数字（每行一个或用逗号分隔）",
-        "required": true
-      }
-    ]
-  },
-  {
     "id": "geometry-calculator",
     "name": "几何计算器",
     "description": "矩形、圆形、三角形等图形的面积周长计算",
@@ -3825,6 +3783,7 @@ export const TOOLS: OmniTool[] = [
     ]
   },
 ];
+
 
 export function getToolById(id: string): OmniTool | undefined {
   return TOOLS.find((tool) => tool.id === id);

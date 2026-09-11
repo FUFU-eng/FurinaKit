@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 
 export type Theme = "dark" | "light" | "eye-care";
+export type ThemeMode = "system" | "dark" | "light" | "eye-care";
 
 // 深色主题配色（深海蓝）
 const DARK_COLORS = {
@@ -88,14 +89,21 @@ const EYE_CARE_COLORS = {
   dropdownHover: "rgba(100, 80, 60, 0.06)",
 };
 
+function getSystemTheme(): Theme {
+  if (typeof window === "undefined") return "dark";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
 const ThemeContext = createContext<{
   theme: Theme;
+  themeMode: ThemeMode;
   toggleTheme: () => void;
-  setTheme: (t: Theme) => void;
+  setTheme: (t: ThemeMode) => void;
   colors: typeof DARK_COLORS;
   mounted: boolean;
 }>({
   theme: "dark",
+  themeMode: "dark",
   toggleTheme: () => {},
   setTheme: () => {},
   colors: DARK_COLORS,
@@ -103,38 +111,74 @@ const ThemeContext = createContext<{
 });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
+  const [themeMode, setThemeModeState] = useState<ThemeMode>("dark");
   const [theme, setThemeState] = useState<Theme>("dark");
   const [mounted, setMounted] = useState(false);
 
-  const applyTheme = (newTheme: Theme) => {
-    setThemeState(newTheme);
-    localStorage.setItem("furina-theme", newTheme);
-    document.documentElement.setAttribute("data-theme", newTheme);
+  const applyThemeMode = (newMode: ThemeMode) => {
+    setThemeModeState(newMode);
+    try {
+      localStorage.setItem("furina-theme-mode", newMode);
+    } catch {}
+
+    const resolved: Theme = newMode === "system" ? getSystemTheme() : newMode;
+    setThemeState(resolved);
+    try {
+      localStorage.setItem("furina-theme", resolved);
+    } catch {}
+
+    document.documentElement.setAttribute("data-theme", resolved);
     const win = typeof window !== "undefined" ? (window as unknown as { furinakit?: { setTheme?: (t: string) => void } }) : null;
     if (win?.furinakit?.setTheme) {
-      win.furinakit.setTheme(newTheme === "light" ? "light" : "dark");
+      win.furinakit.setTheme(resolved === "light" ? "light" : "dark");
     }
   };
 
+  // 初始化恢复主题偏好设置
   useEffect(() => {
-    const saved = localStorage.getItem("furina-theme") as Theme | null;
-    if (saved === "light" || saved === "dark" || saved === "eye-care") {
-      applyTheme(saved);
-    } else {
-      applyTheme("dark");
-    }
+    let initialMode: ThemeMode = "dark";
+    try {
+      const savedMode = localStorage.getItem("furina-theme-mode") as ThemeMode | null;
+      const savedTheme = localStorage.getItem("furina-theme") as Theme | null;
+      if (savedMode === "system" || savedMode === "light" || savedMode === "dark" || savedMode === "eye-care") {
+        initialMode = savedMode;
+      } else if (savedTheme === "light" || savedTheme === "dark" || savedTheme === "eye-care") {
+        initialMode = savedTheme;
+      }
+    } catch {}
+
+    applyThemeMode(initialMode);
     setMounted(true);
   }, []);
 
+  // 当选择“跟随系统”时，监听系统深色/浅色模式的动态切换
+  useEffect(() => {
+    if (themeMode !== "system" || typeof window === "undefined") return;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = (e: MediaQueryListEvent) => {
+      const resolved: Theme = e.matches ? "dark" : "light";
+      setThemeState(resolved);
+      document.documentElement.setAttribute("data-theme", resolved);
+      const win = typeof window !== "undefined" ? (window as unknown as { furinakit?: { setTheme?: (t: string) => void } }) : null;
+      if (win?.furinakit?.setTheme) {
+        win.furinakit.setTheme(resolved === "light" ? "light" : "dark");
+      }
+    };
+    media.addEventListener("change", handler);
+    return () => media.removeEventListener("change", handler);
+  }, [themeMode]);
+
   const toggleTheme = () => {
-    const next: Theme = theme === "dark" ? "light" : theme === "light" ? "eye-care" : "dark";
-    applyTheme(next);
+    const modes: ThemeMode[] = ["system", "light", "dark", "eye-care"];
+    const idx = modes.indexOf(themeMode);
+    const next = modes[(idx + 1) % modes.length];
+    applyThemeMode(next);
   };
 
   const colors = theme === "dark" ? DARK_COLORS : theme === "eye-care" ? EYE_CARE_COLORS : LIGHT_COLORS;
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme: applyTheme, colors, mounted }}>
+    <ThemeContext.Provider value={{ theme, themeMode, toggleTheme, setTheme: applyThemeMode, colors, mounted }}>
       {children}
     </ThemeContext.Provider>
   );

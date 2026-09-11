@@ -17,19 +17,11 @@ from typing import Optional, Tuple
 
 def _get_ffmpeg_path() -> str:
     """获取 FFmpeg 路径"""
-    # 优先使用系统 PATH 中的 ffmpeg
-    ffmpeg = shutil.which("ffmpeg")
-    if ffmpeg:
-        return ffmpeg
-    # 备选路径
-    candidates = [
-        r"C:\ffmpeg\bin\ffmpeg.exe",
-        r"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
-    ]
-    for path in candidates:
-        if os.path.exists(path):
-            return path
-    return "ffmpeg"  #  fallback，会在运行时报错
+    try:
+        from app.ffmpeg import get_ffmpeg_path
+        return get_ffmpeg_path()
+    except Exception:
+        return shutil.which("ffmpeg") or "ffmpeg"
 
 
 def convert_video(

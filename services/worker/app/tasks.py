@@ -127,9 +127,29 @@ def process_job(job_id: str, tool_id: str, payload: dict, use_file: bool = False
         # ── 图片放大 ──────────────────────────────────────────────────────
         if tool_id == "image-upscale":
             from app.tools.image_upscale import upscale_image
-            _set_status(job_id, use_file, progress=20, message="AI 放大中...")
             model = str(payload.get("model", "anime-x2"))
             scale = int(payload.get("scale", 2))
+
+            if len(files) > 1:
+                import zipfile
+                td = _tmp_dir()
+                out_files = []
+                total = len(files)
+                for idx, fpath in enumerate(files):
+                    src = Path(fpath)
+                    _set_status(job_id, use_file, progress=int(10 + (idx / total) * 80),
+                                message=f"AI 放大中 {idx+1}/{total}: {src.name}")
+                    out_p, fn = upscale_image(fpath, model, scale)
+                    out_files.append((out_p, fn))
+                
+                zip_path = Path(td) / "upscaled_images.zip"
+                with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                    for out_p, fn in out_files:
+                        zf.write(out_p, fn)
+                _finish_file(job_id, use_file, str(zip_path), "upscaled_images.zip", "application/zip", f"已完成放大 {total} 张图片")
+                return
+
+            _set_status(job_id, use_file, progress=20, message="AI 放大中...")
             output_path, filename = upscale_image(input_path, model, scale)
             _finish_file(job_id, use_file, output_path, filename, "image/png", "放大完成")
             return

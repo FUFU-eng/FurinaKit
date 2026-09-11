@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   getAvailableTools,
@@ -13,6 +13,7 @@ import {
 import { categoryIcon } from "@/lib/tool-icons";
 import { SortableToolGrid } from "@/components/tools/sortable-grid";
 import { CATEGORY_COLOR } from "@/components/tools/tool-card";
+import { trackAppLaunch } from "@/lib/analytics";
 
 function SectionTitle({
   category,
@@ -74,6 +75,10 @@ function HomeInner() {
     if (c && toolCategories.includes(c as never)) return [c];
     return toolCategories.filter((cat) => all.some((t) => t.category === cat));
   }, [all, c]);
+
+  useEffect(() => {
+    trackAppLaunch();
+  }, []);
 
   return (
     <div className="mx-auto max-w-none space-y-10 p-6 lg:p-8">

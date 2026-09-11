@@ -1,15 +1,17 @@
 {
   "name": "@furinakit/web",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "private": true,
+
   "main": "electron/main.js",
   "scripts": {
     "predev": "node scripts/copy-pdf-worker.mjs",
-    "dev": "next dev",
+    "dev": "next dev -H 0.0.0.0",
     "prebuild": "node scripts/copy-pdf-worker.mjs",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -H 0.0.0.0",
     "lint": "eslint",
+
     "pack": "electron-builder --dir",
     "dist": "electron-builder"
   },
@@ -20,8 +22,10 @@
     "@furinakit/shared": "workspace:*",
     "@imgly/background-removal": "^1.7.0",
     "@tanstack/react-query": "^5.66.0",
+    "@types/crypto-js": "^4.2.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "crypto-js": "^4.2.0",
     "echarts": "^6.1.0",
     "echarts-for-react": "^3.0.6",
     "framer-motion": "^11.18.2",
@@ -100,6 +104,10 @@
       {
         "from": "aria2c.exe",
         "to": "aria2c.exe"
+      },
+      {
+        "from": "../../services/worker/upscale",
+        "to": "upscale"
       }
     ],
     "win": {

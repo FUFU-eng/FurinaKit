@@ -2,13 +2,13 @@ import { z } from "zod";
 
 export const toolCategories = [
   "image",
-  "pdf",
   "download",
+  "utility",
+  "pdf",
   "audio",
   "text",
   "dev",
   "encode",
-  "utility",
 ] as const;
 
 export type ToolCategory = (typeof toolCategories)[number];

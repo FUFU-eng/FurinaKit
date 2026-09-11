@@ -6,36 +6,12 @@ import os
 import sys
 import subprocess
 import tempfile
+from typing import Dict, Any
+
+from app.ffmpeg import get_ffmpeg_path
 
 # Windows: 隐藏子进程控制台窗口
 CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
-from typing import Dict, Any
-
-
-def get_ffmpeg_path() -> str:
-    """获取 FFmpeg 路径"""
-    # 尝试系统 PATH
-    try:
-        result = subprocess.run(
-            ["where", "ffmpeg"], capture_output=True, text=True, timeout=5,
-            creationflags=CREATE_NO_WINDOW,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            return result.stdout.strip().split("\n")[0].strip()
-    except Exception:
-        pass
-    
-    # 尝试常见安装路径
-    common_paths = [
-        r"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
-        r"C:\ffmpeg\bin\ffmpeg.exe",
-        r"C:\ProgramData\chocolatey\bin\ffmpeg.exe",
-    ]
-    for path in common_paths:
-        if os.path.exists(path):
-            return path
-    
-    return "ffmpeg"  #  fallback to PATH
 
 
 def audio_format_convert(file_path: str, output_path: str, format: str = "mp3", bitrate: str = "192k") -> Dict[str, Any]:

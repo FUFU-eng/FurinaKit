@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { X, FolderOpen, Power, Check, Sparkles, RefreshCw, ArrowUpCircle, LogOut, FileText } from "lucide-react";
+import { X, FolderOpen, Power, Check, Sparkles, RefreshCw, ArrowUpCircle, LogOut, FileText, Wrench, MessageSquareHeart } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { APP_VERSION, APP_NAME } from "@/lib/version";
 import { UpdateModal } from "@/components/layout/update-modal";
+import { RepairModal } from "@/components/layout/repair-modal";
+import { FeedbackModal } from "@/components/layout/feedback-modal";
 import { checkForUpdates } from "@/lib/updater";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +31,9 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const [updateOpen, setUpdateOpen] = useState(false);
   const [updateTab, setUpdateTab] = useState<"check" | "changelog">("check");
   const [hasUpdate, setHasUpdate] = useState(false);
+  const [repairOpen, setRepairOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+
 
   // 加载设置
   useEffect(() => {
@@ -88,7 +93,17 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     [settings, updateSetting]
   );
 
+  const handleOpenOutputDir = useCallback(() => {
+    const dir = settings.outputDir?.trim() || "";
+    if (typeof window !== "undefined" && window.furinakit?.openPath) {
+      window.furinakit.openPath(dir).catch(() => {});
+    } else {
+      fetch("/api/transfer?action=open-folder", { method: "POST" }).catch(() => {});
+    }
+  }, [settings.outputDir]);
+
   if (!open) return null;
+
 
   return (
     <div
@@ -195,12 +210,12 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
             </div>
           </div>
 
-          {/* 输出目录 */}
+          {/* 2. 输出目录设置 */}
           <div>
             <h3 className="mb-3 text-[13px] font-semibold" style={{ color: colors.muted }}>
-              输出目录
+              输出目录设置
             </h3>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               <input
                 type="text"
                 value={settings.outputDir}
@@ -216,6 +231,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                 onBlur={(e) => (e.currentTarget.style.borderColor = colors.borderSolid)}
               />
               <button
+                type="button"
                 onClick={() => handleSelectDir("outputDir")}
                 className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-[13px] transition-all"
                 style={{
@@ -233,14 +249,70 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                 <FolderOpen size={15} />
                 选择
               </button>
+              <button
+                type="button"
+                onClick={handleOpenOutputDir}
+                className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-[13px] transition-all"
+                style={{
+                  background: colors.card,
+                  borderColor: colors.borderSolid,
+                  color: colors.text,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = colors.dropdownHover;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = colors.card;
+                }}
+              >
+                <FolderOpen size={15} className="text-amber-500" />
+                打开目录
+              </button>
             </div>
           </div>
 
-          {/* 关于与版本 */}
+          {/* 3. 意见反馈设置 */}
+          <div className="mt-6 pt-5" style={{ borderTop: `1px solid ${colors.border}` }}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-[13px] font-semibold" style={{ color: colors.muted }}>
+                意见反馈设置
+              </h3>
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                <Sparkles size={10} />
+                直通作者
+              </span>
+            </div>
+            <div
+              className="flex items-center justify-between rounded-xl p-4 transition-all border border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent"
+            >
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/20 text-primary">
+                  <MessageSquareHeart size={19} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[14px] font-bold" style={{ color: colors.text }}>
+                    对芙芙说的话 / 工具心愿
+                  </div>
+                  <div className="text-[12px] truncate" style={{ color: colors.muted }}>
+                    有什么建议想对芙芙说的吗，或者你还希望添加什么工具，尽管告诉芙芙吧！
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFeedbackOpen(true)}
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-[12px] font-semibold text-primary-foreground transition-all hover:opacity-90 active:scale-95 shrink-0 shadow-xs ml-3"
+              >
+                给芙芙留言
+              </button>
+            </div>
+          </div>
+
+          {/* 4. 检查更新设置 & 一键修复设置（并列与组合展示） */}
           <div className="mt-6 pt-5" style={{ borderTop: `1px solid ${colors.border}` }}>
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-[13px] font-semibold" style={{ color: colors.muted }}>
-                关于与版本
+                版本更新与一键修复
               </h3>
               {hasUpdate && (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-[11px] font-medium text-primary">
@@ -253,79 +325,107 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
               )}
             </div>
 
-            <div
-              className={cn(
-                "rounded-2xl border p-4 transition-all duration-200",
-                hasUpdate
-                  ? "border-primary/40 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent shadow-[0_4px_20px_rgba(217,119,6,0.08)] dark:shadow-[0_4px_20px_rgba(56,189,248,0.1)]"
-                  : "border-border/60"
-              )}
-              style={{
-                background: hasUpdate ? undefined : colors.bg,
-                borderColor: hasUpdate ? undefined : colors.borderSolid,
-              }}
-            >
-              <div className="flex items-center justify-between gap-4">
-                {/* 左侧：图标与版本信息 */}
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div
-                    className={cn(
-                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-xs transition-transform",
-                      hasUpdate
-                        ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20"
-                        : "bg-primary/10 text-primary"
-                    )}
-                  >
-                    {hasUpdate ? <ArrowUpCircle size={22} className="animate-pulse" /> : <Sparkles size={20} />}
-                  </div>
-
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[14px] font-bold tracking-tight whitespace-nowrap" style={{ color: colors.text }}>
-                        {APP_NAME}
-                      </span>
-                      <span className="inline-flex items-center rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-mono font-semibold text-primary shrink-0 whitespace-nowrap">
-                        v{APP_VERSION}
-                      </span>
+            <div className="space-y-3">
+              {/* 检查更新 */}
+              <div
+                className={cn(
+                  "rounded-2xl border p-4 transition-all duration-200",
+                  hasUpdate
+                    ? "border-primary/40 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent shadow-[0_4px_20px_rgba(217,119,6,0.08)] dark:shadow-[0_4px_20px_rgba(56,189,248,0.1)]"
+                    : "border-border/60"
+                )}
+                style={{
+                  background: hasUpdate ? undefined : colors.bg,
+                  borderColor: hasUpdate ? undefined : colors.borderSolid,
+                }}
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <div
+                      className={cn(
+                        "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-xs transition-transform",
+                        hasUpdate
+                          ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20"
+                          : "bg-primary/10 text-primary"
+                      )}
+                    >
+                      {hasUpdate ? <ArrowUpCircle size={22} className="animate-pulse" /> : <Sparkles size={20} />}
                     </div>
-                    <p className="mt-0.5 text-[12px] text-muted-foreground whitespace-nowrap truncate">
-                      {hasUpdate ? "云端有新的功能与体验改进可用" : "当前已是最新稳定版本，运行良好"}
-                    </p>
+
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[14px] font-bold tracking-tight whitespace-nowrap" style={{ color: colors.text }}>
+                          {APP_NAME}
+                        </span>
+                        <span className="inline-flex items-center rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-mono font-semibold text-primary shrink-0 whitespace-nowrap">
+                          v{APP_VERSION}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-[12px] text-muted-foreground whitespace-nowrap truncate">
+                        {hasUpdate ? "云端有新的功能与体验改进可用" : "当前已是最新稳定版本，运行良好"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUpdateTab("changelog");
+                        setUpdateOpen(true);
+                      }}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[12px] font-medium transition-all hover:border-primary text-muted-foreground hover:text-foreground shrink-0 whitespace-nowrap"
+                      style={{ borderColor: colors.borderSolid }}
+                    >
+                      <FileText size={13} className="shrink-0" />
+                      更新日志
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUpdateTab("check");
+                        setUpdateOpen(true);
+                      }}
+                      className={cn(
+                        "inline-flex h-8 items-center gap-1.5 rounded-lg border px-3.5 text-[12px] font-medium transition-all shrink-0 whitespace-nowrap",
+                        hasUpdate
+                          ? "bg-primary text-primary-foreground border-primary shadow-xs hover:brightness-105 active:scale-95 font-semibold"
+                          : "hover:border-primary text-primary hover:bg-primary/5"
+                      )}
+                      style={{ borderColor: hasUpdate ? undefined : colors.borderSolid }}
+                    >
+                      <RefreshCw size={13} className={cn("shrink-0", hasUpdate ? "animate-spin-slow" : "")} />
+                      {hasUpdate ? "查看新版" : "检查更新"}
+                    </button>
                   </div>
                 </div>
+              </div>
 
-                {/* 右侧：操作按钮组 */}
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setUpdateTab("changelog");
-                      setUpdateOpen(true);
-                    }}
-                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[12px] font-medium transition-all hover:border-primary text-muted-foreground hover:text-foreground shrink-0 whitespace-nowrap"
-                    style={{ borderColor: colors.borderSolid }}
-                  >
-                    <FileText size={13} className="shrink-0" />
-                    更新日志
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setUpdateTab("check");
-                      setUpdateOpen(true);
-                    }}
-                    className={cn(
-                      "inline-flex h-8 items-center gap-1.5 rounded-lg border px-3.5 text-[12px] font-medium transition-all shrink-0 whitespace-nowrap",
-                      hasUpdate
-                        ? "bg-primary text-primary-foreground border-primary shadow-xs hover:brightness-105 active:scale-95 font-semibold"
-                        : "hover:border-primary text-primary hover:bg-primary/5"
-                    )}
-                    style={{ borderColor: hasUpdate ? undefined : colors.borderSolid }}
-                  >
-                    <RefreshCw size={13} className={cn("shrink-0", hasUpdate ? "animate-spin-slow" : "")} />
-                    {hasUpdate ? "查看新版" : "检查更新"}
-                  </button>
+              {/* 一键修复 */}
+              <div
+                className="flex items-center justify-between rounded-xl p-4 transition-all"
+                style={{ background: colors.bg, border: `1px solid ${colors.borderSolid}` }}
+              >
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#ffd027]/15 text-[#ffd027]">
+                    <Wrench size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[14px] font-medium" style={{ color: colors.text }}>
+                      一键环境自检与修复
+                    </div>
+                    <div className="text-[12px] truncate" style={{ color: colors.muted }}>
+                      扫描核心服务、超分引擎与模型完整性，自动校验并修复异常
+                    </div>
+                  </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setRepairOpen(true)}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#ffd027] px-3.5 text-[12px] font-bold text-neutral-900 transition-all hover:brightness-105 active:scale-95 shrink-0 shadow-xs ml-3"
+                >
+                  开始检测
+                </button>
               </div>
             </div>
           </div>
@@ -353,6 +453,10 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
       </div>
 
       <UpdateModal open={updateOpen} onClose={() => setUpdateOpen(false)} initialTab={updateTab} />
+      <RepairModal open={repairOpen} onClose={() => setRepairOpen(false)} />
+      <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </div>
   );
 }
+
+

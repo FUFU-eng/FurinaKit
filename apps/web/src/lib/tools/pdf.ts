@@ -73,9 +73,36 @@ export async function deletePdfPages(input: Buffer, spec: string): Promise<PdfRe
 export async function imagesToPdf(images: Buffer[], pageSize: string): Promise<PdfResult> {
   const pdf = await PDFDocument.create();
   for (const raw of images) {
-    // Normalize every input to PNG so pdf-lib can embed it (handles webp/avif too).
-    const png = await sharp(raw, { failOn: "none" }).rotate().png().toBuffer();
-    const embedded = await pdf.embedPng(png);
+    let embedded;
+    const isJpeg = raw.length > 3 && raw[0] === 0xff && raw[1] === 0xd8 && raw[2] === 0xff;
+
+    if (isJpeg) {
+      try {
+        // 原生 JPEG 直接嵌入，零重编码损失与体积翻倍
+        embedded = await pdf.embedJpg(raw);
+      } catch {
+        // 遇到非标准 JPEG（如 CMYK 色彩空间），转为标准 sRGB JPEG 嵌入
+        const standardJpg = await sharp(raw, { failOn: "none" }).rotate().jpeg({ quality: 90 }).toBuffer();
+        embedded = await pdf.embedJpg(standardJpg);
+      }
+    } else {
+      try {
+        const meta = await sharp(raw, { failOn: "none" }).metadata();
+        if (meta.hasAlpha) {
+          // 带有透明通道的原图，使用高压缩率 PNG
+          const png = await sharp(raw, { failOn: "none" }).rotate().png({ compressionLevel: 9, effort: 7 }).toBuffer();
+          embedded = await pdf.embedPng(png);
+        } else {
+          // 不带透明通道的 WebP / AVIF / BMP / TIFF，转为高质量 JPEG 嵌入，体积缩减 70%~90%
+          const jpg = await sharp(raw, { failOn: "none" }).rotate().jpeg({ quality: 90 }).toBuffer();
+          embedded = await pdf.embedJpg(jpg);
+        }
+      } catch {
+        const png = await sharp(raw, { failOn: "none" }).rotate().png().toBuffer();
+        embedded = await pdf.embedPng(png);
+      }
+    }
+
     const { width, height } = embedded;
 
     if (pageSize === "fit") {
@@ -90,7 +117,8 @@ export async function imagesToPdf(images: Buffer[], pageSize: string): Promise<P
       page.drawImage(embedded, { x: (pw - w) / 2, y: (ph - h) / 2, width: w, height: h });
     }
   }
-  return { buffer: Buffer.from(await pdf.save()), mimeType: "application/pdf" };
+  const saved = await pdf.save({ useObjectStreams: true });
+  return { buffer: Buffer.from(saved), mimeType: "application/pdf" };
 }
 
 export async function pdfPageNumbers(input: Buffer, position: string): Promise<PdfResult> {

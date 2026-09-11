@@ -1,21 +1,62 @@
-"""Real-ESRGAN ncnn-vulkan 图片超分处理。"""
-
 import os
 import re
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
-# Real-ESRGAN 可执行文件和模型目录
-WORKER_DIR = Path(__file__).parent.parent.parent
-UPSCALE_EXE = WORKER_DIR / "upscale" / "realesrgan-ncnn-vulkan.exe"
-UPSCALE_MODELS_DIR = WORKER_DIR / "upscale" / "models"
+def get_upscale_paths():
+    """动态获取 Real-ESRGAN 可执行文件及模型目录，全面兼容开发、运行时打包环境。"""
+    candidates = []
+    # 1. 打包环境（可执行文件所在目录及上级 resources）
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).parent
+        candidates.extend([
+            exe_dir / "upscale",
+            exe_dir / "resources" / "upscale",
+            exe_dir.parent / "resources" / "upscale",
+            exe_dir.parent / "upscale",
+        ])
+    else:
+        exe_dir = Path(sys.executable).parent
+        candidates.extend([
+            exe_dir / "upscale",
+            exe_dir / "resources" / "upscale",
+            exe_dir.parent / "resources" / "upscale",
+        ])
+    
+    # 2. 模块文件自身路径回溯（开发环境）
+    cur = Path(__file__).resolve()
+    candidates.extend([
+        cur.parents[2] / "upscale",
+        cur.parents[3] / "services" / "worker" / "upscale",
+        cur.parents[4] / "services" / "worker" / "upscale" if len(cur.parents) > 4 else None,
+    ])
+    
+    # 3. 当前工作目录回溯
+    cwd = Path.cwd()
+    candidates.extend([
+        cwd / "services" / "worker" / "upscale",
+        cwd / "resources" / "upscale",
+        cwd / "upscale",
+    ])
+
+    for base in candidates:
+        if base and (base / "realesrgan-ncnn-vulkan.exe").is_file():
+            return (base / "realesrgan-ncnn-vulkan.exe"), (base / "models")
+
+    # 兜底回退
+    fallback = Path(__file__).resolve().parents[2] / "upscale"
+    return (fallback / "realesrgan-ncnn-vulkan.exe"), (fallback / "models")
+
+# Real-ESRGAN 可执行文件和模型目录（初始化探测）
+UPSCALE_EXE, UPSCALE_MODELS_DIR = get_upscale_paths()
 
 # 支持的模型
 MODELS = {
-    "anime-x2": "realesr-animevideov3-x2",
-    "anime-x3": "realesr-animevideov3-x3",
-    "anime-x4": "realesr-animevideov3-x4",
+    "anime-x2": "realesr-animevideov3",
+    "anime-x3": "realesr-animevideov3",
+    "anime-x4": "realesr-animevideov3",
     "real-x4": "realesrgan-x4plus",
 }
 
@@ -66,7 +107,7 @@ def _probe_gpu_id():
             str(UPSCALE_EXE),
             "-i", in_path,
             "-o", out_path,
-            "-n", "realesr-animevideov3-x2",
+            "-n", "realesr-animevideov3",
             "-s", "2",
             "-g", "0",
             "-t", "0",
@@ -108,8 +149,9 @@ def upscale_image(input_path: str, model: str = "anime-x2", scale: int = 2):
     Returns:
         (output_path, filename)
     """
-    if not UPSCALE_EXE.exists():
-        raise RuntimeError(f"找不到超分引擎: {UPSCALE_EXE}")
+    exe, models_dir = get_upscale_paths()
+    if not exe.exists():
+        raise RuntimeError(f"找不到超分引擎: {exe}。请确保已在 resources 或 worker 目录下部署 upscale/realesrgan-ncnn-vulkan.exe")
 
     model_name = MODELS.get(model, "realesr-animevideov3-x2")
     gpu_id = _probe_gpu_id()
@@ -119,21 +161,21 @@ def upscale_image(input_path: str, model: str = "anime-x2", scale: int = 2):
     output_path = input_path.parent / f"{input_path.stem}_upscaled{input_path.suffix}"
 
     args = [
-        str(UPSCALE_EXE),
+        str(exe),
         "-i", str(input_path),
         "-o", str(output_path),
         "-n", model_name,
         "-s", str(scale),
         "-g", str(gpu_id),
         "-t", "0",
-        "-m", str(UPSCALE_MODELS_DIR),
+        "-m", str(models_dir),
     ]
 
     proc = subprocess.run(
         args,
         capture_output=True,
         timeout=300,
-        cwd=str(UPSCALE_EXE.parent),
+        cwd=str(exe.parent),
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
 

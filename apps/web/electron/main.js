@@ -173,6 +173,10 @@ function startWorker() {
       FURINAKIT_STORAGE_PATH: STORAGE_DIR,
       FURINAKIT_DEFAULT_OUTPUT_DIR: DEFAULT_OUTPUT_DIR,
       FURINAKIT_SETTINGS_FILE: SETTINGS_FILE,
+      FURINAKIT_RESOURCES_PATH: RESOURCES_DIR,
+      FURINAKIT_UPSCALE_PATH: IS_PACKAGED
+        ? path.join(RESOURCES_DIR, "upscale", "realesrgan-ncnn-vulkan.exe")
+        : path.join(ROOT, "services", "worker", "upscale", "realesrgan-ncnn-vulkan.exe"),
     },
   });
   workerProc.stdout.on('data', (data) => {
@@ -209,6 +213,10 @@ async function startWebServer() {
     FURINAKIT_ARIA2_PATH: IS_PACKAGED ? path.join(RESOURCES_DIR, "aria2c.exe") : path.join(ROOT, "apps", "web", "aria2c.exe"),
     FURINAKIT_DEFAULT_OUTPUT_DIR: DEFAULT_OUTPUT_DIR,
     FURINAKIT_STORAGE_PATH: STORAGE_DIR,
+    FURINAKIT_RESOURCES_PATH: RESOURCES_DIR,
+    FURINAKIT_UPSCALE_PATH: IS_PACKAGED
+      ? path.join(RESOURCES_DIR, "upscale", "realesrgan-ncnn-vulkan.exe")
+      : path.join(ROOT, "services", "worker", "upscale", "realesrgan-ncnn-vulkan.exe"),
     STORAGE_PATH: STORAGE_DIR,
     USE_FILE_QUEUE: '1',
     NEXT_PUBLIC_ENABLE_DOWNLOADS: '1',
@@ -220,13 +228,14 @@ async function startWebServer() {
   const hasBuild = fs.existsSync(path.join(WEB_DIR, '.next', 'BUILD_ID'));
   const mode = hasBuild ? 'start' : 'dev';
   console.log('[FurinaKit] Next 模式:', mode);
-  webProc = spawn(nodeExe, [nextJs, mode, '--port', String(PORT)], {
+  webProc = spawn(nodeExe, [nextJs, mode, '--hostname', '0.0.0.0', '--port', String(PORT)], {
     cwd: WEB_DIR,
     detached: false,
     stdio: 'ignore',
     windowsHide: true,
     env,
   });
+
   webProc.on('error', (err) => {
     console.log('[FurinaKit] Web 服务启动错误:', err.message);
   });

@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Download,
@@ -186,6 +186,9 @@ export function MagnetDownloadTool() {
         progress: 0,
         message: "已创建下载任务，正在调度 aria2 引擎...",
       });
+      try {
+        sessionStorage.setItem("furina:job:magnet-download", data.job.id);
+      } catch {}
 
       // 触发全局任务球更新
       if (typeof window !== "undefined") {
@@ -223,7 +226,11 @@ export function MagnetDownloadTool() {
   };
 
   // 轮询任务状态
-  const pollJobStatus = (jobId: string) => {
+  const pollJobStatus = useCallback((jobId: string) => {
+    try {
+      sessionStorage.setItem("furina:job:magnet-download", jobId);
+    } catch {}
+
     let timer: NodeJS.Timeout;
 
     const poll = async () => {
@@ -274,9 +281,48 @@ export function MagnetDownloadTool() {
     };
 
     poll();
-
     return () => clearTimeout(timer);
-  };
+  }, [toast]);
+
+  // 页面挂载时自动恢复进行中的磁力任务
+  useEffect(() => {
+    let unmounted = false;
+    const restore = async () => {
+      let jId: string | null = null;
+      if (typeof window !== "undefined") {
+        const sp = new URLSearchParams(window.location.search);
+        jId = sp.get("jobId") || sessionStorage.getItem("furina:job:magnet-download");
+      }
+      if (!jId) {
+        try {
+          const r = await fetch("/api/jobs", { cache: "no-store" });
+          const data = await r.json();
+          const running = data?.jobs?.find(
+            (j: { toolId?: string; status?: string; id?: string }) =>
+              j.toolId === "magnet-download" &&
+              (j.status === "processing" || j.status === "pending" || j.status === "queued")
+          );
+          if (running?.id) jId = running.id;
+        } catch {}
+      }
+      if (!jId || unmounted) return;
+      pollJobStatus(jId);
+    };
+
+    restore();
+
+    const handleSelectJob = (e: Event) => {
+      const detail = (e as CustomEvent<{ toolId?: string; jobId?: string }>).detail;
+      if (detail?.toolId === "magnet-download" && detail?.jobId) {
+        pollJobStatus(detail.jobId);
+      }
+    };
+    window.addEventListener("furinakit:select-job", handleSelectJob);
+    return () => {
+      unmounted = true;
+      window.removeEventListener("furinakit:select-job", handleSelectJob);
+    };
+  }, [pollJobStatus]);
 
   // 打开保存输出目录
   const handleOpenFolder = async () => {

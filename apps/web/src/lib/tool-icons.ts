@@ -45,9 +45,9 @@ import {
   KeyRound,
   Regex,
   FileCode,
-  ImageIcon,
   Zap,
   ALargeSmall,
+
   ArrowLeftRight,
   ArrowUpDown,
   Atom,
@@ -61,9 +61,11 @@ import {
   CreditCard,
   Dices,
   Edit3,
+  EyeOff,
   FileDigit,
   Filter,
   Fingerprint,
+  FunctionSquare,
   GitCompare,
   Grid3x3,
   HardDrive,
@@ -110,8 +112,11 @@ import {
   PieChart,
   LineChart,
   BarChart,
+  Share2,
+  Smartphone,
   type LucideIcon,
 } from "lucide-react";
+
 import type { ToolCategory } from "@furinakit/shared";
 
 /** Maps a tool's `icon` string (a Lucide name) to the component. */
@@ -133,6 +138,8 @@ export const iconMap: Record<string, LucideIcon> = {
   Scissors,
   FileMinus,
   FileImage,
+  EyeOff,
+  FunctionSquare,
   ListOrdered,
   Droplets,
   Droplet,
@@ -226,7 +233,10 @@ export const iconMap: Record<string, LucideIcon> = {
   PieChart,
   LineChart,
   BarChart,
+  Share2,
+  Smartphone,
   "scatter-chart": ChartScatter,
+
   "pie-chart": PieChart,
   "line-chart": LineChart,
   "bar-chart": BarChart,

@@ -5,6 +5,7 @@ import { SYNC_HANDLERS, type SyncInput } from "@/lib/tools/registry";
 import { createJob, createLocalJob } from "@/lib/jobs";
 import { runVideoDownloadJob } from "@/lib/video-downloader";
 import { runMagnetDownloadJob } from "@/lib/magnet-downloader";
+import { runImageUpscaleJob } from "@/lib/image-upscaler";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -134,6 +135,23 @@ async function handleAsyncTool(formData: FormData, toolId: string) {
       return NextResponse.json({ job });
     } catch (error) {
       const message = error instanceof Error ? error.message : "创建磁力下载任务失败";
+      return NextResponse.json({ error: message }, { status: 429 });
+    }
+  }
+
+  // 图片高清强化通过内置 Real-ESRGAN Vulkan 引擎在后台异步运行
+  if (toolId === "image-upscale") {
+    if (!payload.file) {
+      return NextResponse.json({ error: "请上传需要强化的图片" }, { status: 400 });
+    }
+    try {
+      const job = await createLocalJob(toolId, payload);
+      runImageUpscaleJob(job.id, payload).catch((err) => {
+        console.error(`[image-upscale] Background job ${job.id} failed:`, err);
+      });
+      return NextResponse.json({ job });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "创建图片超分任务失败";
       return NextResponse.json({ error: message }, { status: 429 });
     }
   }

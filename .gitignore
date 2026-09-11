@@ -37,6 +37,7 @@ services/worker/cookies.txt
 
 # Electron packaging & build outputs
 dist-installer/
+dist-release/
 apps/web/dist-installer/
 apps/web/data/
 services/worker/dist/

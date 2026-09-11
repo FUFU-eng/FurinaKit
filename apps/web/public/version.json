@@ -1,37 +1,37 @@
 {
-  "version": "2.0.4",
-  "releaseDate": "2026-09-10",
+  "version": "2.0.5",
+  "releaseDate": "2026-09-11",
   "changelog": [
-    "全新上线「磁力与BT种子下载」工具：大文件、大视频直接下，无需安装第三方软件",
-    "超贴心「先预览后下载」：粘贴链接秒出视频名字、准确大小与文件清单，绝不下错资源",
-    "内置 40+ 全球高速加速节点与协议伪装，冷门资源也能轻松连接、跑满网速",
-    "下载视频的同时自动留存 .torrent 种子备份，方便转存网盘或分享给好友",
-    "已下载资源智能识别：已下好的视频直接秒开，绝不误删、不重复下载",
-    "软件更新通道与后台服务全面优化，后续升级一键全自动检测与安装"
+    "全新上线「跨设备互传」：手机电脑高速直连，扫码即传免装App，支持剪贴板实时互通",
+    "图片强化全新支持「批量超分与原图对比」：上限50张并发，自适应各品牌显卡加速与低显存保护",
+    "全新上线「图片混淆/反混淆」：像素打乱与空间映射双重混淆，支持无损加解密与一键还原",
+    "全新上线「文件伪装为图片」：任意私密文件/压缩包融入正常图片，改后缀为.zip或一键解密还原",
+    "全新重构「税金税率计算」与「高级函数计算」：个人所得税/增值税/企业所得税全税种专业计算",
+    "视觉主题新增「跟随系统」模式与护眼高对比度优化，全局任务断点接管与悬浮球无缝续展"
   ],
-  "downloadUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.4/FurinaKit.Setup.2.0.4.exe",
-  "fullSize": "约 570 MB",
-  "patchUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.4/FurinaKit.Patch.2.0.4.exe",
-  "patchSize": "约 14.1 MB",
+  "downloadUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Setup.2.0.5.exe",
+  "fullSize": "约 578 MB",
+  "patchUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Patch.2.0.5.exe",
+  "patchSize": "约 45.1 MB",
   "minPatchVersion": "2.0.3",
   "mirrors": [
     {
       "name": "GitHub 官方直链",
-      "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.4/FurinaKit.Setup.2.0.4.exe"
+      "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Setup.2.0.5.exe"
     },
     {
       "name": "国内高速镜像线路",
-      "url": "https://ghproxy.net/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.4/FurinaKit.Setup.2.0.4.exe"
+      "url": "https://ghproxy.net/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Setup.2.0.5.exe"
     }
   ],
   "patchMirrors": [
     {
       "name": "GitHub 官方直链",
-      "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.4/FurinaKit.Patch.2.0.4.exe"
+      "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Patch.2.0.5.exe"
     },
     {
       "name": "国内高速镜像线路",
-      "url": "https://ghproxy.net/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.4/FurinaKit.Patch.2.0.4.exe"
+      "url": "https://ghproxy.net/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Patch.2.0.5.exe"
     }
   ]
 }

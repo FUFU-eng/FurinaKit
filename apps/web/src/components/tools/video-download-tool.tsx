@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
   Download, ExternalLink, AlertCircle,
@@ -394,6 +394,9 @@ function ParseThenDownload({ toolId }: { toolId: string }) {
         progress: 0,
         message: "任务已创建，等待处理...",
       });
+      try {
+        sessionStorage.setItem(`furina:job:${toolId}`, data.job.id);
+      } catch {}
 
       // 开始轮询任务状态
       pollJobStatus(data.job.id);
@@ -404,13 +407,17 @@ function ParseThenDownload({ toolId }: { toolId: string }) {
   };
 
   // 轮询任务状态
-  const pollJobStatus = async (jobId: string) => {
+  const pollJobStatus = useCallback((jobId: string) => {
+    try {
+      sessionStorage.setItem(`furina:job:${toolId}`, jobId);
+    } catch {}
+
     const poll = async () => {
       try {
         const res = await fetch(`/api/jobs/${jobId}`);
         const data = await res.json();
 
-        if (res.ok) {
+        if (res.ok && data.job) {
           const localizedError = data.job.error ? localizeVideoErrorMessage(data.job.error) : undefined;
           setJob({
             id: data.job.id,
@@ -440,7 +447,47 @@ function ParseThenDownload({ toolId }: { toolId: string }) {
     };
 
     poll();
-  };
+  }, [toolId, toast]);
+
+  // 页面挂载时自动恢复进行中的下载任务
+  useEffect(() => {
+    let unmounted = false;
+    const restore = async () => {
+      let jId: string | null = null;
+      if (typeof window !== "undefined") {
+        const sp = new URLSearchParams(window.location.search);
+        jId = sp.get("jobId") || sessionStorage.getItem(`furina:job:${toolId}`);
+      }
+      if (!jId) {
+        try {
+          const r = await fetch("/api/jobs", { cache: "no-store" });
+          const data = await r.json();
+          const running = data?.jobs?.find(
+            (j: { toolId?: string; status?: string; id?: string }) =>
+              j.toolId === toolId &&
+              (j.status === "processing" || j.status === "pending" || j.status === "queued")
+          );
+          if (running?.id) jId = running.id;
+        } catch {}
+      }
+      if (!jId || unmounted) return;
+      pollJobStatus(jId);
+    };
+
+    restore();
+
+    const handleSelectJob = (e: Event) => {
+      const detail = (e as CustomEvent<{ toolId?: string; jobId?: string }>).detail;
+      if (detail?.toolId === toolId && detail?.jobId) {
+        pollJobStatus(detail.jobId);
+      }
+    };
+    window.addEventListener("furinakit:select-job", handleSelectJob);
+    return () => {
+      unmounted = true;
+      window.removeEventListener("furinakit:select-job", handleSelectJob);
+    };
+  }, [toolId, pollJobStatus]);
 
   // 下载结果文件
   const handleDownloadResult = async () => {

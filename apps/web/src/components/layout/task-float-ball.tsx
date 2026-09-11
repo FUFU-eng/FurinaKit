@@ -182,8 +182,19 @@ export function TaskFloatBall() {
     }
   };
 
-  const goToTool = (toolId: string) => {
-    router.push(`/tools/${toolId}`);
+  const goToTool = (toolId: string, jobId?: string) => {
+    if (jobId) {
+      try {
+        sessionStorage.setItem(`furina:job:${toolId}`, jobId);
+        sessionStorage.setItem("furina:active_job_global", jobId);
+        window.dispatchEvent(
+          new CustomEvent("furinakit:select-job", { detail: { toolId, jobId } })
+        );
+      } catch {}
+      router.push(`/tools/${toolId}?jobId=${encodeURIComponent(jobId)}`);
+    } else {
+      router.push(`/tools/${toolId}`);
+    }
     setExpanded(false);
   };
 
@@ -343,15 +354,16 @@ export function TaskFloatBall() {
                   return (
                     <div
                       key={job.id}
-                      className="border-b px-4 py-3 last:border-b-0"
+                      className="group cursor-pointer border-b px-4 py-3 transition-colors hover:bg-white/[0.05] last:border-b-0"
                       style={{ borderColor: borderCol }}
+                      onClick={() => goToTool(job.toolId, job.id)}
+                      title={`点击进入「${toolName}」查看此任务详情`}
                     >
                       <div className="flex items-center gap-2">
                         {statusIcon(job.status)}
                         <span
-                          className="flex-1 cursor-pointer truncate text-sm font-medium hover:underline"
+                          className="flex-1 truncate text-sm font-medium group-hover:underline"
                           style={{ color: colors.text }}
-                          onClick={() => goToTool(job.toolId)}
                           title={toolName}
                         >
                           {toolName}

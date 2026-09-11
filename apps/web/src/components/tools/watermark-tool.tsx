@@ -185,6 +185,9 @@ export function WatermarkTool({ toolId }: WatermarkToolProps) {
         progress: 10,
         message: "正在添加水印...",
       });
+      try {
+        sessionStorage.setItem(`furina:job:${toolId}`, data.job.id);
+      } catch {}
 
       pollJobStatus(data.job.id);
     } catch (err) {
@@ -195,7 +198,12 @@ export function WatermarkTool({ toolId }: WatermarkToolProps) {
     }
   };
 
-  const pollJobStatus = async (jobId: string) => {
+  const pollJobStatus = useCallback((jobId: string) => {
+    if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+    try {
+      sessionStorage.setItem(`furina:job:${toolId}`, jobId);
+    } catch {}
+
     const poll = async () => {
       try {
         const res = await fetch(`/api/jobs/${jobId}`);
@@ -225,7 +233,48 @@ export function WatermarkTool({ toolId }: WatermarkToolProps) {
       }
     };
     poll();
-  };
+  }, [toolId, toast]);
+
+  // 页面挂载时自动恢复进行中的水印任务
+  useEffect(() => {
+    let unmounted = false;
+    const restore = async () => {
+      let jId: string | null = null;
+      if (typeof window !== "undefined") {
+        const sp = new URLSearchParams(window.location.search);
+        jId = sp.get("jobId") || sessionStorage.getItem(`furina:job:${toolId}`);
+      }
+      if (!jId) {
+        try {
+          const r = await fetch("/api/jobs", { cache: "no-store" });
+          const data = await r.json();
+          const running = data?.jobs?.find(
+            (j: { toolId?: string; status?: string; id?: string }) =>
+              j.toolId === toolId &&
+              (j.status === "processing" || j.status === "pending" || j.status === "queued")
+          );
+          if (running?.id) jId = running.id;
+        } catch {}
+      }
+      if (!jId || unmounted) return;
+      pollJobStatus(jId);
+    };
+
+    restore();
+
+    const handleSelectJob = (e: Event) => {
+      const detail = (e as CustomEvent<{ toolId?: string; jobId?: string }>).detail;
+      if (detail?.toolId === toolId && detail?.jobId) {
+        pollJobStatus(detail.jobId);
+      }
+    };
+    window.addEventListener("furinakit:select-job", handleSelectJob);
+    return () => {
+      unmounted = true;
+      window.removeEventListener("furinakit:select-job", handleSelectJob);
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+    };
+  }, [toolId, pollJobStatus]);
 
   const [downloading, setDownloading] = useState(false);
 

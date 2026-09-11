@@ -38,33 +38,175 @@ async function flattenWithBackground(pngUrl: string, color: string): Promise<str
   });
 }
 
+// 模块级缓存，确保跨页面跳转不丢失已上传的图片与已处理结果
+const bgRemoveCache: {
+  files: File[];
+  result: { pngUrl: string; name: string; size: number; beforeUrl: string } | null;
+  activeJobId: string | null;
+  busy: boolean;
+  progress: number;
+  statusText: string;
+} = {
+  files: [],
+  result: null,
+  activeJobId: null,
+  busy: false,
+  progress: 0,
+  statusText: "",
+};
+
 export function BgRemoveTool() {
   const { toast } = useToast();
-  const [files, setFiles] = useState<File[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [statusText, setStatusText] = useState("");
+  const [files, setFilesState] = useState<File[]>(bgRemoveCache.files);
+  const [busy, setBusyState] = useState(bgRemoveCache.busy);
+  const [progress, setProgressState] = useState(bgRemoveCache.progress);
+  const [statusText, setStatusTextState] = useState(bgRemoveCache.statusText);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{
+  const [result, setResultState] = useState<{
     pngUrl: string;
     name: string;
     size: number;
     beforeUrl: string;
-  } | null>(null);
+  } | null>(bgRemoveCache.result);
   const [bgMode, setBgMode] = useState<BgMode>("transparent");
   const [customColor, setCustomColor] = useState("#3b82f6");
   const [sliderX, setSliderX] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const activeJobIdRef = useRef<string | null>(null);
+  const activeJobIdRef = useRef<string | null>(bgRemoveCache.activeJobId);
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 清理
+  const setFiles = (f: File[] | ((prev: File[]) => File[])) => {
+    setFilesState((prev) => {
+      const next = typeof f === "function" ? f(prev) : f;
+      bgRemoveCache.files = next;
+      return next;
+    });
+  };
+
+  const setBusy = (b: boolean) => {
+    bgRemoveCache.busy = b;
+    setBusyState(b);
+  };
+
+  const setProgress = (p: number) => {
+    bgRemoveCache.progress = p;
+    setProgressState(p);
+  };
+
+  const setStatusText = (t: string) => {
+    bgRemoveCache.statusText = t;
+    setStatusTextState(t);
+  };
+
+  const setResult = (r: { pngUrl: string; name: string; size: number; beforeUrl: string } | null) => {
+    bgRemoveCache.result = r;
+    setResultState(r);
+  };
+
+  // 轮询与恢复后台任务
+  const pollJob = useCallback(async (jobId: string, beforeUrl?: string) => {
+    activeJobIdRef.current = jobId;
+    bgRemoveCache.activeJobId = jobId;
+    try {
+      sessionStorage.setItem("furina:job:bg-remove", jobId);
+    } catch {}
+
+    let pollCount = 0;
+    const check = async (): Promise<void> => {
+      pollCount++;
+      try {
+        const statusRes = await fetch(`/api/jobs/${jobId}`, { cache: "no-store" });
+        if (!statusRes.ok) return;
+        const resData = await statusRes.json();
+        const jobObj = resData.job || resData;
+
+        if (jobObj.status === "completed") {
+          setProgress(100);
+          setStatusText("正在生成超清透明图…");
+
+          const dlRes = await fetch(`/api/jobs/${jobId}/download`, { cache: "no-store" });
+          if (!dlRes.ok) throw new Error("下载抠图结果失败");
+          const blob = await dlRes.blob();
+          const pngUrl = URL.createObjectURL(blob);
+          const name = jobObj.resultFilename || "removed-bg.png";
+
+          setResult({
+            pngUrl,
+            name,
+            size: blob.size,
+            beforeUrl: beforeUrl || bgRemoveCache.result?.beforeUrl || pngUrl,
+          });
+          setSliderX(50);
+          setBusy(false);
+          setStatusText("");
+          window.dispatchEvent(new CustomEvent("furinakit:jobs-updated"));
+          toast({ title: "AI 抠图完成！", variant: "success" });
+          return;
+        } else if (jobObj.status === "failed") {
+          setBusy(false);
+          setStatusText("");
+          window.dispatchEvent(new CustomEvent("furinakit:jobs-updated"));
+          setError(jobObj.error || "抠图处理失败");
+          toast({ title: "抠图处理失败", description: jobObj.error, variant: "error" });
+          return;
+        } else {
+          setBusy(true);
+          const currentPct = Math.min(95, Math.max(30, (jobObj.progress?.percent || 40) + pollCount * 3));
+          setProgress(currentPct);
+          setStatusText(jobObj.progress?.message || `AI 运算处理中 (${currentPct}%)…`);
+          pollTimerRef.current = setTimeout(check, 800);
+        }
+      } catch {
+        pollTimerRef.current = setTimeout(check, 1500);
+      }
+    };
+    await check();
+  }, [toast]);
+
+  // 页面挂载时自动恢复正在进行中的任务
   useEffect(() => {
+    let unmounted = false;
+    const restore = async () => {
+      let jId: string | null = null;
+      if (typeof window !== "undefined") {
+        const sp = new URLSearchParams(window.location.search);
+        jId = sp.get("jobId") || sessionStorage.getItem("furina:job:bg-remove");
+      }
+      if (!jId && bgRemoveCache.activeJobId) {
+        jId = bgRemoveCache.activeJobId;
+      }
+      if (!jId) {
+        try {
+          const r = await fetch("/api/jobs", { cache: "no-store" });
+          const data = await r.json();
+          const running = data?.jobs?.find(
+            (j: { toolId?: string; status?: string; id?: string }) =>
+              j.toolId === "bg-remove" &&
+              (j.status === "processing" || j.status === "pending" || j.status === "queued")
+          );
+          if (running?.id) jId = running.id;
+        } catch {}
+      }
+      if (!jId || unmounted) return;
+      pollJob(jId);
+    };
+
+    restore();
+
+    const handleSelectJob = (e: Event) => {
+      const detail = (e as CustomEvent<{ toolId?: string; jobId?: string }>).detail;
+      if (detail?.toolId === "bg-remove" && detail?.jobId) {
+        pollJob(detail.jobId);
+      }
+    };
+    window.addEventListener("furinakit:select-job", handleSelectJob);
     return () => {
+      unmounted = true;
+      window.removeEventListener("furinakit:select-job", handleSelectJob);
       if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
     };
-  }, []);
+  }, [pollJob]);
 
   const previewUrl = files[0] ? URL.createObjectURL(files[0]) : null;
 
@@ -134,52 +276,15 @@ export function BgRemoveTool() {
       }
 
       activeJobIdRef.current = job.id;
+      bgRemoveCache.activeJobId = job.id;
+      try {
+        sessionStorage.setItem("furina:job:bg-remove", job.id);
+      } catch {}
       window.dispatchEvent(new CustomEvent("furinakit:jobs-updated"));
       setStatusText("AI 智能主体分析与轮廓提取中…");
       setProgress(40);
 
-      // 轮询任务状态
-      let pollCount = 0;
-      const poll = async (): Promise<void> => {
-        pollCount++;
-        const statusRes = await fetch(`/api/jobs/${job.id}`, { cache: "no-store" });
-        if (!statusRes.ok) {
-          throw new Error("查询任务进度失败");
-        }
-        const resData = await statusRes.json();
-        const jobObj = resData.job || resData;
-
-        if (jobObj.status === "completed") {
-          setProgress(100);
-          setStatusText("正在生成超清透明图…");
-
-          // 获取结果 Blob
-          const dlRes = await fetch(`/api/jobs/${job.id}/download`, { cache: "no-store" });
-          if (!dlRes.ok) throw new Error("下载抠图结果失败");
-          const blob = await dlRes.blob();
-          const pngUrl = URL.createObjectURL(blob);
-          const name = files[0].name.replace(/\.[^.]+$/, "") + "-nobg.png";
-
-          setResult({ pngUrl, name, size: blob.size, beforeUrl });
-          setSliderX(50);
-          setBusy(false);
-          window.dispatchEvent(new CustomEvent("furinakit:jobs-updated"));
-          toast({ title: "AI 抠图完成！", variant: "success" });
-          return;
-        } else if (jobObj.status === "failed") {
-          window.dispatchEvent(new CustomEvent("furinakit:jobs-updated"));
-          throw new Error(jobObj.error || "抠图处理失败");
-        } else {
-          // 更新动态进度条
-          const currentPct = Math.min(92, 40 + pollCount * 8);
-          setProgress(currentPct);
-          setStatusText(jobObj.progress?.message || `AI 运算处理中 (${currentPct}%)…`);
-          await new Promise((r) => setTimeout(r, 600));
-          return poll();
-        }
-      };
-
-      await poll();
+      await pollJob(job.id, beforeUrl);
     } catch (err) {
       URL.revokeObjectURL(beforeUrl);
       const msg = err instanceof Error ? err.message : "自动抠图失败";

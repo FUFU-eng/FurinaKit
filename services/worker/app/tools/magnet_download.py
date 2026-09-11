@@ -21,6 +21,18 @@ def _get_aria2_path() -> str:
     override = os.environ.get("ARIA2C_PATH", "").strip()
     if override:
         return override
+    # 优先检查打包内置环境（furinakit-worker.exe 同级或 resources 目录）
+    exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+    candidates = [
+        os.path.join(exe_dir, "aria2c.exe"),
+        os.path.join(exe_dir, "resources", "aria2c.exe"),
+        os.path.join(os.path.dirname(exe_dir), "aria2c.exe"),
+        os.path.join(os.path.dirname(exe_dir), "resources", "aria2c.exe"),
+    ]
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+
     # 优先使用系统 PATH 中的 aria2c
     aria2 = shutil.which("aria2c")
     if aria2:

@@ -31,15 +31,23 @@ import { ImageCompressTool } from "@/components/tools/image-compress-tool";
 import { ImageMergeTool } from "@/components/tools/image-merge-tool";
 import { ImageResizeTool } from "@/components/tools/image-resize-tool";
 import { ImageSplitTool } from "@/components/tools/image-split-tool";
+import { ImageUpscaleTool } from "@/components/tools/image-upscale-tool";
+import { ImageObfuscateTool } from "@/components/tools/image-obfuscate-tool";
+import { FileHideImageTool } from "@/components/tools/file-hide-image-tool";
+import { TaxCalculatorTool } from "@/components/tools/tax-calculator-tool";
+import { FunctionCalculatorTool } from "@/components/tools/function-calculator-tool";
+import { LanTransferTool } from "@/components/tools/lan-transfer-tool";
+import { trackToolUsage } from "@/lib/analytics";
+
 // 大量纯前端小工具
 import {
   RmbUppercaseTool, LoanCalculatorTool, BmiCalculatorTool, BaseConverterTool,
   ByteConverterTool, WordCountTool, TextDedupTool, MorseCodeTool, CaesarCipherTool,
   UuidGeneratorTool, TimestampConverterTool, PasswordGeneratorTool, RandomNumberTool,
-  DateCalculatorTool, NumberSumTool, LengthConverterTool,
+  DateCalculatorTool, LengthConverterTool,
   TimeConverterTool, AreaConverterTool, WeightConverterTool, TextReplaceTool,
   FullwidthHalfwidthTool, AesEncryptTool, RomanNumeralTool, CrontabGeneratorTool,
-  IncomeTaxCalculatorTool, TaxCalculatorTool, CreditCardCalculatorTool,
+  CreditCardCalculatorTool,
   EnglishAmountUppercaseTool, NumberEnglishTool, ExchangeRateTool, GeometryCalculatorTool,
   VolumeConverterTool, LunarCalendarTool, TextCompareTool,
   FancyTextTool, PinyinConverterTool, ShaHashTool, UnicodeConverterTool, GuidGeneratorTool,
@@ -71,6 +79,9 @@ const CLIENT_TOOL_COMPONENTS: Record<string, React.ComponentType> = {
   "image-crop": ImageCropTool,
   "image-resize": ImageResizeTool,
   "image-split": ImageSplitTool,
+  "image-upscale": ImageUpscaleTool,
+  "image-obfuscate": ImageObfuscateTool,
+  "file-hide-image": FileHideImageTool,
   "url-encode": UrlCodecTool,
   base64: Base64Tool,
   "color-convert": ColorConverterTool,
@@ -85,13 +96,15 @@ const CLIENT_TOOL_COMPONENTS: Record<string, React.ComponentType> = {
   "caesar-cipher": CaesarCipherTool, "uuid-generator": UuidGeneratorTool,
   "timestamp-converter": TimestampConverterTool, "password-generator": PasswordGeneratorTool,
   "random-number": RandomNumberTool, "simple-calculator": AdvancedCalculatorTool,
-  "date-calculator": DateCalculatorTool, "number-sum": NumberSumTool,
+  "date-calculator": DateCalculatorTool,
   "length-converter": LengthConverterTool, "time-converter": TimeConverterTool,
   "area-converter": AreaConverterTool, "weight-converter": WeightConverterTool,
   "text-replace": TextReplaceTool, "fullwidth-halfwidth": FullwidthHalfwidthTool,
   "aes-encrypt": AesEncryptTool, "roman-numeral": RomanNumeralTool,
-  "crontab-generator": CrontabGeneratorTool, "income-tax-calculator": IncomeTaxCalculatorTool,
-  "tax-calculator": TaxCalculatorTool, "credit-card-calculator": CreditCardCalculatorTool,
+  "crontab-generator": CrontabGeneratorTool,
+  "tax-calculator": TaxCalculatorTool,
+  "func-calc": FunctionCalculatorTool,
+  "credit-card-calculator": CreditCardCalculatorTool,
   "english-amount-uppercase": EnglishAmountUppercaseTool, "number-english": NumberEnglishTool,
   "exchange-rate": ExchangeRateTool, "geometry-calculator": GeometryCalculatorTool,
   "volume-converter": VolumeConverterTool, "lunar-calendar": LunarCalendarTool,
@@ -164,6 +177,10 @@ function acceptFor(tool: OmniTool): Record<string, string[]> | undefined {
 export function ToolRunner({ toolId }: ToolRunnerProps) {
   const tool = getToolById(toolId);
   if (!tool) notFound();
+
+  useEffect(() => {
+    trackToolUsage(toolId);
+  }, [toolId]);
 
   // 通用视频下载：内置网页全屏渲染（给网站最大空间）
   if (toolId === "video-download") {
@@ -246,7 +263,61 @@ export function ToolRunner({ toolId }: ToolRunnerProps) {
     );
   }
 
-  const ClientComponent = tool.clientSide ? CLIENT_TOOL_COMPONENTS[tool.id] : undefined;
+  // 跨设备极速互传：手机免装 App 扫码即传工作台
+  if (toolId === "lan-transfer") {
+    return (
+      <ToolShell tool={tool}>
+        <LanTransferTool />
+      </ToolShell>
+    );
+  }
+
+  // 图片强化：Real-ESRGAN 批量超分辨率（最多50张）与实时原图滑动对比
+  if (toolId === "image-upscale") {
+    return (
+      <ToolShell tool={tool}>
+        <ImageUpscaleTool />
+      </ToolShell>
+    );
+  }
+
+  // 图片混淆/反混淆：基于女娲算法与像素级加密混淆
+  if (toolId === "image-obfuscate") {
+    return (
+      <ToolShell tool={tool}>
+        <ImageObfuscateTool />
+      </ToolShell>
+    );
+  }
+
+  // 文件伪装为图片：图种隐写与还原提取
+  if (toolId === "file-hide-image") {
+    return (
+      <ToolShell tool={tool}>
+        <FileHideImageTool />
+      </ToolShell>
+    );
+  }
+
+  // 综合税金税率计算
+  if (toolId === "tax-calculator") {
+    return (
+      <ToolShell tool={tool}>
+        <TaxCalculatorTool />
+      </ToolShell>
+    );
+  }
+
+  // 函数计算
+  if (toolId === "func-calc") {
+    return (
+      <ToolShell tool={tool}>
+        <FunctionCalculatorTool />
+      </ToolShell>
+    );
+  }
+
+  const ClientComponent = CLIENT_TOOL_COMPONENTS[tool.id];
   if (ClientComponent) {
     return (
       <ToolShell tool={tool}>
@@ -267,8 +338,81 @@ function GenericToolRunner({ tool }: { tool: Tool }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SyncResultState | null>(null);
-  const [jobId, setJobId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const qJob = sp.get("jobId");
+      if (qJob) return qJob;
+      return sessionStorage.getItem(`furina:job:${tool.id}`);
+    } catch {
+      return null;
+    }
+  });
+
+  // 监听 URL searchParams、全局选择事件、并自动探测正在运行中的该工具后台任务
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    // 1. 检查 URL 参数
+    const sp = new URLSearchParams(window.location.search);
+    const qJob = sp.get("jobId");
+    if (qJob) {
+      setJobId(qJob);
+      sessionStorage.setItem(`furina:job:${tool.id}`, qJob);
+      return;
+    }
+
+    // 2. 检查会话存储
+    const stored = sessionStorage.getItem(`furina:job:${tool.id}`);
+    if (stored) {
+      setJobId(stored);
+      return;
+    }
+
+    // 3. 若未设置任务且该工具为异步任务模式，向后端探测是否有正在处理中的任务
+    if (tool.mode === "async") {
+      fetch("/api/jobs", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((data) => {
+          if (Array.isArray(data?.jobs)) {
+            const active = data.jobs.find(
+              (j: { toolId?: string; status?: string; id?: string }) =>
+                j.toolId === tool.id &&
+                (j.status === "processing" || j.status === "pending" || j.status === "queued")
+            );
+            if (active?.id) {
+              setJobId(active.id);
+              sessionStorage.setItem(`furina:job:${tool.id}`, active.id);
+            }
+          }
+        })
+        .catch(() => {});
+    }
+
+    // 4. 监听悬浮球直接触发的任务选中事件
+    const handleSelectJob = (e: Event) => {
+      const detail = (e as CustomEvent<{ toolId?: string; jobId?: string }>).detail;
+      if (detail?.toolId === tool.id && detail?.jobId) {
+        setJobId(detail.jobId);
+      }
+    };
+    window.addEventListener("furinakit:select-job", handleSelectJob);
+    return () => window.removeEventListener("furinakit:select-job", handleSelectJob);
+  }, [tool.id, tool.mode]);
+
+  useEffect(() => {
+    try {
+      if (jobId) {
+        sessionStorage.setItem(`furina:job:${tool.id}`, jobId);
+      } else {
+        sessionStorage.removeItem(`furina:job:${tool.id}`);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [jobId, tool.id]);
   const [jobConfetti, setJobConfetti] = useState(0);
   const lastUrl = useRef<string | null>(null);
   const lastBeforeUrl = useRef<string | null>(null);

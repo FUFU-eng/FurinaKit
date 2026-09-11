@@ -59,3 +59,14 @@ def ensure_ffmpeg_on_path() -> Optional[str]:
             return bin_dir
 
     return None
+
+
+def get_ffmpeg_path() -> str:
+    """获取可用的 ffmpeg 可执行文件完整路径或命令名称。"""
+    for path in _candidate_paths():
+        if os.path.isfile(path):
+            return path
+    existing = shutil.which("ffmpeg")
+    if existing:
+        return existing
+    return "ffmpeg"

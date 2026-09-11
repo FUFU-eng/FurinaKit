@@ -274,15 +274,19 @@ def images_to_pdf(files: List[str], output_path: str, page_size: str = "a4", ori
                 page = doc.new_page(width=fw, height=fh)
                 rect = fitz.Rect(0, 0, fw, fh)
             
-            # 编码为 PNG 字节流后嵌入（避免 GIF 只取第一帧的问题）
-            png_buffer = io.BytesIO()
-            frame.save(png_buffer, format="PNG")
-            page.insert_image(rect, stream=png_buffer.getvalue())
+            # 优先以 JPEG 格式嵌入，极大降低输出体积（对包含透明通道的图片使用优化 PNG）
+            has_alpha = frame.mode in ("RGBA", "LA") or (frame.mode == "P" and "transparency" in getattr(frame, "info", {}))
+            img_buffer = io.BytesIO()
+            if has_alpha:
+                frame.save(img_buffer, format="PNG", optimize=True)
+            else:
+                frame.save(img_buffer, format="JPEG", quality=90, optimize=True)
+            page.insert_image(rect, stream=img_buffer.getvalue())
             total_pages += 1
         
         img.close()
     
-    doc.save(output_path)
+    doc.save(output_path, garbage=4, deflate=True)
     doc.close()
     return {"success": True, "output": output_path, "images": len(files), "pages": total_pages}
 

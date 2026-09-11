@@ -109,6 +109,11 @@ def build_incremental_patch(version, makensis_path):
     if os.path.isfile(aria2_path):
         shutil.copy2(aria2_path, os.path.join(staging_res, "aria2c.exe"))
 
+    # 复制超分引擎及模型（确保补丁用户也能完整使用图片强化）
+    upscale_src = os.path.join(ROOT_DIR, "services", "worker", "upscale")
+    if os.path.isdir(upscale_src):
+        shutil.copytree(upscale_src, os.path.join(staging_res, "upscale"), dirs_exist_ok=True)
+
     # 复制 sharp 原生二进制包
     unpacked_img = os.path.join(WEB_DIR, "dist-installer", "win-unpacked", "resources", "app", "node_modules", "@img")
     if os.path.isdir(unpacked_img):
@@ -215,6 +220,12 @@ Section "UpdateFiles" SecUpdate
     SetOutPath "$INSTDIR\\resources"
     ${{If}} ${{FileExists}} "{STAGING_DIR}\\resources\\aria2c.exe"
         File "{STAGING_DIR}\\resources\\aria2c.exe"
+    ${{EndIf}}
+
+    DetailPrint "正在同步超分模型与驱动引擎..."
+    SetOutPath "$INSTDIR\\resources\\upscale"
+    ${{If}} ${{FileExists}} "{STAGING_DIR}\\resources\\upscale\\*.*"
+        File /r "{STAGING_DIR}\\resources\\upscale\\*.*"
     ${{EndIf}}
 
     DetailPrint "更新已全部就绪！"

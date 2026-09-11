@@ -33,24 +33,64 @@ interface JobState {
   error?: string;
 }
 
+interface ImagesToPdfCache {
+  items: FileItem[];
+  mergeMode: MergeMode;
+  pageSize: PageSizeOption;
+  submitting: boolean;
+  job: JobState | null;
+}
+
+const imagesToPdfCache: ImagesToPdfCache = {
+  items: [],
+  mergeMode: "merge",
+  pageSize: "a4_portrait",
+  submitting: false,
+  job: null,
+};
+
 export function ImagesToPdfTool() {
-  const [items, setItems] = useState<FileItem[]>([]);
-  const [mergeMode, setMergeMode] = useState<MergeMode>("merge");
-  const [pageSize, setPageSize] = useState<PageSizeOption>("a4_portrait");
-  const [submitting, setSubmitting] = useState(false);
-  const [job, setJob] = useState<JobState | null>(null);
+  const [items, setItemsState] = useState<FileItem[]>(imagesToPdfCache.items);
+  const [mergeMode, setMergeModeState] = useState<MergeMode>(imagesToPdfCache.mergeMode);
+  const [pageSize, setPageSizeState] = useState<PageSizeOption>(imagesToPdfCache.pageSize);
+  const [submitting, setSubmittingState] = useState(imagesToPdfCache.submitting);
+  const [job, setJobState] = useState<JobState | null>(imagesToPdfCache.job);
   const { toast } = useToast();
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 清理内存中的 Object URL
+  const setItems = (updater: FileItem[] | ((prev: FileItem[]) => FileItem[])) => {
+    setItemsState((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      imagesToPdfCache.items = next;
+      return next;
+    });
+  };
+
+  const setMergeMode = (m: MergeMode) => {
+    imagesToPdfCache.mergeMode = m;
+    setMergeModeState(m);
+  };
+
+  const setPageSize = (s: PageSizeOption) => {
+    imagesToPdfCache.pageSize = s;
+    setPageSizeState(s);
+  };
+
+  const setSubmitting = (v: boolean) => {
+    imagesToPdfCache.submitting = v;
+    setSubmittingState(v);
+  };
+
+  const setJob = (j: JobState | null) => {
+    imagesToPdfCache.job = j;
+    setJobState(j);
+  };
+
   useEffect(() => {
     return () => {
-      items.forEach((item) => {
-        if (item.url) URL.revokeObjectURL(item.url);
-      });
       if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
     };
-  }, [items]);
+  }, []);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const newItems: FileItem[] = acceptedFiles.map((file) => {
@@ -143,6 +183,10 @@ export function ImagesToPdfTool() {
         progress: 10,
         message: "正在排队处理...",
       });
+      try {
+        sessionStorage.setItem("furina:job:images-to-pdf", data.job.id);
+        sessionStorage.setItem("furina:job:image-to-pdf", data.job.id);
+      } catch {}
 
       pollJobStatus(data.job.id);
     } catch (err) {
@@ -154,7 +198,13 @@ export function ImagesToPdfTool() {
   };
 
   // 轮询任务
-  const pollJobStatus = async (jobId: string) => {
+  const pollJobStatus = useCallback((jobId: string) => {
+    if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+    try {
+      sessionStorage.setItem("furina:job:images-to-pdf", jobId);
+      sessionStorage.setItem("furina:job:image-to-pdf", jobId);
+    } catch {}
+
     const poll = async () => {
       try {
         const res = await fetch(`/api/jobs/${jobId}`);
@@ -185,7 +235,54 @@ export function ImagesToPdfTool() {
       }
     };
     poll();
-  };
+  }, [toast]);
+
+  // 页面挂载时自动恢复进行中的转换任务
+  useEffect(() => {
+    let unmounted = false;
+    const restore = async () => {
+      let jId: string | null = null;
+      if (typeof window !== "undefined") {
+        const sp = new URLSearchParams(window.location.search);
+        jId =
+          sp.get("jobId") ||
+          sessionStorage.getItem("furina:job:images-to-pdf") ||
+          sessionStorage.getItem("furina:job:image-to-pdf");
+      }
+      if (!jId && imagesToPdfCache.job?.id) {
+        jId = imagesToPdfCache.job.id;
+      }
+      if (!jId) {
+        try {
+          const r = await fetch("/api/jobs", { cache: "no-store" });
+          const data = await r.json();
+          const running = data?.jobs?.find(
+            (j: { toolId?: string; status?: string; id?: string }) =>
+              (j.toolId === "images-to-pdf" || j.toolId === "image-to-pdf") &&
+              (j.status === "processing" || j.status === "pending" || j.status === "queued")
+          );
+          if (running?.id) jId = running.id;
+        } catch {}
+      }
+      if (!jId || unmounted) return;
+      pollJobStatus(jId);
+    };
+
+    restore();
+
+    const handleSelectJob = (e: Event) => {
+      const detail = (e as CustomEvent<{ toolId?: string; jobId?: string }>).detail;
+      if ((detail?.toolId === "images-to-pdf" || detail?.toolId === "image-to-pdf") && detail?.jobId) {
+        pollJobStatus(detail.jobId);
+      }
+    };
+    window.addEventListener("furinakit:select-job", handleSelectJob);
+    return () => {
+      unmounted = true;
+      window.removeEventListener("furinakit:select-job", handleSelectJob);
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+    };
+  }, [pollJobStatus]);
 
   const handleDownload = async () => {
     if (!job?.id) return;

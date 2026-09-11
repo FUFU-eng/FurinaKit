@@ -55,6 +55,7 @@ import {
   Moon,
   Sun,
   Eye,
+  Monitor,
   PanelLeftClose,
   PanelLeftOpen,
   ListTodo,
@@ -83,13 +84,13 @@ const NAV_ITEMS: NavItem[] = [
   { key: "all", label: "全部工具", icon: LayoutGrid, color: "#6366f1", href: "/", isCategory: false },
   { key: "favorites", label: "我的收藏", icon: Heart, color: "#ec4899", href: "/favorites", isCategory: false },
   { key: "image", label: "图片工具", icon: ImageIcon, color: "#0ea5e9", href: "/?c=image", isCategory: true },
-  { key: "pdf", label: "PDF 工具", icon: FileText, color: "#10b981", href: "/?c=pdf", isCategory: true },
   { key: "download", label: "视频工具", icon: Download, color: "#f59e0b", href: "/?c=download", isCategory: true },
+  { key: "utility", label: "实用生活", icon: Wrench, color: "#f472b6", href: "/?c=utility", isCategory: true },
+  { key: "pdf", label: "PDF 工具", icon: FileText, color: "#10b981", href: "/?c=pdf", isCategory: true },
   { key: "audio", label: "音频工具", icon: Music, color: "#a855f7", href: "/?c=audio", isCategory: true },
   { key: "text", label: "文本办公", icon: Type, color: "#14b8a6", href: "/?c=text", isCategory: true },
   { key: "dev", label: "开发运维", icon: Code, color: "#6366f1", href: "/?c=dev", isCategory: true },
   { key: "encode", label: "密码编码", icon: Hash, color: "#f97316", href: "/?c=encode", isCategory: true },
-  { key: "utility", label: "实用生活", icon: Wrench, color: "#f472b6", href: "/?c=utility", isCategory: true },
 ];
 
 const COLLAPSE_KEY = "furina:sidebar-collapsed";
@@ -256,7 +257,7 @@ function ShellBody({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { theme, toggleTheme, setTheme, colors, mounted } = useTheme();
+  const { theme, themeMode, toggleTheme, setTheme, colors, mounted } = useTheme();
   const { favorites } = useFavorites();
 
   const [collapsed, setCollapsed] = useState(false);
@@ -455,10 +456,16 @@ function ShellBody({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // 移动端或跨端传送门页面不渲染电脑端侧边栏和顶栏
+  if (pathname?.startsWith("/portal")) {
+    return <main className="min-h-screen w-full bg-background">{children}</main>;
+  }
+
   return (
     <div className="flex h-screen" style={{ background: colors.bg }}>
       <GlobalDrop />
       <TaskFloatBall />
+
 
       {/* ── 左侧边栏 ─────────────────────────────────────────────── */}
       <aside
@@ -600,19 +607,33 @@ function ShellBody({ children }: { children: React.ReactNode }) {
 
           {/* 搜索框右边：三态主题切换 + 设置 + 打赏 */}
           <div className="flex shrink-0 items-center gap-2" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
-            {/* 三态主题切换：浅色 | 深色 | 护眼 */}
+            {/* 四态主题切换：跟随系统 | 浅色 | 深色 | 护眼 */}
             <div
               className="flex h-9 items-center gap-0.5 rounded-xl border p-0.5"
               style={{ borderColor: colors.borderSolid, background: colors.card }}
             >
               <button
                 type="button"
+                onClick={() => setTheme("system")}
+                title="跟随系统（自动同步操作系统深色/浅色偏好）"
+                className={cn(
+                  "flex h-7 items-center gap-1 rounded-lg px-2 text-xs font-medium transition-all select-none",
+                  mounted && themeMode === "system"
+                    ? "bg-primary text-primary-foreground shadow-xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                )}
+              >
+                <Monitor size={13} />
+                <span className="hidden sm:inline">系统</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setTheme("light")}
                 title="浅色模式"
                 className={cn(
-                  "flex h-7 items-center gap-1 rounded-lg px-2 text-xs font-medium transition-all",
-                  mounted && theme === "light"
-                    ? "bg-primary text-primary-foreground shadow-xs"
+                  "flex h-7 items-center gap-1 rounded-lg px-2 text-xs font-medium transition-all select-none",
+                  mounted && themeMode === "light"
+                    ? "bg-primary text-primary-foreground shadow-xs font-semibold"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                 )}
               >
@@ -624,9 +645,9 @@ function ShellBody({ children }: { children: React.ReactNode }) {
                 onClick={() => setTheme("dark")}
                 title="深色模式"
                 className={cn(
-                  "flex h-7 items-center gap-1 rounded-lg px-2 text-xs font-medium transition-all",
-                  mounted && theme === "dark"
-                    ? "bg-primary text-primary-foreground shadow-xs"
+                  "flex h-7 items-center gap-1 rounded-lg px-2 text-xs font-medium transition-all select-none",
+                  mounted && themeMode === "dark"
+                    ? "bg-primary text-primary-foreground shadow-xs font-semibold"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                 )}
               >
@@ -638,14 +659,24 @@ function ShellBody({ children }: { children: React.ReactNode }) {
                 onClick={() => setTheme("eye-care")}
                 title="护眼模式（温润羊皮纸暖色调，防蓝光）"
                 className={cn(
-                  "flex h-7 items-center gap-1 rounded-lg px-2 text-xs font-medium transition-all",
-                  mounted && theme === "eye-care"
-                    ? "bg-amber-600 text-white shadow-xs"
+                  "flex h-7 items-center gap-1 rounded-lg px-2 text-xs font-medium transition-all select-none",
+                  mounted && themeMode === "eye-care"
+                    ? "shadow-xs font-semibold"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                 )}
+                style={
+                  mounted && themeMode === "eye-care"
+                    ? { backgroundColor: "#b45309", color: "#ffffff" }
+                    : undefined
+                }
               >
-                <Eye size={13} />
-                <span className="hidden sm:inline">护眼</span>
+                <Eye size={13} style={mounted && themeMode === "eye-care" ? { color: "#ffffff" } : undefined} />
+                <span
+                  className="hidden sm:inline"
+                  style={mounted && themeMode === "eye-care" ? { color: "#ffffff", fontWeight: 600 } : undefined}
+                >
+                  护眼
+                </span>
               </button>
             </div>
 
