@@ -1,49 +1,43 @@
 {
-  "version": "2.0.5",
-  "releaseDate": "2026-09-11",
+  "version": "2.0.6",
+  "releaseDate": "2026-09-12",
   "changelog": [
-    "全新上线「跨设备互传」：手机电脑高速直连，扫码即传免装App，支持剪贴板实时互通",
-    "图片强化全新支持「批量超分与原图对比」：上限50张并发，自适应各品牌显卡加速与低显存保护",
-    "全新上线「图片混淆/反混淆」：像素打乱与空间映射双重混淆，支持无损加解密与一键还原",
-    "全新上线「文件伪装为图片」：任意私密文件/压缩包融入正常图片，改后缀为.zip或一键解密还原",
-    "全新重构「税金税率计算」与「高级函数计算」：个人所得税/增值税/企业所得税全税种专业计算",
-    "视觉主题新增「跟随系统」模式与护眼高对比度优化，全局任务断点接管与悬浮球无缝续展"
+    "新增「函数图像」：画二维曲线和三维曲面，可缩放旋转，能读出零点、极值、切线与积分面积",
+    "新增「高等数学运算」：求导、极限、积分、级数、微分方程、矩阵与向量，都有分步过程",
+    "新增「时间管理大师」：数字时钟、模拟时钟、倒计时、闹钟、倒数日、秒表，支持一键全屏",
+    "新增「进出口贸易计算台」：含税与不含税单价互转、出口成本与利润、FOB/CFR/CIF 报价、进口环节税与运费分摊",
+    "新增「多语言翻译」：21 种语言互译，自动识别源语言，支持长文分段与逐句对照",
+    "新增「单位换算」：原来的长度、面积、体积、重量、时间、字节等多个换算工具合并成一个，共 28 类 363 个单位",
+    "重做「几何计算器」：图形从 4 个增加到 55 个，右侧示意图会随参数实时变化",
+    "重做「ASCII 艺术字」：14 种字体风格，中英文都能出图，另外新增图片转字符画",
+    "重做「全功能科学计算器」：可用函数从 40 个增加到 120 个以上",
+    "重做「函数计算器」：改成围绕函数的工具，支持自定义 f(x)、多变量、分段函数、函数值表和代入过程",
+    "工具分类按「做什么事」重新划分为 9 个板块，数理工具里再分数学与计算，生活办公里再分生活工具与日常办公",
+    "修复生成的 PDF 里中文加粗糊成黑块、部分电脑上「图片强化」提示超分引擎缺失、同时开两个软件导致后台任务被抢、后台引擎残留临时文件占用硬盘等问题"
   ],
-  "downloadUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Patch.2.0.5.exe",
-  "fullSize": "约 45.1 MB",
-  "patchUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Patch.2.0.5.exe",
-  "patchSize": "约 45.1 MB",
-  "fullDownloadUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Setup.2.0.5.exe",
-  "fullSetupSize": "约 578 MB",
+  "downloadUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.6/FurinaKit.Setup.2.0.6.exe",
+  "fullSize": "约 579 MB",
+  "patchUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.6/FurinaKit.Patch.2.0.6.exe",
+  "patchSize": "约 270.2 MB",
   "minPatchVersion": "2.0.3",
   "mirrors": [
     {
       "name": "GitHub 官方直链",
-      "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Patch.2.0.5.exe"
+      "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.6/FurinaKit.Setup.2.0.6.exe"
     },
     {
       "name": "国内高速镜像线路",
-      "url": "https://ghproxy.net/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Patch.2.0.5.exe"
+      "url": "https://ghproxy.net/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.6/FurinaKit.Setup.2.0.6.exe"
     }
   ],
   "patchMirrors": [
     {
       "name": "GitHub 官方直链",
-      "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Patch.2.0.5.exe"
+      "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.6/FurinaKit.Patch.2.0.6.exe"
     },
     {
       "name": "国内高速镜像线路",
-      "url": "https://ghproxy.net/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Patch.2.0.5.exe"
-    }
-  ],
-  "fullMirrors": [
-    {
-      "name": "GitHub 官方直链",
-      "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Setup.2.0.5.exe"
-    },
-    {
-      "name": "国内高速镜像线路",
-      "url": "https://ghproxy.net/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.5/FurinaKit.Setup.2.0.5.exe"
+      "url": "https://ghproxy.net/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.0.6/FurinaKit.Patch.2.0.6.exe"
     }
   ]
 }

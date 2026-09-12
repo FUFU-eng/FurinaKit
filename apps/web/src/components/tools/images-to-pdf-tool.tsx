@@ -167,7 +167,9 @@ export function ImagesToPdfTool() {
       formData.append("orientation", isLandscape ? "landscape" : "portrait");
       formData.append("merge_mode", mergeMode);
 
-      const res = await fetch("/api/tools/images-to-pdf", {
+      // 用工具表里的正式 id（历史上叫 images-to-pdf，现在统一成 image-to-pdf，
+      // 否则任务详情 / 任务列表会链到一个已经不存在的工具上）
+      const res = await fetch("/api/tools/image-to-pdf", {
         method: "POST",
         body: formData,
       });

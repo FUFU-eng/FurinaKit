@@ -4,9 +4,16 @@ import fs from "fs/promises";
 import fsSync from "fs";
 import path from "path";
 import { exec } from "child_process";
-import { getStoragePath } from "@/lib/storage";
+import { getStoragePath, writeStreamToFile } from "@/lib/storage";
+import { parseMultipart } from "@/lib/multipart";
+import { guardApiRequest } from "@/lib/api-guard";
 
 export const dynamic = "force-dynamic";
+
+/** 互传落盘的文件名清洗：与旧实现逐字一致（Windows 不允许的字符换成下划线） */
+function sanitizeTransferName(name: string): string {
+  return name.replace(/[/\\?%*:|"<>]/g, "_");
+}
 
 interface TransferredFile {
   id: string;
@@ -137,6 +144,9 @@ function getLanIps(): Array<{ name: string; ip: string }> {
 }
 
 export async function GET(req: Request) {
+  // 互传功能：本机请求需同源；手机等局域网设备需携带本次启动的互传令牌
+  const denied = guardApiRequest(req, { allowLanToken: true });
+  if (denied) return denied;
   try {
     const meta = await loadMeta();
     await ensureDirs(meta);
@@ -162,6 +172,9 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  // 互传功能：本机请求需同源；手机等局域网设备需携带本次启动的互传令牌
+  const denied = guardApiRequest(req, { allowLanToken: true });
+  if (denied) return denied;
   try {
     const meta = await loadMeta();
     await ensureDirs(meta);
@@ -172,17 +185,9 @@ export async function POST(req: Request) {
 
     // 1. 上传文件（手机传给电脑）
     if (action === "upload") {
-      const formData = await req.formData();
-      const files = formData.getAll("files") as File[];
-
-      if (!files || files.length === 0) {
-        return NextResponse.json({ success: false, error: "未接收到上传文件" }, { status: 400 });
-      }
-
-      const addedList: TransferredFile[] = [];
-
-      for (const file of files) {
-        const safeName = file.name.replace(/[/\\?%*:|"<>]/g, "_");
+      // 边收边写盘：手机传大文件时不再把整份文件先收进内存（见 lib/multipart.ts）
+      const { files } = await parseMultipart(req, async (part) => {
+        const safeName = sanitizeTransferName(part.filename);
         let targetPath = path.join(effectiveReceived, safeName);
 
         // 防重名覆盖
@@ -192,16 +197,25 @@ export async function POST(req: Request) {
           targetPath = path.join(effectiveReceived, `${base}_${Date.now()}${ext}`);
         }
 
-        const buffer = Buffer.from(await file.arrayBuffer());
-        await fs.writeFile(targetPath, buffer);
+        const size = await writeStreamToFile(targetPath, part.body);
+        return { path: targetPath, size };
+      });
 
+      const incoming = files.filter((file) => file.field === "files");
+      if (incoming.length === 0) {
+        return NextResponse.json({ success: false, error: "未接收到上传文件" }, { status: 400 });
+      }
+
+      const addedList: TransferredFile[] = [];
+
+      for (const file of incoming) {
         const record: TransferredFile = {
           id: `rec_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-          name: path.basename(targetPath),
+          name: path.basename(file.path),
           size: file.size,
-          mimeType: file.type || "application/octet-stream",
+          mimeType: file.contentType || "application/octet-stream",
           createdAt: new Date().toISOString(),
-          path: targetPath,
+          path: file.path,
         };
         addedList.push(record);
         meta.receivedFiles.unshift(record);
@@ -213,17 +227,8 @@ export async function POST(req: Request) {
 
     // 2. 电脑添加共享文件（电脑发给手机）
     if (action === "share") {
-      const formData = await req.formData();
-      const files = formData.getAll("files") as File[];
-
-      if (!files || files.length === 0) {
-        return NextResponse.json({ success: false, error: "未接收到共享文件" }, { status: 400 });
-      }
-
-      const addedList: TransferredFile[] = [];
-
-      for (const file of files) {
-        const safeName = file.name.replace(/[/\\?%*:|"<>]/g, "_");
+      const { files } = await parseMultipart(req, async (part) => {
+        const safeName = sanitizeTransferName(part.filename);
         let targetPath = path.join(shared, safeName);
 
         if (fsSync.existsSync(targetPath)) {
@@ -232,16 +237,25 @@ export async function POST(req: Request) {
           targetPath = path.join(shared, `${base}_${Date.now()}${ext}`);
         }
 
-        const buffer = Buffer.from(await file.arrayBuffer());
-        await fs.writeFile(targetPath, buffer);
+        const size = await writeStreamToFile(targetPath, part.body);
+        return { path: targetPath, size };
+      });
 
+      const incoming = files.filter((file) => file.field === "files");
+      if (incoming.length === 0) {
+        return NextResponse.json({ success: false, error: "未接收到共享文件" }, { status: 400 });
+      }
+
+      const addedList: TransferredFile[] = [];
+
+      for (const file of incoming) {
         const record: TransferredFile = {
           id: `shr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-          name: path.basename(targetPath),
+          name: path.basename(file.path),
           size: file.size,
-          mimeType: file.type || "application/octet-stream",
+          mimeType: file.contentType || "application/octet-stream",
           createdAt: new Date().toISOString(),
-          downloadUrl: `/api/transfer/download?id=${encodeURIComponent(path.basename(targetPath))}&type=shared`,
+          downloadUrl: `/api/transfer/download?id=${encodeURIComponent(path.basename(file.path))}&type=shared`,
         };
         addedList.push(record);
         meta.sharedFiles.unshift(record);
@@ -274,10 +288,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true });
     }
 
-    // 5. 删除/移除已接收记录
+    // 5. 移除已接收记录（**只删记录，绝不删磁盘上的文件**）
+    //
+    // received 目录里是用户互传过来的文件，属于用户数据。用户想删文件时，
+    // 自己会去接收文件夹里删（界面提供「打开文件夹」）。所以这里只移除列表记录。
     if (action === "delete-received") {
-      const body = await req.json();
-      meta.receivedFiles = meta.receivedFiles.filter((f) => f.id !== body.id);
+      const body = await req.json().catch(() => null);
+      const id = typeof body?.id === "string" ? body.id : "";
+      if (!id) {
+        return NextResponse.json({ success: false, error: "缺少文件标识" }, { status: 400 });
+      }
+      meta.receivedFiles = meta.receivedFiles.filter((f) => f.id !== id);
       await saveMeta(meta);
       return NextResponse.json({ success: true });
     }
@@ -297,10 +318,22 @@ export async function POST(req: Request) {
 
     // 7. 设置/更改手机上传文件的保存目录
     if (action === "set-receive-dir") {
-      const body = await req.json();
-      const dir = (body.receiveDir || "").trim();
+      const body = await req.json().catch(() => null);
+      const dir = (body?.receiveDir || "").trim();
       if (dir) {
-        await fs.mkdir(dir, { recursive: true });
+        // 必须是已经存在的目录：避免被当成「随便新建一个目录」的写入原语
+        let isDir = false;
+        try {
+          isDir = fsSync.statSync(dir).isDirectory();
+        } catch {
+          isDir = false;
+        }
+        if (!isDir) {
+          return NextResponse.json(
+            { success: false, error: "接收目录不存在或不是文件夹，请先创建后重试" },
+            { status: 400 },
+          );
+        }
         meta.receiveDir = dir;
         await saveMeta(meta);
       }
@@ -309,15 +342,36 @@ export async function POST(req: Request) {
 
     // 7. 直接打开特定文件
     if (action === "open-file") {
-      const body = await req.json();
-      const targetPath = body.path;
-      if (targetPath && fsSync.existsSync(targetPath)) {
+      const body = await req.json().catch(() => null);
+      const targetPath = typeof body?.path === "string" ? body.path : "";
+      if (!targetPath) {
+        return NextResponse.json({ success: false, error: "缺少文件路径" }, { status: 400 });
+      }
+      if (fsSync.existsSync(targetPath)) {
+        // 只允许打开「由本功能自己收下来的文件」或共享目录里的文件。
+        // 否则这会变成一个「让电脑运行任意程序」的接口（Windows 上 start 走 ShellExecute）。
+        const allowedRoots = [
+          getEffectiveReceiveDir(meta),
+          getDefaultTransfersDir().shared,
+        ].filter(Boolean) as string[];
+        const resolvedTarget = path.resolve(targetPath);
+        const inside = allowedRoots.some((root) => {
+          const rel = path.relative(path.resolve(root), resolvedTarget);
+          return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+        });
+        if (!inside) {
+          return NextResponse.json(
+            { success: false, error: "出于安全考虑，只能打开互传目录中的文件" },
+            { status: 403 },
+          );
+        }
         if (process.platform === "win32") {
-          exec(`start "" "${targetPath}"`);
+          // 用 shell.showItemInFolder 语义：在资源管理器中定位并选中，而不是执行它
+          exec(`explorer.exe /select,"${resolvedTarget}"`);
         } else if (process.platform === "darwin") {
-          exec(`open "${targetPath}"`);
+          exec(`open -R "${resolvedTarget}"`);
         } else {
-          exec(`xdg-open "${targetPath}"`);
+          exec(`xdg-open "${path.dirname(resolvedTarget)}"`);
         }
       }
       return NextResponse.json({ success: true });

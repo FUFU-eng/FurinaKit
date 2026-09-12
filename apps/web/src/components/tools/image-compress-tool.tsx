@@ -22,31 +22,178 @@ interface CompressItem {
   compressedBlob?: Blob;
   compressedUrl?: string;
   compressedSize?: number;
+  /** 实际压缩产物的扩展名（可能与原文件不同，例如 PNG 转成了 JPEG） */
+  compressedExt?: string;
   status: "pending" | "compressing" | "done" | "error";
   error?: string;
+}
+
+/** 该类型是否可能带有透明通道 */
+function mayHaveAlpha(file: File): boolean {
+  const t = (file.type || "").toLowerCase();
+  return (
+    t === "image/png" ||
+    t === "image/webp" ||
+    t === "image/gif" ||
+    t === "image/avif" ||
+    t === "image/tiff" ||
+    t === "image/svg+xml"
+  );
+}
+
+/** Blob 实际格式 → 扩展名，保证下载出来的文件名与内容一致 */
+function extForMime(mime: string): string {
+  const m = (mime || "").toLowerCase();
+  if (m.includes("png")) return "png";
+  if (m.includes("webp")) return "webp";
+  if (m.includes("avif")) return "avif";
+  if (m.includes("gif")) return "gif";
+  if (m.includes("bmp")) return "bmp";
+  if (m.includes("tiff")) return "tiff";
+  return "jpg";
+}
+
+/** 把文件名换成指定扩展名 */
+function withExt(name: string, ext: string): string {
+  const base = (name || "image").replace(/\.[^./\\]+$/, "");
+  return `${base || "image"}.${ext}`;
+}
+
+/** 检查画布上是否真的存在半透明像素；取不到像素时保守地认为有 */
+function canvasHasAlpha(ctx: CanvasRenderingContext2D, w: number, h: number): boolean {
+  try {
+    const data = ctx.getImageData(0, 0, w, h).data;
+    for (let i = 3; i < data.length; i += 4) {
+      if (data[i] < 255) return true;
+    }
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+// ==========================================================================
+// 模块级缓存：离开页面（切到别的工具、回首页）再回来时，恢复输入、结果与参数。
+//
+// 为什么必须是模块级：File / Blob 无法序列化进 localStorage / sessionStorage，
+// 而组件一卸载，useState 里的东西就全没了。做法与 fileHideCache、
+// imagesToPdfCache、tool-runner 里的 toolDraftCache 保持一致。
+//
+// 为什么 object URL 也归缓存持有：预览图和压缩结果用的是 URL.createObjectURL 的链接。
+// 以前在组件卸载时 revoke，用户切走再回来只剩「死图」和点了没反应的下载按钮 ——
+// 链接已经被释放了。现在只在三种情况下释放：
+//   ① 那份文件 / 结果被换成新的一份（用户重新选文件、重新压缩）
+//   ② 用户清空 / 删除
+//   ③ 缓存条目被淘汰
+// 判断依据是「对象引用是否变化」（上一份快照的 URL 与新一份不同才释放），
+// 而不是每次保存都释放 —— 每次保存都释放等于把正在用的链接掐断。
+// ==========================================================================
+interface CompressCacheEntry {
+  items: CompressItem[];
+  quality: number;
+  maxWidth: number | "";
+  comparingIndex: number;
+  sliderPos: number;
+}
+
+const COMPRESS_CACHE_KEY = "image-compress";
+/** 最多保留 6 个条目，与 tool-runner 的 TOOL_DRAFT_LIMIT 对齐；本工具只用一个 key，实际只占 1 份 */
+const COMPRESS_CACHE_LIMIT = 6;
+/** key → 条目，迭代顺序即最近使用顺序（先删再存），便于淘汰最旧的 */
+const compressCache = new Map<string, CompressCacheEntry>();
+
+const COMPRESS_CACHE_DEFAULTS = {
+  quality: 75,
+  maxWidth: "" as number | "",
+  comparingIndex: 0,
+  sliderPos: 50,
+};
+
+/** 释放单个条目占用的 object URL；预览与结果恰好是同一个链接时只释放一次 */
+function releaseCompressItem(item: CompressItem): void {
+  URL.revokeObjectURL(item.previewUrl);
+  if (item.compressedUrl && item.compressedUrl !== item.previewUrl) {
+    URL.revokeObjectURL(item.compressedUrl);
+  }
+}
+
+/**
+ * 给 items 拍一份浅拷贝快照。
+ * 压缩流程是「原地改写 item 对象」（it.compressedUrl = url），如果缓存直接持有原对象，
+ * 上一次保存的 URL 记录会被下一次压缩改写掉，于是「换了新结果」看起来像「没变」，
+ * 旧链接就永远漏在那里了。浅拷贝把 URL 字段冻在保存的那一刻。
+ */
+function snapshotCompressItems(items: CompressItem[]): CompressItem[] {
+  return items.map((it) => ({ ...it }));
+}
+
+/** 从缓存恢复输入项：再拷一份，避免运行期的原地改动写进缓存快照 */
+function readCompressItems(): CompressItem[] {
+  const cached = compressCache.get(COMPRESS_CACHE_KEY);
+  if (!cached) return [];
+  return snapshotCompressItems(cached.items).map((it) => ({
+    ...it,
+    // 离开时正在压缩的项不能永远转圈：回来时回退到「待处理」
+    status: it.status === "compressing" ? "pending" : it.status,
+  }));
+}
+
+/** 写入缓存：先释放被替换 / 被移除的 URL，再按最近使用顺序存入并做上限淘汰 */
+function rememberCompressEntry(key: string, entry: CompressCacheEntry): void {
+  const previous = compressCache.get(key);
+
+  if (previous) {
+    const nextById = new Map(entry.items.map((it) => [it.id, it]));
+    previous.items.forEach((prevItem) => {
+      const nextItem = nextById.get(prevItem.id);
+      if (!nextItem) {
+        // 用户删除单项 / 清空列表
+        releaseCompressItem(prevItem);
+        return;
+      }
+      // URL 字符串不同 ⇒ 这份预览 / 结果确实换成了新的一份（URL 与 Blob 一一对应）
+      if (prevItem.previewUrl !== nextItem.previewUrl) {
+        URL.revokeObjectURL(prevItem.previewUrl);
+      }
+      if (prevItem.compressedUrl && prevItem.compressedUrl !== nextItem.compressedUrl) {
+        URL.revokeObjectURL(prevItem.compressedUrl);
+      }
+    });
+  }
+
+  // 先删再存：让 Map 的迭代顺序等于「最近使用顺序」
+  compressCache.delete(key);
+  compressCache.set(key, { ...entry, items: snapshotCompressItems(entry.items) });
+
+  while (compressCache.size > COMPRESS_CACHE_LIMIT) {
+    const oldestKey = compressCache.keys().next().value;
+    if (oldestKey === undefined) break;
+    const oldest = compressCache.get(oldestKey);
+    if (oldest) oldest.items.forEach((it) => releaseCompressItem(it));
+    compressCache.delete(oldestKey);
+  }
 }
 
 export function ImageCompressTool() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [items, setItems] = useState<CompressItem[]>([]);
-  const [quality, setQuality] = useState(75);
-  const [maxWidth, setMaxWidth] = useState<number | "">("");
-  const [comparingIndex, setComparingIndex] = useState<number>(0);
-  const [sliderPos, setSliderPos] = useState(50);
+  // 挂载时从模块级缓存恢复：切到别的工具 / 回首页再回来，输入、结果与参数都还在。
+  // 恢复时直接复用缓存里存的 object URL，绝不重新 createObjectURL
+  // （重建会立刻泄漏旧链接，而且没有任何意义）。
+  const [items, setItems] = useState<CompressItem[]>(() => readCompressItems());
+  const [quality, setQuality] = useState<number>(() => compressCache.get(COMPRESS_CACHE_KEY)?.quality ?? COMPRESS_CACHE_DEFAULTS.quality);
+  const [maxWidth, setMaxWidth] = useState<number | "">(() => compressCache.get(COMPRESS_CACHE_KEY)?.maxWidth ?? COMPRESS_CACHE_DEFAULTS.maxWidth);
+  const [comparingIndex, setComparingIndex] = useState<number>(() => compressCache.get(COMPRESS_CACHE_KEY)?.comparingIndex ?? COMPRESS_CACHE_DEFAULTS.comparingIndex);
+  const [sliderPos, setSliderPos] = useState<number>(() => compressCache.get(COMPRESS_CACHE_KEY)?.sliderPos ?? COMPRESS_CACHE_DEFAULTS.sliderPos);
   const [isProcessing, setIsProcessing] = useState(false);
   const [confetti, setConfetti] = useState(0);
 
-  // 清理 URL
+  // 离开本工具（组件卸载）时不做任何释放 —— 预览与结果的链接由缓存持有，
+  // 这样回来时图片还在、下载按钮还能用。释放时机见 rememberCompressEntry()。
   useEffect(() => {
-    return () => {
-      items.forEach((item) => {
-        URL.revokeObjectURL(item.previewUrl);
-        if (item.compressedUrl) URL.revokeObjectURL(item.compressedUrl);
-      });
-    };
-  }, []);
+    rememberCompressEntry(COMPRESS_CACHE_KEY, { items, quality, maxWidth, comparingIndex, sliderPos });
+  }, [items, quality, maxWidth, comparingIndex, sliderPos]);
 
   const handleFiles = (fileList: FileList | File[]) => {
     const valid = Array.from(fileList).filter((f) => f.type.startsWith("image/"));
@@ -85,27 +232,18 @@ export function ImageCompressTool() {
     setItems((prev) => [...prev, ...newItems]);
   };
 
+  // 这里不再手动 revoke URL：链接归缓存所有，删除后由 rememberCompressEntry
+  // 的「上一份快照里有、新一份里没有」判定来释放，避免同一链接被释放两次。
   const removeItem = (id: string) => {
-    setItems((prev) => {
-      const target = prev.find((t) => t.id === id);
-      if (target) {
-        URL.revokeObjectURL(target.previewUrl);
-        if (target.compressedUrl) URL.revokeObjectURL(target.compressedUrl);
-      }
-      return prev.filter((t) => t.id !== id);
-    });
+    setItems((prev) => prev.filter((t) => t.id !== id));
   };
 
   const clearAll = () => {
-    items.forEach((it) => {
-      URL.revokeObjectURL(it.previewUrl);
-      if (it.compressedUrl) URL.revokeObjectURL(it.compressedUrl);
-    });
     setItems([]);
   };
 
   // 纯客户端高保真快速压缩算法（基于 Canvas）
-  const compressSingle = async (item: CompressItem, q: number, maxW?: number): Promise<{ blob: Blob; url: string }> => {
+  const compressSingle = async (item: CompressItem, q: number, maxW?: number): Promise<{ blob: Blob; url: string; ext: string }> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => {
@@ -113,8 +251,13 @@ export function ImageCompressTool() {
         let h = img.naturalHeight;
 
         if (maxW && w > maxW) {
-          h = Math.round((h * maxW) / w);
+          // Math.max(1, ...) 防止极端长条图被算成 0 高，导致画布为空、压缩直接失败
+          h = Math.max(1, Math.round((h * maxW) / w));
           w = maxW;
+        }
+        if (!w || !h) {
+          reject(new Error("图片尺寸无效"));
+          return;
         }
 
         const canvas = document.createElement("canvas");
@@ -131,9 +274,19 @@ export function ImageCompressTool() {
         ctx.imageSmoothingQuality = "high";
         ctx.drawImage(img, 0, 0, w, h);
 
-        const mime = item.file.type === "image/png" ? "image/png" : "image/jpeg";
-        // PNG 格式转 JPEG 以获得质的飞跃压缩，或原格式质量压缩
-        const outMime = item.file.type.includes("png") && q < 90 ? "image/jpeg" : item.file.type || "image/jpeg";
+        // 之前只要「PNG 且质量 < 90」就会静默转成 JPEG：透明区域被编码成黑色，
+        // 而文件名仍然是 .png。现在改为：原图可能带透明、且画布上确实存在半透明像素时，
+        // 保留 PNG 不转换（画质与透明都不会丢）。
+        const keepPng = mayHaveAlpha(item.file) && canvasHasAlpha(ctx, w, h);
+        const outMime = keepPng ? "image/png" : "image/jpeg";
+
+        if (!keepPng) {
+          // 转 JPEG 前先垫一层白底，避免任何残留透明像素变成黑块
+          ctx.clearRect(0, 0, w, h);
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+        }
 
         canvas.toBlob(
           (blob) => {
@@ -142,10 +295,10 @@ export function ImageCompressTool() {
               return;
             }
             const outUrl = URL.createObjectURL(blob);
-            resolve({ blob, url: outUrl });
+            resolve({ blob, url: outUrl, ext: extForMime(blob.type || outMime) });
           },
           outMime,
-          q / 100
+          keepPng ? undefined : q / 100
         );
       };
       img.onerror = () => reject(new Error("图片加载失败"));
@@ -168,7 +321,7 @@ export function ImageCompressTool() {
       setItems([...updated]);
 
       try {
-        const { blob, url } = await compressSingle(
+        const { blob, url, ext } = await compressSingle(
           it,
           quality,
           typeof maxWidth === "number" && maxWidth > 0 ? maxWidth : undefined
@@ -176,6 +329,7 @@ export function ImageCompressTool() {
         it.compressedBlob = blob;
         it.compressedUrl = url;
         it.compressedSize = blob.size;
+        it.compressedExt = ext;
         it.status = "done";
       } catch (err) {
         it.status = "error";
@@ -193,8 +347,9 @@ export function ImageCompressTool() {
     if (!item.compressedUrl) return;
     const a = document.createElement("a");
     a.href = item.compressedUrl;
-    const ext = item.file.name.split(".").pop();
-    a.download = `compressed_${item.file.name}`;
+    // 用压缩产物真实的格式来决定扩展名，避免"内容是 JPEG 但名字是 .png"
+    const ext = item.compressedExt || item.file.name.split(".").pop() || "jpg";
+    a.download = `compressed_${withExt(item.file.name, ext)}`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -208,7 +363,8 @@ export function ImageCompressTool() {
       const JSZip = (await import("jszip")).default;
       const zip = new JSZip();
       doneItems.forEach((it) => {
-        zip.file(`compressed_${it.file.name}`, it.compressedBlob!);
+        const ext = it.compressedExt || "jpg";
+        zip.file(`compressed_${withExt(it.file.name, ext)}`, it.compressedBlob!);
       });
       const content = await zip.generateAsync({ type: "blob" });
       const url = URL.createObjectURL(content);

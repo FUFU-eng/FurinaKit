@@ -29,8 +29,9 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "webp", "gif", "svg", "bmp", "ico", "avif"]);
-const VIDEO_EXTS = new Set(["mp4", "webm", "mkv", "mov", "avi", "flv"]);
-const AUDIO_EXTS = new Set(["mp3", "wav", "aac", "flac", "m4a", "ogg", "opus", "wma"]);
+// 含引擎实际会交付的容器：视频裁剪默认跟随源容器，所以 mkv/webm/mov/avi/flv/ts/wmv 都可能出现
+const VIDEO_EXTS = new Set(["mp4", "m4v", "webm", "mkv", "mov", "avi", "flv", "wmv", "ts", "mpg", "mpeg"]);
+const AUDIO_EXTS = new Set(["mp3", "wav", "aac", "flac", "m4a", "ogg", "oga", "opus", "wma", "aiff", "aif", "amr"]);
 
 export function JobProgress({
   job,

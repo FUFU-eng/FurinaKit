@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, Fragment } from "react";
+import { useEffect, useMemo, useState, Fragment } from "react";
 import { AlertTriangle } from "lucide-react";
 import { Label, Input, Textarea } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
@@ -15,10 +15,31 @@ const FLAG_OPTIONS = [
 
 type MatchInfo = { index: number; length: number; text: string; groups: string[] };
 
+/**
+ * 工具级缓存：切到别的工具或回首页会让本组件卸载，正则、标志位、测试文本与匹配结果都会丢。
+ * 这里把这三项输入固定在模块作用域里：挂载时用它初始化 useState，之后每次变化写回，
+ * 只有用户自己修改 / 清空时才会被覆盖；匹配结果由缓存的输入经原有纯匹配逻辑渲染出来，与离开前完全一致。
+ * 与项目里已有的 fileHideCache / imagesToPdfCache / toolDraftCache 保持一致的模块缓存方案。
+ */
+type RegexTesterCache = { pattern: string; flags: string; sample: string };
+
+const regexTesterCache: RegexTesterCache = {
+  pattern: "\\b\\w+@\\w+\\.\\w+\\b",
+  flags: "gi",
+  sample: "Reach us at hi@furinakit.dev or support@example.com.",
+};
+
 export function RegexTesterTool() {
-  const [pattern, setPattern] = useState("\\b\\w+@\\w+\\.\\w+\\b");
-  const [flags, setFlags] = useState("gi");
-  const [sample, setSample] = useState("Reach us at hi@furinakit.dev or support@example.com.");
+  const [pattern, setPattern] = useState(regexTesterCache.pattern);
+  const [flags, setFlags] = useState(regexTesterCache.flags);
+  const [sample, setSample] = useState(regexTesterCache.sample);
+
+  // 三项输入任一变化就写回缓存，保证离开工具时缓存里是最新的一份
+  useEffect(() => {
+    regexTesterCache.pattern = pattern;
+    regexTesterCache.flags = flags;
+    regexTesterCache.sample = sample;
+  }, [pattern, flags, sample]);
 
   const { matches, error, segments } = useMemo(() => {
     if (!pattern) return { matches: [] as MatchInfo[], error: null as string | null, segments: null };

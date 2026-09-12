@@ -238,19 +238,120 @@ function findNearestItemIndex(items: LayoutItem[], x: number, y: number): number
   return nearestIdx;
 }
 
+// ==========================================================================
+// 模块级缓存：离开页面（切到别的工具、回首页）再回来时，恢复图片序列与排版参数。
+//
+// 为什么必须是模块级：File 无法序列化进 storage，组件卸载后 useState 就清空了。
+// 做法与 fileHideCache、imagesToPdfCache、tool-runner 的 toolDraftCache 一致。
+//
+// 为什么 object URL 也归缓存持有：每张图的预览链接以前在组件卸载时被 revoke，
+// 用户切走再回来只剩一堆「死图」，画布也画不出来。
+// 现在只在三种情况下释放：① 那张图被换掉 / 被删除 ② 用户清空 ③ 缓存条目被淘汰。
+// 判断依据是「上一份快照里的那张图是否还在、链接是否还是同一条」，不是每次保存都释放。
+// 恢复时直接复用缓存里的链接与 <img> 元素（自然尺寸、解码结果都还在），绝不重新
+// createObjectURL —— 重建会立刻泄漏旧链接。
+// ==========================================================================
+interface MergeCacheEntry {
+  images: MergeImageItem[];
+  direction: "vertical" | "horizontal" | "grid";
+  gridCols: number;
+  gap: number;
+  padding: number;
+  borderRadius: number;
+  bgColor: string;
+  exportFormat: "png" | "jpeg" | "webp";
+}
+
+const MERGE_CACHE_KEY = "image-merge";
+/** 最多保留 6 个条目，与 tool-runner 的 TOOL_DRAFT_LIMIT 对齐；本工具只用一个 key，实际只占 1 份 */
+const MERGE_CACHE_LIMIT = 6;
+const mergeCache = new Map<string, MergeCacheEntry>();
+
+const MERGE_CACHE_DEFAULTS = {
+  direction: "vertical" as "vertical" | "horizontal" | "grid",
+  gridCols: 2,
+  gap: 10,
+  padding: 15,
+  borderRadius: 8,
+  bgColor: "#ffffff",
+  exportFormat: "png" as "png" | "jpeg" | "webp",
+};
+
+/** 释放单张图片占用的 object URL */
+function releaseMergeImage(item: MergeImageItem): void {
+  URL.revokeObjectURL(item.previewUrl);
+}
+
+/** 恢复用快照：浅拷贝一份（imgElement 保持同一引用，画布才能直接继续绘制） */
+function snapshotMergeImages(images: MergeImageItem[]): MergeImageItem[] {
+  return images.map((it) => ({ ...it }));
+}
+
+/** 从缓存恢复图片序列 */
+function readMergeImages(): MergeImageItem[] {
+  const cached = mergeCache.get(MERGE_CACHE_KEY);
+  return cached ? snapshotMergeImages(cached.images) : [];
+}
+
+/** 写入缓存：先释放被删除 / 被换掉的图，再按最近使用顺序存入并做上限淘汰 */
+function rememberMergeEntry(key: string, entry: MergeCacheEntry): void {
+  const previous = mergeCache.get(key);
+
+  if (previous) {
+    const nextById = new Map(entry.images.map((it) => [it.id, it]));
+    previous.images.forEach((prevItem) => {
+      const nextItem = nextById.get(prevItem.id);
+      if (!nextItem) {
+        // 用户删除单张 / 清空全部
+        releaseMergeImage(prevItem);
+        return;
+      }
+      // 同一张图换了新的预览链接（换了文件）才释放旧的
+      if (prevItem.previewUrl !== nextItem.previewUrl) {
+        URL.revokeObjectURL(prevItem.previewUrl);
+      }
+    });
+  }
+
+  // 先删再存：让 Map 的迭代顺序等于「最近使用顺序」
+  mergeCache.delete(key);
+  mergeCache.set(key, { ...entry, images: snapshotMergeImages(entry.images) });
+
+  while (mergeCache.size > MERGE_CACHE_LIMIT) {
+    const oldestKey = mergeCache.keys().next().value;
+    if (oldestKey === undefined) break;
+    const oldest = mergeCache.get(oldestKey);
+    if (oldest) oldest.images.forEach((it) => releaseMergeImage(it));
+    mergeCache.delete(oldestKey);
+  }
+}
+
 export function ImageMergeTool() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const [images, setImages] = useState<MergeImageItem[]>([]);
-  const [direction, setDirection] = useState<"vertical" | "horizontal" | "grid">("vertical");
-  const [gridCols, setGridCols] = useState(2);
-  const [gap, setGap] = useState(10);
-  const [padding, setPadding] = useState(15);
-  const [borderRadius, setBorderRadius] = useState(8);
-  const [bgColor, setBgColor] = useState("#ffffff");
-  const [exportFormat, setExportFormat] = useState<"png" | "jpeg" | "webp">("png");
+  // 挂载时从模块级缓存恢复：图片序列与全部排版参数都还在
+  const [images, setImages] = useState<MergeImageItem[]>(() => readMergeImages());
+  const [direction, setDirection] = useState<"vertical" | "horizontal" | "grid">(
+    () => mergeCache.get(MERGE_CACHE_KEY)?.direction ?? MERGE_CACHE_DEFAULTS.direction
+  );
+  const [gridCols, setGridCols] = useState<number>(
+    () => mergeCache.get(MERGE_CACHE_KEY)?.gridCols ?? MERGE_CACHE_DEFAULTS.gridCols
+  );
+  const [gap, setGap] = useState<number>(() => mergeCache.get(MERGE_CACHE_KEY)?.gap ?? MERGE_CACHE_DEFAULTS.gap);
+  const [padding, setPadding] = useState<number>(
+    () => mergeCache.get(MERGE_CACHE_KEY)?.padding ?? MERGE_CACHE_DEFAULTS.padding
+  );
+  const [borderRadius, setBorderRadius] = useState<number>(
+    () => mergeCache.get(MERGE_CACHE_KEY)?.borderRadius ?? MERGE_CACHE_DEFAULTS.borderRadius
+  );
+  const [bgColor, setBgColor] = useState<string>(
+    () => mergeCache.get(MERGE_CACHE_KEY)?.bgColor ?? MERGE_CACHE_DEFAULTS.bgColor
+  );
+  const [exportFormat, setExportFormat] = useState<"png" | "jpeg" | "webp">(
+    () => mergeCache.get(MERGE_CACHE_KEY)?.exportFormat ?? MERGE_CACHE_DEFAULTS.exportFormat
+  );
   const [isExporting, setIsExporting] = useState(false);
   const [confetti, setConfetti] = useState(0);
 
@@ -266,12 +367,20 @@ export function ImageMergeTool() {
   });
   const hoverIdxRef = useRef<number | null>(null);
 
-  // 清理 URL
+  // 离开本工具（组件卸载）时不做任何释放 —— 预览链接归缓存所有，
+  // 这样回来时图片还在、画布还能照常绘制。释放时机见 rememberMergeEntry()。
   useEffect(() => {
-    return () => {
-      images.forEach((it) => URL.revokeObjectURL(it.previewUrl));
-    };
-  }, []);
+    rememberMergeEntry(MERGE_CACHE_KEY, {
+      images,
+      direction,
+      gridCols,
+      gap,
+      padding,
+      borderRadius,
+      bgColor,
+      exportFormat,
+    });
+  }, [images, direction, gridCols, gap, padding, borderRadius, bgColor, exportFormat]);
 
   const handleFiles = (fileList: FileList | File[]) => {
     const valid = Array.from(fileList).filter((f) => f.type.startsWith("image/"));
@@ -326,12 +435,10 @@ export function ImageMergeTool() {
     });
   };
 
+  // 这里不再手动 revoke：预览链接归缓存所有，删除后由 rememberMergeEntry
+  // 的「上一份快照里有、新一份里没有」判定来释放，避免同一链接被释放两次。
   const removeImg = (id: string) => {
-    setImages((prev) => {
-      const target = prev.find((it) => it.id === id);
-      if (target) URL.revokeObjectURL(target.previewUrl);
-      return prev.filter((it) => it.id !== id);
-    });
+    setImages((prev) => prev.filter((it) => it.id !== id));
   };
 
   // 核心渲染逻辑：区分快速流畅预览与全尺寸超清导出，支持拖拽中的动态反馈渲染

@@ -49,9 +49,32 @@ function SectionTitle({
   );
 }
 
-/** 渲染一个大类分类工具网格 */
+/** 板块内部再分组时的子板块名（只有声明了 subcategory 的板块才会用到） */
+const SUBCATEGORY_LABELS: Record<string, string> = {
+  math: "数学",
+  calc: "计算",
+  life: "生活工具",
+  work: "日常办公",
+};
+
+/** 渲染一个大类分类工具网格（若该板块声明了 subcategory，则内部再分几个子板块） */
 function CategoryBlock({ category, tools }: { category: ToolCategory; tools: OmniTool[] }) {
   const list = tools.filter((t) => t.category === category);
+  const accent = CATEGORY_COLOR[category] ?? "#0ea5e9";
+
+  // 按 subcategory 分组：保持 tools.ts 里的原始顺序，未声明的归入默认组
+  const groups = useMemo(() => {
+    const map = new Map<string, OmniTool[]>();
+    for (const tool of list) {
+      const key = tool.subcategory && SUBCATEGORY_LABELS[tool.subcategory] ? tool.subcategory : "";
+      const bucket = map.get(key);
+      if (bucket) bucket.push(tool);
+      else map.set(key, [tool]);
+    }
+    return [...map.entries()];
+  }, [list]);
+
+  const split = groups.length > 1;
 
   return (
     <section className="space-y-4">
@@ -61,7 +84,24 @@ function CategoryBlock({ category, tools }: { category: ToolCategory; tools: Omn
         count={list.length}
         description={CATEGORY_DESCRIPTIONS[category]}
       />
-      <SortableToolGrid tools={list} storageKey={category} />
+      {split ? (
+        <div className="space-y-7">
+          {groups.map(([key, groupTools]) => (
+            <div key={key || "default"} className="space-y-3.5">
+              <div className="flex items-center gap-2">
+                <span className="h-3.5 w-1 shrink-0 rounded-full" style={{ background: accent }} />
+                <h3 className="text-[13.5px] font-semibold text-foreground">
+                  {SUBCATEGORY_LABELS[key] ?? "其他"}
+                </h3>
+                <span className="text-[12px] text-muted-foreground">{groupTools.length} 个工具</span>
+              </div>
+              <SortableToolGrid tools={groupTools} storageKey={`${category}:${key}`} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <SortableToolGrid tools={list} storageKey={category} />
+      )}
     </section>
   );
 }

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardApiRequest } from "@/lib/api-guard";
 
 export async function POST(request: NextRequest) {
+  const denied = guardApiRequest(request);
+  if (denied) return denied;
   try {
     const body = await request.json();
     const {

@@ -1,12 +1,23 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowRightLeft, AlertTriangle } from "lucide-react";
 import { Button, Label, Textarea } from "@/components/ui/primitives";
 import { CopyButton } from "@/components/tools/copy-button";
 import { cn } from "@/lib/utils";
 
 type Mode = "encode" | "decode";
+
+/**
+ * 工具级缓存：切到别的工具或回首页会让本组件卸载，用户粘贴的原文与编码结果就没了。
+ * 这里把它们固定在模块作用域里：组件挂载时用它初始化 useState，之后每次变化写回，
+ * 只有用户自己修改 / 点击清空时才会被覆盖。
+ * 与项目里已有的 fileHideCache / imagesToPdfCache / toolDraftCache 保持一致的模块缓存方案：
+ * 不做序列化、不受存储配额限制。整页刷新（F5）会丢失，这一点也和上面几个缓存相同。
+ */
+type Base64Cache = { input: string; mode: Mode };
+
+const base64Cache: Base64Cache = { input: "", mode: "encode" };
 
 // Unicode-safe Base64 (handles emoji / non-Latin).
 function encodeB64(str: string): string {
@@ -23,8 +34,14 @@ function decodeB64(b64: string): string {
 }
 
 export function Base64Tool() {
-  const [input, setInput] = useState("");
-  const [mode, setMode] = useState<Mode>("encode");
+  const [input, setInput] = useState(base64Cache.input);
+  const [mode, setMode] = useState<Mode>(base64Cache.mode);
+
+  // 输入 / 模式一变就写回缓存，保证离开工具时缓存里是最新的一份
+  useEffect(() => {
+    base64Cache.input = input;
+    base64Cache.mode = mode;
+  }, [input, mode]);
 
   const { output, error } = useMemo(() => {
     if (!input) return { output: "", error: null as string | null };

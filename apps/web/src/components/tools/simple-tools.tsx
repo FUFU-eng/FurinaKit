@@ -9,6 +9,7 @@ import { Button, Input, Label, Select, Textarea } from "@/components/ui/primitiv
 import { useToast } from "@/components/ui/toast";
 import { useTheme } from "@/components/theme-provider";
 import { cn } from "@/lib/utils";
+import { useToolDraft } from "@/lib/use-tool-draft";
 
 export { MindMapTool } from "./mind-map";
 // 通用结果显示组件
@@ -39,7 +40,7 @@ function ResultBox({ title, value, mono = true }: { title: string; value: string
 
 // 人民币大写转换
 export function RmbUppercaseTool() {
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useToolDraft("rmb-uppercase", "amount", "");
   const result = useMemo(() => {
     if (!amount || isNaN(Number(amount))) return "";
     const digits = ["零", "壹", "贰", "叁", "肆", "伍", "陆", "柒", "捌", "玖"];
@@ -58,6 +59,7 @@ export function RmbUppercaseTool() {
         groups.unshift(intStr.slice(-4));
         intStr = intStr.slice(0, -4);
       }
+      let zeroPending = false; // 中间出现过整组为零，下一组前面需要补“零”
       for (let g = 0; g < groups.length; g++) {
         const group = groups[g];
         let groupStr = "";
@@ -72,7 +74,15 @@ export function RmbUppercaseTool() {
             zeroFlag = false;
           }
         }
-        if (groupStr) result += groupStr + bigUnits[groups.length - 1 - g];
+        if (groupStr) {
+          // 组间补零：非最高位组不足四位（数值小于 1000）或前面有整组为零时，本组前面要补“零”
+          const needZero = g > 0 && (Number(group) < 1000 || zeroPending);
+          if (needZero && !result.endsWith("零")) result += "零";
+          result += groupStr + bigUnits[groups.length - 1 - g];
+          zeroPending = false;
+        } else if (result) {
+          zeroPending = true;
+        }
       }
       result += "元";
     }
@@ -82,7 +92,7 @@ export function RmbUppercaseTool() {
       const fen = decPart % 10;
       if (jiao > 0) result += digits[jiao] + "角";
       if (fen > 0) {
-        if (jiao === 0 && intPart > 0) result += "零";
+        if (jiao === 0) result += "零";
         result += digits[fen] + "分";
       }
     }
@@ -101,10 +111,10 @@ export function RmbUppercaseTool() {
 
 // 贷款计算器
 export function LoanCalculatorTool() {
-  const [amount, setAmount] = useState("100");
-  const [years, setYears] = useState("30");
-  const [rate, setRate] = useState("4.2");
-  const [method, setMethod] = useState("equal");
+  const [amount, setAmount] = useToolDraft("loan-calculator", "amount", "100");
+  const [years, setYears] = useToolDraft("loan-calculator", "years", "30");
+  const [rate, setRate] = useToolDraft("loan-calculator", "rate", "4.2");
+  const [method, setMethod] = useToolDraft("loan-calculator", "method", "equal");
   const result = useMemo(() => {
     const P = Number(amount) * 10000;
     const n = Number(years) * 12;
@@ -138,8 +148,8 @@ export function LoanCalculatorTool() {
 
 // BMI计算器
 export function BmiCalculatorTool() {
-  const [height, setHeight] = useState("170");
-  const [weight, setWeight] = useState("65");
+  const [height, setHeight] = useToolDraft("bmi-calculator", "height", "170");
+  const [weight, setWeight] = useToolDraft("bmi-calculator", "weight", "65");
   const result = useMemo(() => {
     const h = Number(height) / 100;
     const w = Number(weight);
@@ -166,8 +176,8 @@ export function BmiCalculatorTool() {
 
 // 进制转换器
 export function BaseConverterTool() {
-  const [value, setValue] = useState("");
-  const [from, setFrom] = useState("10");
+  const [value, setValue] = useToolDraft("base-converter", "value", "");
+  const [from, setFrom] = useToolDraft("base-converter", "from", "10");
   const result = useMemo(() => {
     if (!value) return "";
     try {
@@ -187,31 +197,9 @@ export function BaseConverterTool() {
   );
 }
 
-// 字节单位转换器
-export function ByteConverterTool() {
-  const [value, setValue] = useState("1");
-  const [unit, setUnit] = useState("GB");
-  const result = useMemo(() => {
-    const units = ["B", "KB", "MB", "GB", "TB"];
-    const idx = units.indexOf(unit);
-    const bytes = Number(value) * Math.pow(1024, idx);
-    if (isNaN(bytes)) return "";
-    return units.map((u, i) => `${u}：${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 4)}`).join("\n");
-  }, [value, unit]);
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div><Label>数值</Label><Input value={value} onChange={(e) => setValue(e.target.value)} /></div>
-        <div><Label>单位</Label><Select value={unit} onChange={(e) => setUnit(e.target.value)}>{["B", "KB", "MB", "GB", "TB"].map(u => <option key={u} value={u}>{u}</option>)}</Select></div>
-      </div>
-      <ResultBox title="转换结果（1024进制）" value={result} />
-    </div>
-  );
-}
-
 // 字数统计
 export function WordCountTool() {
-  const [text, setText] = useState("");
+  const [text, setText] = useToolDraft("word-count", "text", "");
   const result = useMemo(() => {
     if (!text) return "";
     const chars = text.length;
@@ -232,7 +220,7 @@ export function WordCountTool() {
 
 // 文本去重
 export function TextDedupTool() {
-  const [text, setText] = useState("");
+  const [text, setText] = useToolDraft("text-dedup", "text", "");
   const result = useMemo(() => {
     if (!text) return "";
     const lines = text.split("\n");
@@ -270,8 +258,8 @@ const MORSE_MAP: Record<string, string> = {
 const REVERSE_MORSE = Object.fromEntries(Object.entries(MORSE_MAP).map(([k, v]) => [v, k]));
 
 export function MorseCodeTool() {
-  const [text, setText] = useState("");
-  const [mode, setMode] = useState("encode");
+  const [text, setText] = useToolDraft("morse-code", "text", "");
+  const [mode, setMode] = useToolDraft("morse-code", "mode", "encode");
   const result = useMemo(() => {
     if (!text) return "";
     if (mode === "encode") {
@@ -303,9 +291,9 @@ export function MorseCodeTool() {
 
 // 凯撒密码
 export function CaesarCipherTool() {
-  const [text, setText] = useState("");
-  const [shift, setShift] = useState("3");
-  const [mode, setMode] = useState("encrypt");
+  const [text, setText] = useToolDraft("caesar-cipher", "text", "");
+  const [shift, setShift] = useToolDraft("caesar-cipher", "shift", "3");
+  const [mode, setMode] = useToolDraft("caesar-cipher", "mode", "encrypt");
   const result = useMemo(() => {
     if (!text) return "";
     const s = mode === "encrypt" ? Number(shift) : -Number(shift);
@@ -341,8 +329,9 @@ export function CaesarCipherTool() {
 
 // UUID生成器
 export function UuidGeneratorTool() {
-  const [count, setCount] = useState("5");
-  const [result, setResult] = useState("");
+  const [count, setCount] = useToolDraft("uuid-generator", "count", "5");
+  // 结果是点「生成」才出来的，不随输入自动重算，所以结果本身也要记住
+  const [result, setResult] = useToolDraft("uuid-generator", "result", "");
   const generate = () => {
     const uuids = Array.from({ length: Math.min(Number(count) || 1, 100) }, () => crypto.randomUUID());
     setResult(uuids.join("\n"));
@@ -360,8 +349,8 @@ export function UuidGeneratorTool() {
 
 // 时间戳转换器
 export function TimestampConverterTool() {
-  const [value, setValue] = useState("");
-  const [unit, setUnit] = useState("s");
+  const [value, setValue] = useToolDraft("timestamp-converter", "value", "");
+  const [unit, setUnit] = useToolDraft("timestamp-converter", "unit", "s");
   const result = useMemo(() => {
     if (!value) {
       const now = Date.now();
@@ -371,6 +360,8 @@ export function TimestampConverterTool() {
     if (!isNaN(num)) {
       const ms = unit === "s" ? num * 1000 : num;
       const date = new Date(ms);
+      // 非法时间（如 1e20）调用 toISOString() 会抛 RangeError，渲染期执行会导致整页白屏
+      if (!Number.isFinite(date.getTime())) return "时间戳超出可表示范围";
       return `时间戳：${value} (${unit === "s" ? "秒" : "毫秒"})\n日期时间：${date.toLocaleString("zh-CN")}\nUTC时间：${date.toUTCString()}\nISO格式：${date.toISOString()}`;
     }
     const date = new Date(value);
@@ -392,9 +383,10 @@ export function TimestampConverterTool() {
 
 // 随机密码生成
 export function PasswordGeneratorTool() {
-  const [length, setLength] = useState("16");
-  const [count, setCount] = useState("5");
-  const [result, setResult] = useState("");
+  const [length, setLength] = useToolDraft("password-generator", "length", "16");
+  const [count, setCount] = useToolDraft("password-generator", "count", "5");
+  // 结果是点「生成密码」才出来的，不随输入自动重算，所以结果本身也要记住
+  const [result, setResult] = useToolDraft("password-generator", "result", "");
   const generate = () => {
     const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=";
     const passwords = Array.from({ length: Math.min(Number(count) || 1, 50) }, () =>
@@ -416,10 +408,11 @@ export function PasswordGeneratorTool() {
 
 // 随机数生成器
 export function RandomNumberTool() {
-  const [min, setMin] = useState("1");
-  const [max, setMax] = useState("100");
-  const [count, setCount] = useState("5");
-  const [result, setResult] = useState("");
+  const [min, setMin] = useToolDraft("random-number", "min", "1");
+  const [max, setMax] = useToolDraft("random-number", "max", "100");
+  const [count, setCount] = useToolDraft("random-number", "count", "5");
+  // 结果是点「生成」才出来的，不随输入自动重算，所以结果本身也要记住
+  const [result, setResult] = useToolDraft("random-number", "result", "");
   const generate = () => {
     const lo = Number(min), hi = Number(max), n = Math.min(Number(count) || 1, 100);
     const nums = Array.from({ length: n }, () => Math.floor(Math.random() * (hi - lo + 1)) + lo);
@@ -442,8 +435,11 @@ export function RandomNumberTool() {
 
 // 简易计算器
 export function SimpleCalculatorTool() {
-  const [expression, setExpression] = useState("");
-  const [result, setResult] = useState("");
+  // 注意：该组件当前没有被 tool-runner 注册（"simple-calculator" 走的是 AdvancedCalculatorTool），
+  // 这里保留它自己的草稿键前缀，避免将来被注册时与计算器工具串台。
+  const [expression, setExpression] = useToolDraft("simple-calculator-legacy", "expression", "");
+  // 结果是点「计算」才算出来的，不随输入自动重算，所以结果本身也要记住
+  const [result, setResult] = useToolDraft("simple-calculator-legacy", "result", "");
   const calc = () => {
     try {
       const sanitized = expression.replace(/[^0-9+\-*/().%\s]/g, "");
@@ -463,9 +459,9 @@ export function SimpleCalculatorTool() {
 
 // 日期计算器
 export function DateCalculatorTool() {
-  const [date1, setDate1] = useState("");
-  const [date2, setDate2] = useState("");
-  const [days, setDays] = useState("0");
+  const [date1, setDate1] = useToolDraft("date-calculator", "date1", "");
+  const [date2, setDate2] = useToolDraft("date-calculator", "date2", "");
+  const [days, setDays] = useToolDraft("date-calculator", "days", "0");
   const result = useMemo(() => {
     if (!date1) return "";
     const d1 = new Date(date1);
@@ -494,13 +490,16 @@ export function DateCalculatorTool() {
 
 // 数字求和
 export function NumberSumTool() {
-  const [numbers, setNumbers] = useState("");
+  const [numbers, setNumbers] = useToolDraft("number-sum", "numbers", "");
   const result = useMemo(() => {
     if (!numbers.trim()) return "";
     const nums = numbers.split(/[\n,，\s]+/).map(n => parseFloat(n)).filter(n => !isNaN(n));
     if (nums.length === 0) return "未找到有效数字";
     const sum = nums.reduce((a, b) => a + b, 0);
-    return `数字个数：${nums.length}\n总和：${sum}\n平均数：${(sum / nums.length).toFixed(4)}\n最大值：${Math.max(...nums)}\n最小值：${Math.min(...nums)}`;
+    // 不能使用 Math.max(...nums)/Math.min(...nums)：长列表会因参数过多抛 RangeError 导致白屏
+    const max = nums.reduce((a, b) => (b > a ? b : a), -Infinity);
+    const min = nums.reduce((a, b) => (b < a ? b : a), Infinity);
+    return `数字个数：${nums.length}\n总和：${sum}\n平均数：${(sum / nums.length).toFixed(4)}\n最大值：${max}\n最小值：${min}`;
   }, [numbers]);
   return (
     <div className="space-y-4">
@@ -522,95 +521,11 @@ export function NumberSumTool() {
   );
 }
 
-// 长度单位转换器
-export function LengthConverterTool() {
-  const [value, setValue] = useState("1");
-  const [unit, setUnit] = useState("m");
-  const result = useMemo(() => {
-    const toMm: Record<string, number> = { mm: 1, cm: 10, m: 1000, km: 1000000, in: 25.4, ft: 304.8, yd: 914.4, mi: 1609344 };
-    const mm = Number(value) * (toMm[unit] || 1);
-    if (isNaN(mm)) return "";
-    return Object.entries(toMm).map(([u, f]) => `${u.toUpperCase()}：${(mm / f).toFixed(6)}`).join("\n");
-  }, [value, unit]);
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div><Label>数值</Label><Input value={value} onChange={(e) => setValue(e.target.value)} /></div>
-        <div><Label>单位</Label><Select value={unit} onChange={(e) => setUnit(e.target.value)}>{["mm","cm","m","km","in","ft","yd","mi"].map(u => <option key={u} value={u}>{u}</option>)}</Select></div>
-      </div>
-      {result && <ResultBox title="转换结果" value={result} />}
-    </div>
-  );
-}
-
-// 时间单位转换器
-export function TimeConverterTool() {
-  const [value, setValue] = useState("1");
-  const [unit, setUnit] = useState("day");
-  const result = useMemo(() => {
-    const toMs: Record<string, number> = { ms: 1, s: 1000, min: 60000, h: 3600000, day: 86400000, week: 604800000, month: 2592000000, year: 31536000000 };
-    const ms = Number(value) * (toMs[unit] || 1);
-    if (isNaN(ms)) return "";
-    return Object.entries(toMs).map(([u, f]) => `${u}：${(ms / f).toFixed(4)}`).join("\n");
-  }, [value, unit]);
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div><Label>数值</Label><Input value={value} onChange={(e) => setValue(e.target.value)} /></div>
-        <div><Label>单位</Label><Select value={unit} onChange={(e) => setUnit(e.target.value)}>{["ms","s","min","h","day","week","month","year"].map(u => <option key={u} value={u}>{u}</option>)}</Select></div>
-      </div>
-      {result && <ResultBox title="转换结果" value={result} />}
-    </div>
-  );
-}
-
-// 面积转换器
-export function AreaConverterTool() {
-  const [value, setValue] = useState("1");
-  const [unit, setUnit] = useState("m2");
-  const result = useMemo(() => {
-    const toM2: Record<string, number> = { m2: 1, km2: 1000000, ft2: 0.092903, in2: 0.00064516, mu: 666.6667, ha: 10000, acre: 4046.8564 };
-    const m2 = Number(value) * (toM2[unit] || 1);
-    if (isNaN(m2)) return "";
-    return Object.entries(toM2).map(([u, f]) => `${u}：${(m2 / f).toFixed(6)}`).join("\n");
-  }, [value, unit]);
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div><Label>数值</Label><Input value={value} onChange={(e) => setValue(e.target.value)} /></div>
-        <div><Label>单位</Label><Select value={unit} onChange={(e) => setUnit(e.target.value)}>{["m2","km2","ft2","in2","mu","ha","acre"].map(u => <option key={u} value={u}>{u}</option>)}</Select></div>
-      </div>
-      {result && <ResultBox title="转换结果" value={result} />}
-    </div>
-  );
-}
-
-// 重量转换器
-export function WeightConverterTool() {
-  const [value, setValue] = useState("1");
-  const [unit, setUnit] = useState("kg");
-  const result = useMemo(() => {
-    const toG: Record<string, number> = { mg: 0.001, g: 1, kg: 1000, t: 1000000, jin: 500, liang: 50, lb: 453.5924, oz: 28.3495 };
-    const g = Number(value) * (toG[unit] || 1);
-    if (isNaN(g)) return "";
-    return Object.entries(toG).map(([u, f]) => `${u}：${(g / f).toFixed(6)}`).join("\n");
-  }, [value, unit]);
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div><Label>数值</Label><Input value={value} onChange={(e) => setValue(e.target.value)} /></div>
-        <div><Label>单位</Label><Select value={unit} onChange={(e) => setUnit(e.target.value)}>{["mg","g","kg","t","jin","liang","lb","oz"].map(u => <option key={u} value={u}>{u}</option>)}</Select></div>
-      </div>
-      {result && <ResultBox title="转换结果" value={result} />}
-    </div>
-  );
-}
-
 // 文本替换
 export function TextReplaceTool() {
-  const [text, setText] = useState("");
-  const [find, setFind] = useState("");
-  const [replace, setReplace] = useState("");
+  const [text, setText] = useToolDraft("text-replace", "text", "");
+  const [find, setFind] = useToolDraft("text-replace", "find", "");
+  const [replace, setReplace] = useToolDraft("text-replace", "replace", "");
   const result = useMemo(() => {
     if (!text || !find) return "";
     try {
@@ -645,8 +560,8 @@ export function TextReplaceTool() {
 
 // 全角半角转换
 export function FullwidthHalfwidthTool() {
-  const [text, setText] = useState("");
-  const [mode, setMode] = useState("toHalf");
+  const [text, setText] = useToolDraft("fullwidth-halfwidth", "text", "");
+  const [mode, setMode] = useToolDraft("fullwidth-halfwidth", "mode", "toHalf");
   const result = useMemo(() => {
     if (!text) return "";
     if (mode === "toHalf") {
@@ -688,10 +603,11 @@ export function FullwidthHalfwidthTool() {
 
 // AES加密解密
 export function AesEncryptTool() {
-  const [text, setText] = useState("");
-  const [key, setKey] = useState("1234567890123456");
-  const [mode, setMode] = useState("encrypt");
-  const [result, setResult] = useState("");
+  const [text, setText] = useToolDraft("aes-encrypt", "text", "");
+  const [key, setKey] = useToolDraft("aes-encrypt", "key", "1234567890123456");
+  const [mode, setMode] = useToolDraft("aes-encrypt", "mode", "encrypt");
+  // 结果是点「执行」异步算出来的，不随输入自动重算，所以结果本身也要记住
+  const [result, setResult] = useToolDraft("aes-encrypt", "result", "");
   const [error, setError] = useState("");
   const process = async () => {
     setError(""); setResult("");
@@ -892,7 +808,7 @@ type RomanParseResult =
     };
 
 export function RomanNumeralTool() {
-  const [value, setValue] = useState("4452");
+  const [value, setValue] = useToolDraft("roman-numeral", "value", "4452");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const { toast } = useToast();
 
@@ -1266,11 +1182,11 @@ export function RomanNumeralTool() {
 
 // Crontab生成器
 export function CrontabGeneratorTool() {
-  const [minute, setMinute] = useState("*");
-  const [hour, setHour] = useState("*");
-  const [day, setDay] = useState("*");
-  const [month, setMonth] = useState("*");
-  const [weekday, setWeekday] = useState("*");
+  const [minute, setMinute] = useToolDraft("crontab-generator", "minute", "*");
+  const [hour, setHour] = useToolDraft("crontab-generator", "hour", "*");
+  const [day, setDay] = useToolDraft("crontab-generator", "day", "*");
+  const [month, setMonth] = useToolDraft("crontab-generator", "month", "*");
+  const [weekday, setWeekday] = useToolDraft("crontab-generator", "weekday", "*");
   const result = useMemo(() => {
     const expr = `${minute} ${hour} ${day} ${month} ${weekday}`;
     const labels = ["分钟", "小时", "日", "月", "星期"];
@@ -1303,9 +1219,9 @@ export function CrontabGeneratorTool() {
 
 // 个人所得税计算器
 export function IncomeTaxCalculatorTool() {
-  const [salary, setSalary] = useState("10000");
-  const [social, setSocial] = useState("0");
-  const [special, setSpecial] = useState("0");
+  const [salary, setSalary] = useToolDraft("income-tax-calculator", "salary", "10000");
+  const [social, setSocial] = useToolDraft("income-tax-calculator", "social", "0");
+  const [special, setSpecial] = useToolDraft("income-tax-calculator", "special", "0");
   const result = useMemo(() => {
     const s = Number(salary) || 0;
     const so = Number(social) || 0;
@@ -1342,9 +1258,11 @@ export function IncomeTaxCalculatorTool() {
 
 // 税金税率计算器
 export function TaxCalculatorTool() {
-  const [amount, setAmount] = useState("10000");
-  const [rate, setRate] = useState("13");
-  const [type, setType] = useState("withTax");
+  // 注意：组件注册表里的 "tax-calculator" 指向 components/tools/tax-calculator-tool.tsx
+  // （那个组件自带模块级参数缓存），这里用独立的 legacy 前缀，避免两边串台。
+  const [amount, setAmount] = useToolDraft("tax-calculator-legacy", "amount", "10000");
+  const [rate, setRate] = useToolDraft("tax-calculator-legacy", "rate", "13");
+  const [type, setType] = useToolDraft("tax-calculator-legacy", "type", "withTax");
   const result = useMemo(() => {
     const a = Number(amount) || 0;
     const r = Number(rate) / 100;
@@ -1372,9 +1290,9 @@ export function TaxCalculatorTool() {
 
 // 信用卡分期计算器
 export function CreditCardCalculatorTool() {
-  const [amount, setAmount] = useState("10000");
-  const [periods, setPeriods] = useState("12");
-  const [feeRate, setFeeRate] = useState("7.2");
+  const [amount, setAmount] = useToolDraft("credit-card-calculator", "amount", "10000");
+  const [periods, setPeriods] = useToolDraft("credit-card-calculator", "periods", "12");
+  const [feeRate, setFeeRate] = useToolDraft("credit-card-calculator", "feeRate", "7.2");
   const result = useMemo(() => {
     const a = Number(amount) || 0;
     const n = Number(periods) || 1;
@@ -1433,7 +1351,7 @@ function numberToWords(num: number): string {
   return result.trim();
 }
 export function EnglishAmountUppercaseTool() {
-  const [amount, setAmount] = useState("1234.56");
+  const [amount, setAmount] = useToolDraft("english-amount-uppercase", "amount", "1234.56");
   const result = useMemo(() => {
     const num = Number(amount);
     if (isNaN(num)) return "";
@@ -1453,7 +1371,7 @@ export function EnglishAmountUppercaseTool() {
 
 // 数字英文转换
 export function NumberEnglishTool() {
-  const [number, setNumber] = useState("1234");
+  const [number, setNumber] = useToolDraft("number-english", "number", "1234");
   const result = useMemo(() => {
     const num = Number(number);
     if (isNaN(num)) return "";
@@ -1469,9 +1387,9 @@ export function NumberEnglishTool() {
 
 // 汇率换算器
 export function ExchangeRateTool() {
-  const [amount, setAmount] = useState("100");
-  const [from, setFrom] = useState("CNY");
-  const [to, setTo] = useState("USD");
+  const [amount, setAmount] = useToolDraft("exchange-rate", "amount", "100");
+  const [from, setFrom] = useToolDraft("exchange-rate", "from", "CNY");
+  const [to, setTo] = useToolDraft("exchange-rate", "to", "USD");
   const rates: Record<string, number> = { CNY: 1, USD: 7.25, EUR: 7.85, JPY: 0.048, GBP: 9.15, HKD: 0.93 };
   const result = useMemo(() => {
     const a = Number(amount) || 0;
@@ -1487,52 +1405,6 @@ export function ExchangeRateTool() {
         <div><Label>目标货币</Label><Select value={to} onChange={(e) => setTo(e.target.value)}>{Object.keys(rates).map(k => <option key={k} value={k}>{k}</option>)}</Select></div>
       </div>
       {result && <ResultBox title="换算结果" value={result} />}
-    </div>
-  );
-}
-
-// 几何计算器
-export function GeometryCalculatorTool() {
-  const [shape, setShape] = useState("rectangle");
-  const [a, setA] = useState("10");
-  const [b, setB] = useState("5");
-  const result = useMemo(() => {
-    const x = Number(a) || 0, y = Number(b) || 0;
-    if (shape === "rectangle") return `矩形：长=${x}, 宽=${y}\n面积：${x*y}\n周长：${2*(x+y)}`;
-    if (shape === "circle") return `圆形：半径=${x}\n面积：${(Math.PI*x*x).toFixed(4)}\n周长：${(2*Math.PI*x).toFixed(4)}`;
-    if (shape === "triangle") return `三角形：底=${x}, 高=${y}\n面积：${(x*y/2).toFixed(4)}`;
-    if (shape === "trapezoid") return `梯形：上底=${x}, 下底=${y}, 高=10\n面积：${((x+y)*10/2).toFixed(4)}`;
-    return "";
-  }, [shape, a, b]);
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-4">
-        <div><Label>图形</Label><Select value={shape} onChange={(e) => setShape(e.target.value)}><option value="rectangle">矩形</option><option value="circle">圆形</option><option value="triangle">三角形</option><option value="trapezoid">梯形</option></Select></div>
-        <div><Label>参数1（长/半径/底）</Label><Input value={a} onChange={(e) => setA(e.target.value)} /></div>
-        <div><Label>参数2（宽/高/高）</Label><Input value={b} onChange={(e) => setB(e.target.value)} /></div>
-      </div>
-      {result && <ResultBox title="计算结果" value={result} />}
-    </div>
-  );
-}
-
-// 体积单位转换器
-export function VolumeConverterTool() {
-  const [value, setValue] = useState("1");
-  const [unit, setUnit] = useState("L");
-  const result = useMemo(() => {
-    const toL: Record<string, number> = { m3: 1000, L: 1, mL: 0.001, gal: 3.78541, floz: 0.0295735 };
-    const liters = Number(value) * (toL[unit] || 1);
-    if (isNaN(liters)) return "";
-    return Object.entries(toL).map(([u, f]) => `${u}：${(liters / f).toFixed(6)}`).join("\n");
-  }, [value, unit]);
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div><Label>数值</Label><Input value={value} onChange={(e) => setValue(e.target.value)} /></div>
-        <div><Label>单位</Label><Select value={unit} onChange={(e) => setUnit(e.target.value)}>{["m3","L","mL","gal","floz"].map(u => <option key={u} value={u}>{u}</option>)}</Select></div>
-      </div>
-      {result && <ResultBox title="转换结果" value={result} />}
     </div>
   );
 }
@@ -1606,7 +1478,7 @@ const LUNAR_DAYS = ["初一","初二","初三","初四","初五","初六","初�
 
 // 公历农历转换器
 export function LunarCalendarTool() {
-  const [date, setDate] = useState("");
+  const [date, setDate] = useToolDraft("lunar-calendar", "date", "");
   const result = useMemo(() => {
     const d = date ? new Date(date) : new Date();
     if (isNaN(d.getTime())) return "日期格式错误";
@@ -1628,11 +1500,11 @@ export function LunarCalendarTool() {
 
 // 文本对比（可视化专业 Diff 视图）
 export function TextCompareTool() {
-  const [text1, setText1] = useState("const name = 'Furina';\nconsole.log('Hello', name);\nconst version = '2.0.0';");
-  const [text2, setText2] = useState("const name = 'Furina';\nconsole.log('Bonjour', name);\nconst version = '2.0.1';\nconst isUpdated = true;");
+  const [text1, setText1] = useToolDraft("text-compare", "text1", "const name = 'Furina';\nconsole.log('Hello', name);\nconst version = '2.0.0';");
+  const [text2, setText2] = useToolDraft("text-compare", "text2", "const name = 'Furina';\nconsole.log('Bonjour', name);\nconst version = '2.0.1';\nconst isUpdated = true;");
   const [copied, setCopied] = useState(false);
-  const [layout, setLayout] = useState<"split" | "stacked">("split");
-  const [wrap, setWrap] = useState<boolean>(true);
+  const [layout, setLayout] = useToolDraft<"split" | "stacked">("text-compare", "layout", "split");
+  const [wrap, setWrap] = useToolDraft("text-compare", "wrap", true);
   const { toast } = useToast();
 
   const diffResult = useMemo(() => {
@@ -1880,7 +1752,7 @@ export function TextCompareTool() {
 
 // 花体文字转换
 export function FancyTextTool() {
-  const [text, setText] = useState("Hello World");
+  const [text, setText] = useToolDraft("fancy-text", "text", "Hello World");
   const result = useMemo(() => {
     if (!text) return "";
     // 用 Array.from 按 code point 分割，避免代理对（surrogate pair）按码元索引错位
@@ -1910,7 +1782,7 @@ export function FancyTextTool() {
 // 拼音转换（简化版，常用字）
 const pinyinMap: Record<string, string> = { "你":"nǐ","好":"hǎo","世":"shì","界":"jiè","中":"zhōng","国":"guó","人":"rén","民":"mín","大":"dà","小":"xiǎo","上":"shàng","下":"xià","左":"zuǒ","右":"yòu","前":"qián","后":"hòu","天":"tiān","地":"dì","日":"rì","月":"yuè","水":"shuǐ","火":"huǒ","山":"shān","石":"shí","田":"tián","土":"tǔ","木":"mù","林":"lín","森":"sēn","花":"huā","草":"cǎo","树":"shù","叶":"yè","风":"fēng","雨":"yǔ","雪":"xuě","云":"yún","雷":"léi","电":"diàn","春":"chūn","夏":"xià","秋":"qiū","冬":"dōng","爱":"ài","恨":"hèn","喜":"xǐ","怒":"nù","哀":"āi","乐":"lè","哭":"kū","笑":"xiào","说":"shuō","听":"tīng","看":"kàn","读":"dú","写":"xiě","学":"xué","习":"xí","工":"gōng","作":"zuò","生":"shēng","活":"huó","家":"jiā","我":"wǒ","他":"tā","她":"tā","它":"tā","们":"men","的":"de","是":"shì","不":"bù","有":"yǒu","无":"wú","在":"zài","和":"hé","与":"yǔ","或":"huò","者":"zhě","也":"yě","都":"dōu","就":"jiù","才":"cái","已":"yǐ","经":"jīng","将":"jiāng","要":"yào","会":"huì","能":"néng","可":"kě","以":"yǐ","这":"zhè","那":"nà","些":"xiē","么":"me","什":"shén","怎":"zěn","如":"rú","果":"guǒ","因":"yīn","为":"wèi","所":"suǒ","但":"dàn","而":"ér","且":"qiě","并":"bìng" };
 export function PinyinConverterTool() {
-  const [text, setText] = useState("你好世界");
+  const [text, setText] = useToolDraft("pinyin-converter", "text", "你好世界");
   const result = useMemo(() => {
     if (!text) return "";
     return text.split("").map(c => pinyinMap[c] || c).join(" ");
@@ -1926,8 +1798,9 @@ export function PinyinConverterTool() {
 
 // SHA哈希
 export function ShaHashTool() {
-  const [text, setText] = useState("");
-  const [result, setResult] = useState("");
+  const [text, setText] = useToolDraft("sha-hash", "text", "");
+  // 哈希是点「计算哈希」异步算出来的，不随输入自动重算，所以结果本身也要记住
+  const [result, setResult] = useToolDraft("sha-hash", "result", "");
   const calc = async () => {
     if (!text) { setResult(""); return; }
     const enc = new TextEncoder().encode(text);
@@ -1961,8 +1834,8 @@ export function ShaHashTool() {
 
 // Unicode转换
 export function UnicodeConverterTool() {
-  const [text, setText] = useState("");
-  const [mode, setMode] = useState("encode");
+  const [text, setText] = useToolDraft("unicode-converter", "text", "");
+  const [mode, setMode] = useToolDraft("unicode-converter", "mode", "encode");
   const result = useMemo(() => {
     if (!text) return "";
     if (mode === "encode") {
@@ -1995,8 +1868,9 @@ export function UnicodeConverterTool() {
 
 // GUID生成
 export function GuidGeneratorTool() {
-  const [count, setCount] = useState("5");
-  const [result, setResult] = useState("");
+  const [count, setCount] = useToolDraft("guid-generator", "count", "5");
+  // 结果是点「生成」才出来的，不随输入自动重算，所以结果本身也要记住
+  const [result, setResult] = useToolDraft("guid-generator", "result", "");
   const generate = () => {
     const guids = Array.from({ length: Math.min(Number(count) || 1, 100) }, () => crypto.randomUUID().toUpperCase());
     setResult(guids.join("\n"));
@@ -2014,7 +1888,7 @@ export function GuidGeneratorTool() {
 
 // JSON转TS
 export function JsonToTsTool() {
-  const [json, setJson] = useState("{\"name\":\"test\",\"age\":18}");
+  const [json, setJson] = useToolDraft("json-to-ts", "json", "{\"name\":\"test\",\"age\":18}");
   const result = useMemo(() => {
     if (!json.trim()) return "";
     try {
@@ -2052,7 +1926,7 @@ export function JsonToTsTool() {
 
 // User Agent分析
 export function UserAgentAnalyzerTool() {
-  const [ua, setUa] = useState("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+  const [ua, setUa] = useToolDraft("user-agent-analyzer", "ua", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
   const result = useMemo(() => {
     if (!ua) return "";
     let browser = "未知", os = "未知", device = "未知";
@@ -2088,6 +1962,9 @@ export function UserAgentAnalyzerTool() {
   );
 }
 
+/** 图片根本读不出来（例如把文本文件改名成 .png）时的固定提示 */
+const QR_IMAGE_READ_ERROR = "无法读取该图片";
+
 // 二维码解码器
 export function QrDecoderTool() {
   const [result, setResult] = useState("");
@@ -2096,10 +1973,19 @@ export function QrDecoderTool() {
     setError(""); setResult("");
     const file = e.target.files?.[0];
     if (!file) return;
+    // 这条临时链接只用来把图片喂给 canvas 解码（解码结果是文本，界面不显示这张图），
+    // 所以它由「本次处理」自己持有：不管成功还是失败，都在 finally 里用完即释放，
+    // 不参与任何缓存 —— 既不留给下一次，也不会释放界面上正在显示的东西。
+    const objectUrl = URL.createObjectURL(file);
     try {
       const img = new Image();
-      img.src = URL.createObjectURL(file);
-      await new Promise(r => img.onload = r);
+      // 必须先挂 onerror 再设 src：以前只等 onload，用户把文本文件改名成 .png 丢进来时
+      // 这个 Promise 永远不会 settle —— 界面既不报错也没有任何提示，只能刷新页面才能恢复。
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error(QR_IMAGE_READ_ERROR));
+        img.src = objectUrl;
+      });
       const canvas = document.createElement("canvas");
       canvas.width = img.width; canvas.height = img.height;
       const ctx = canvas.getContext("2d")!;
@@ -2108,7 +1994,13 @@ export function QrDecoderTool() {
       const code = jsQRDecode(imageData.data, imageData.width, imageData.height);
       if (code) setResult(code);
       else setError("未能识别二维码，请确保图片清晰");
-    } catch (err) { setError("处理失败：" + (err as Error).message); }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "";
+      setError(message === QR_IMAGE_READ_ERROR ? QR_IMAGE_READ_ERROR : "处理失败：" + (message || "未知错误"));
+    } finally {
+      // 释放时机：本次解码结束（成功或失败）后立刻释放这条链接，恰好一次
+      URL.revokeObjectURL(objectUrl);
+    }
   };
   return (
     <div className="space-y-4">
@@ -2232,20 +2124,33 @@ export function PeriodicTableTool() {
 export function ImageBase64Tool() {
   const [base64, setBase64] = useState("");
   const [preview, setPreview] = useState("");
+  const [error, setError] = useState("");
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setError("");
     const reader = new FileReader();
+    // 读出来的 data URL 是字符串、不是 object URL，没有临时链接需要释放；
+    // 它要一直留在界面上（预览 + 复制），所以由组件 state 持有。
     reader.onload = () => {
       const result = reader.result as string;
       setBase64(result);
       setPreview(result);
+    };
+    // 以前只挂了 onload：文件损坏或被系统拒绝读取时，既不显示结果也没有任何提示，
+    // 看起来像是点了没反应。这里补上失败提示 —— 产品明确要求不加任何大小上限，
+    // 所以只做「坏文件有提示、不静默挂住」，不做任何体积拦截。
+    reader.onerror = () => {
+      setBase64("");
+      setPreview("");
+      setError("无法读取该文件，请确认文件未损坏后重试");
     };
     reader.readAsDataURL(file);
   };
   return (
     <div className="space-y-4">
       <div><Label>上传图片</Label><input type="file" accept="image/*" onChange={handleFile} className="w-full" /></div>
+      {error && <div className="text-sm" style={{ color: "hsl(var(--destructive))" }}>{error}</div>}
       {preview && <img src={preview} alt="预览" className="max-h-40 rounded-lg border" style={{ borderColor: "hsl(var(--border))" }} />}
       {base64 && <ResultBox title="Base64 字符串" value={base64} />}
     </div>
@@ -2265,7 +2170,7 @@ function crc32(str: string): number {
   return (crc ^ 0xFFFFFFFF) >>> 0;
 }
 export function CrcChecksumTool() {
-  const [text, setText] = useState("");
+  const [text, setText] = useToolDraft("crc-checksum", "text", "");
   const result = useMemo(() => {
     if (!text) return "";
     const crc = crc32(text);
@@ -2313,43 +2218,6 @@ export function FileHexTool() {
   );
 }
 
-// 秒表计时器
-export function StopwatchTool() {
-  const [time, setTime] = useState(0);
-  const [running, setRunning] = useState(false);
-  const [laps, setLaps] = useState<number[]>([]);
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | undefined;
-    if (running) interval = setInterval(() => setTime(t => t + 10), 10);
-    return () => clearInterval(interval);
-  }, [running]);
-  const format = (ms: number) => {
-    const m = Math.floor(ms / 60000);
-    const s = Math.floor((ms % 60000) / 1000);
-    const cs = Math.floor((ms % 1000) / 10);
-    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}.${cs.toString().padStart(2, "0")}`;
-  };
-  return (
-    <div className="space-y-4">
-      <div className="text-center text-5xl font-mono font-bold py-8" style={{ color: "hsl(var(--primary))" }}>{format(time)}</div>
-      <div className="flex justify-center gap-3">
-        <Button onClick={() => setRunning(!running)}>{running ? "暂停" : "开始"}</Button>
-        <Button onClick={() => { if (running) setLaps([...laps, time]); }}>计次</Button>
-        <Button onClick={() => { setTime(0); setRunning(false); setLaps([]); }}>重置</Button>
-      </div>
-      {laps.length > 0 && (
-        <div className="rounded-lg border p-4 max-h-40 overflow-y-auto" style={{ borderColor: "hsl(var(--border))", backgroundColor: "hsl(var(--card))" }}>
-          {laps.map((lap, i) => (
-            <div key={i} className="flex justify-between py-1 text-sm" style={{ color: "hsl(var(--foreground))" }}>
-              <span>第 {i + 1} 次</span><span>{format(lap)}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // 特殊符号
 export function SpecialSymbolsTool() {
   const categories = [
@@ -2386,55 +2254,17 @@ export function SpecialSymbolsTool() {
 }
 
 
-// 综合单位转换器
-export function UnitConverterTool() {
-  const [category, setCategory] = useState("length");
-  const [value, setValue] = useState("1");
-  const [fromUnit, setFromUnit] = useState("m");
-  const UNITS: Record<string, Record<string, number>> = {
-    length: { mm: 1, cm: 10, m: 1000, km: 1000000, in: 25.4, ft: 304.8, yd: 914.4, mi: 1609344 },
-    weight: { mg: 0.001, g: 1, kg: 1000, t: 1000000, jin: 500, lb: 453.5924, oz: 28.3495 },
-    area: { m2: 1, km2: 1000000, ft2: 0.092903, mu: 666.6667, ha: 10000, acre: 4046.8564 },
-    volume: { m3: 1000, L: 1, mL: 0.001, gal: 3.78541, floz: 0.029574 },
-  };
-  const result = useMemo(() => {
-    const v = Number(value) || 0;
-    if (category === "temperature") {
-      let c: number;
-      if (fromUnit === "C") c = v;
-      else if (fromUnit === "F") c = (v - 32) * 5 / 9;
-      else c = v - 273.15;
-      return `摄氏度 (°C): ${c.toFixed(4)}\n华氏度 (°F): ${(c * 9/5 + 32).toFixed(4)}\n开尔文 (K): ${(c + 273.15).toFixed(4)}`;
-    }
-    const table = UNITS[category];
-    if (!table) return "";
-    const base = v * (table[fromUnit] || 1);
-    return Object.entries(table).map(([u, f]) => `${u}: ${(base / f).toFixed(6)}`).join("\n");
-  }, [category, value, fromUnit]);
-  const tempUnits = category === "temperature" ? ["C", "F", "K"] : Object.keys(UNITS[category] || {});
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-4">
-        <div><Label>转换类型</Label><Select value={category} onChange={(e) => { setCategory(e.target.value); setFromUnit(e.target.value === "temperature" ? "C" : Object.keys(UNITS[e.target.value] || {})[0] || ""); }}><option value="length">长度</option><option value="weight">重量</option><option value="area">面积</option><option value="volume">体积</option><option value="temperature">温度</option></Select></div>
-        <div><Label>源单位</Label><Select value={fromUnit} onChange={(e) => setFromUnit(e.target.value)}>{tempUnits.map(u => <option key={u} value={u}>{u}</option>)}</Select></div>
-        <div><Label>数值</Label><Input value={value} onChange={(e) => setValue(e.target.value)} /></div>
-      </div>
-      {result && <ResultBox title="转换结果" value={result} />}
-    </div>
-  );
-}
-
-
 // 批量重命名工具
 export function BatchRenameTool() {
   const [files, setFiles] = useState<string[]>([]);
-  const [pattern, setPattern] = useState("");
-  const [startNum, setStartNum] = useState(1);
-  const [findText, setFindText] = useState("");
-  const [replaceText, setReplaceText] = useState("");
-  const [prefix, setPrefix] = useState("");
-  const [suffix, setSuffix] = useState("");
-  const [caseMode, setCaseMode] = useState("none");
+  const [pattern, setPattern] = useToolDraft("batch-rename", "pattern", "");
+  // 起始序号也用同一套草稿机制：number 类型原样存回，切走再回来不会掉回 1
+  const [startNum, setStartNum] = useToolDraft("batch-rename", "startNum", 1);
+  const [findText, setFindText] = useToolDraft("batch-rename", "findText", "");
+  const [replaceText, setReplaceText] = useToolDraft("batch-rename", "replaceText", "");
+  const [prefix, setPrefix] = useToolDraft("batch-rename", "prefix", "");
+  const [suffix, setSuffix] = useToolDraft("batch-rename", "suffix", "");
+  const [caseMode, setCaseMode] = useToolDraft("batch-rename", "caseMode", "none");
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
@@ -2543,10 +2373,10 @@ export function BatchRenameTool() {
 
 // ========== JavaScript 格式化（双栏实时格式化预览） ==========
 export function JsFormatterTool() {
-  const [input, setInput] = useState("function calculateTotal(items, taxRate) {let sum=0;for(let i=0;i<items.length;i++){sum+=items[i].price*items[i].quantity;}const tax=sum*taxRate;return{subtotal:sum,tax:tax,total:sum+tax};}\nconsole.log(calculateTotal([{price:100,quantity:2}],0.08));");
+  const [input, setInput] = useToolDraft("js-formatter", "input", "function calculateTotal(items, taxRate) {let sum=0;for(let i=0;i<items.length;i++){sum+=items[i].price*items[i].quantity;}const tax=sum*taxRate;return{subtotal:sum,tax:tax,total:sum+tax};}\nconsole.log(calculateTotal([{price:100,quantity:2}],0.08));");
   const [output, setOutput] = useState("");
   const [copied, setCopied] = useState(false);
-  const [layout, setLayout] = useState<"split" | "stacked">("split");
+  const [layout, setLayout] = useToolDraft<"split" | "stacked">("js-formatter", "layout", "split");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -2655,10 +2485,10 @@ export function JsFormatterTool() {
 
 // ========== HTML 格式化（双栏实时格式化预览） ==========
 export function HtmlFormatterTool() {
-  const [input, setInput] = useState("<div class=\"furina-card\"><header><h1>FurinaKit</h1><p>Elegant Toolkit</p></header><main><section><ul><li>Feature A</li><li>Feature B</li></ul></section></main></div>");
+  const [input, setInput] = useToolDraft("html-formatter", "input", "<div class=\"furina-card\"><header><h1>FurinaKit</h1><p>Elegant Toolkit</p></header><main><section><ul><li>Feature A</li><li>Feature B</li></ul></section></main></div>");
   const [output, setOutput] = useState("");
   const [copied, setCopied] = useState(false);
-  const [layout, setLayout] = useState<"split" | "stacked">("split");
+  const [layout, setLayout] = useToolDraft<"split" | "stacked">("html-formatter", "layout", "split");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -2759,7 +2589,7 @@ export function HtmlFormatterTool() {
 
 // ========== 大小写转换 ==========
 export function CaseConverterTool() {
-  const [input, setInput] = useState("");
+  const [input, setInput] = useToolDraft("case-converter", "input", "");
 
   const toUpper = () => setInput(input.toUpperCase());
   const toLower = () => setInput(input.toLowerCase());
@@ -2782,13 +2612,15 @@ export function CaseConverterTool() {
 
 // ========== 日期转换 ==========
 export function DateConverterTool() {
-  const [timestamp, setTimestamp] = useState(String(Math.floor(Date.now() / 1000)));
-  const [dateStr, setDateStr] = useState("");
+  const [timestamp, setTimestamp] = useToolDraft("date-converter", "timestamp", String(Math.floor(Date.now() / 1000)));
+  const [dateStr, setDateStr] = useToolDraft("date-converter", "dateStr", "");
 
   const tsToDate = () => {
     const ts = parseInt(timestamp);
     if (isNaN(ts)) return;
     const d = new Date(ts * 1000);
+    // 超大时间戳会得到 Invalid Date，直接展示可读提示而不是 "Invalid Date"
+    if (!Number.isFinite(d.getTime())) { setDateStr("时间戳超出可表示范围"); return; }
     setDateStr(d.toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }));
   };
 
@@ -2820,8 +2652,8 @@ export function DateConverterTool() {
 
 // ========== IP 转换 ==========
 export function IpConverterTool() {
-  const [ip, setIp] = useState("192.168.1.1");
-  const [num, setNum] = useState("");
+  const [ip, setIp] = useToolDraft("ip-converter", "ip", "192.168.1.1");
+  const [num, setNum] = useToolDraft("ip-converter", "num", "");
 
   const ipToNum = () => {
     const parts = ip.split(".").map(Number);
@@ -2864,7 +2696,7 @@ export function IpConverterTool() {
 
 // ========== HTTP 状态查询 ==========
 export function HttpStatusTool() {
-  const [code, setCode] = useState("200");
+  const [code, setCode] = useToolDraft("http-status", "code", "200");
   const statusMap: Record<string, { name: string; desc: string; category: string }> = {
     "100": { name: "Continue", desc: "继续", category: "信息响应" },
     "101": { name: "Switching Protocols", desc: "切换协议", category: "信息响应" },
@@ -2925,8 +2757,10 @@ export function HttpStatusTool() {
 
 function ChartTool({ title, chartType }: { title: string; chartType: "scatter" | "pie" | "line" | "bar" }) {
   const { colors } = useTheme();
-  const [data, setData] = useState("");
-  const [options, setOptions] = useState<Record<string, unknown> | null>(null);
+  // 草稿键由 chartType 推出，与 tool-runner 的工具 id 一致（scatter-chart / pie-chart / line-chart / bar-chart）
+  const [data, setData] = useToolDraft(`${chartType}-chart`, "data", "");
+  // 图表是点「生成图表」才算出来的，所以生成好的 option 也一起记住，切回来时图表还在
+  const [options, setOptions] = useToolDraft<Record<string, unknown> | null>(`${chartType}-chart`, "options", null);
   const chartRef = useRef<ReactECharts>(null);
 
   const generateChart = () => {

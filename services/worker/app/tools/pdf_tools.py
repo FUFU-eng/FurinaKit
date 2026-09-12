@@ -13,6 +13,11 @@ from PIL import Image, ImageSequence
 
 logger = logging.getLogger("furinakit.pdf")
 
+# 水印/页码可能包含中文，必须使用 PyMuPDF 内置的 CJK 字体。
+# "helv"（Base-14 Helvetica）只覆盖 Latin-1，写中文会静默变成 "·····"（替换字符），
+# 任务却仍报"处理完成"。"china-s" 是内置简体中文字体，能正确编码并嵌入子集。
+WATERMARK_FONT_NAME = "china-s"
+
 
 def pdf_merge(files: List[str], output_path: str) -> Dict[str, Any]:
     """合并多个 PDF 文件"""
@@ -352,7 +357,7 @@ def pdf_add_watermark(file_path: str, output_path: str, text: str = "CONFIDENTIA
             center,
             text,
             fontsize=font_size,
-            fontname="helv",
+            fontname=WATERMARK_FONT_NAME,
             color=(0.5, 0.5, 0.5),
             fill_opacity=opacity,
             morph=(center, rot_matrix),

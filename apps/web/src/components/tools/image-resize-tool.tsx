@@ -33,28 +33,150 @@ type ScaleType = "percent" | "dimension";
 type DimensionMode = "fixed" | "width" | "height" | "max_side" | "min_side";
 type FitMode = "crop" | "stretch";
 
+// ==========================================================================
+// 模块级缓存：离开页面（切到别的工具、回首页）再回来时，恢复输入、结果与参数。
+//
+// 为什么必须是模块级：File / Blob 无法序列化进 storage，组件卸载后 useState 就清空了。
+// 做法与 fileHideCache、imagesToPdfCache、tool-runner 的 toolDraftCache 一致。
+//
+// 为什么 object URL 也归缓存持有：预览图与结果图以前在组件卸载时被统一 revoke，
+// 用户切走再回来只剩「死图」和点了没反应的下载按钮 —— 链接已经被释放了。
+// 现在只在三种情况下释放：① 那份文件 / 结果被换成新的一份（重新选文件、重新处理）
+// ② 用户清空 / 移除 ③ 缓存条目被淘汰。
+// 判断依据是「上一份快照里的 URL 与新一份是否还是同一条」，不是每次保存都释放；
+// 恢复时直接复用缓存里的链接，绝不重新 createObjectURL。
+//
+// 特别注意「跳过小图」：那一分支故意让 resultUrl === previewUrl（同一条链接）。
+// 所以释放结果链接前必须确认它不是预览链接，否则会把还在显示的预览一起掐断。
+// ==========================================================================
+interface ResizeCacheEntry {
+  items: ResizeFileItem[];
+  scaleType: ScaleType;
+  percent: number;
+  dimensionMode: DimensionMode;
+  targetWidth: number;
+  targetHeight: number;
+  skipSmall: boolean;
+  fitMode: FitMode;
+  outputFormat: "original" | "jpeg" | "png" | "webp";
+}
+
+const RESIZE_CACHE_KEY = "image-resize";
+/** 最多保留 6 个条目，与 tool-runner 的 TOOL_DRAFT_LIMIT 对齐；本工具只用一个 key，实际只占 1 份 */
+const RESIZE_CACHE_LIMIT = 6;
+const resizeCache = new Map<string, ResizeCacheEntry>();
+
+const RESIZE_CACHE_DEFAULTS = {
+  scaleType: "dimension" as ScaleType,
+  percent: 50,
+  dimensionMode: "fixed" as DimensionMode,
+  targetWidth: 1000,
+  targetHeight: 1000,
+  skipSmall: true,
+  fitMode: "crop" as FitMode,
+  outputFormat: "original" as "original" | "jpeg" | "png" | "webp",
+};
+
+/** 释放单个条目占用的 object URL；跳过小图时结果与预览是同一条链接，只释放一次 */
+function releaseResizeItem(item: ResizeFileItem): void {
+  URL.revokeObjectURL(item.previewUrl);
+  if (item.resultUrl && item.resultUrl !== item.previewUrl) {
+    URL.revokeObjectURL(item.resultUrl);
+  }
+}
+
+/** 恢复用快照：浅拷贝一份，避免运行期的原地改动写进缓存 */
+function snapshotResizeItems(items: ResizeFileItem[]): ResizeFileItem[] {
+  return items.map((it) => ({ ...it }));
+}
+
+/** 从缓存恢复输入项（处理中的项回退到「待处理」，免得回来时永远转圈） */
+function readResizeItems(): ResizeFileItem[] {
+  const cached = resizeCache.get(RESIZE_CACHE_KEY);
+  if (!cached) return [];
+  return snapshotResizeItems(cached.items).map((it) => ({
+    ...it,
+    status: it.status === "processing" ? "pending" : it.status,
+  }));
+}
+
+/** 写入缓存：先释放被替换 / 被移除的 URL，再按最近使用顺序存入并做上限淘汰 */
+function rememberResizeEntry(key: string, entry: ResizeCacheEntry): void {
+  const previous = resizeCache.get(key);
+
+  if (previous) {
+    const nextById = new Map(entry.items.map((it) => [it.id, it]));
+    previous.items.forEach((prevItem) => {
+      const nextItem = nextById.get(prevItem.id);
+      if (!nextItem) {
+        // 用户移除单项 / 清空全部
+        releaseResizeItem(prevItem);
+        return;
+      }
+      // 预览图被换成新的一份（同一个位置换了文件）才释放旧预览链接
+      if (prevItem.previewUrl !== nextItem.previewUrl) {
+        URL.revokeObjectURL(prevItem.previewUrl);
+      }
+      // 结果被重新处理、或被「跳过小图」覆盖时才释放旧结果链接；
+      // 旧结果若与预览共用同一条链接（跳过小图），释放它会顺手掐断预览，必须跳过
+      if (
+        prevItem.resultUrl &&
+        prevItem.resultUrl !== prevItem.previewUrl &&
+        prevItem.resultUrl !== nextItem.resultUrl
+      ) {
+        URL.revokeObjectURL(prevItem.resultUrl);
+      }
+    });
+  }
+
+  // 先删再存：让 Map 的迭代顺序等于「最近使用顺序」
+  resizeCache.delete(key);
+  resizeCache.set(key, { ...entry, items: snapshotResizeItems(entry.items) });
+
+  while (resizeCache.size > RESIZE_CACHE_LIMIT) {
+    const oldestKey = resizeCache.keys().next().value;
+    if (oldestKey === undefined) break;
+    const oldest = resizeCache.get(oldestKey);
+    if (oldest) oldest.items.forEach((it) => releaseResizeItem(it));
+    resizeCache.delete(oldestKey);
+  }
+}
+
 export function ImageResizeTool() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // File queue
-  const [items, setItems] = useState<ResizeFileItem[]>([]);
+  // File queue（挂载时从模块级缓存恢复）
+  const [items, setItems] = useState<ResizeFileItem[]>(() => readResizeItems());
   const [isProcessing, setIsProcessing] = useState(false);
   const [confetti, setConfetti] = useState(0);
 
   // Settings
-  const [scaleType, setScaleType] = useState<ScaleType>("dimension");
-  const [percent, setPercent] = useState<number>(50);
+  const [scaleType, setScaleType] = useState<ScaleType>(
+    () => resizeCache.get(RESIZE_CACHE_KEY)?.scaleType ?? RESIZE_CACHE_DEFAULTS.scaleType
+  );
+  const [percent, setPercent] = useState<number>(
+    () => resizeCache.get(RESIZE_CACHE_KEY)?.percent ?? RESIZE_CACHE_DEFAULTS.percent
+  );
 
-  const [dimensionMode, setDimensionMode] = useState<DimensionMode>("fixed");
-  const [targetWidth, setTargetWidth] = useState<number>(1000);
-  const [targetHeight, setTargetHeight] = useState<number>(1000);
-  const [skipSmall, setSkipSmall] = useState<boolean>(true);
-  const [fitMode, setFitMode] = useState<FitMode>("crop");
-  const [outputFormat, setOutputFormat] = useState<"original" | "jpeg" | "png" | "webp">("original");
-
-  const itemsRef = useRef<ResizeFileItem[]>(items);
-  itemsRef.current = items;
+  const [dimensionMode, setDimensionMode] = useState<DimensionMode>(
+    () => resizeCache.get(RESIZE_CACHE_KEY)?.dimensionMode ?? RESIZE_CACHE_DEFAULTS.dimensionMode
+  );
+  const [targetWidth, setTargetWidth] = useState<number>(
+    () => resizeCache.get(RESIZE_CACHE_KEY)?.targetWidth ?? RESIZE_CACHE_DEFAULTS.targetWidth
+  );
+  const [targetHeight, setTargetHeight] = useState<number>(
+    () => resizeCache.get(RESIZE_CACHE_KEY)?.targetHeight ?? RESIZE_CACHE_DEFAULTS.targetHeight
+  );
+  const [skipSmall, setSkipSmall] = useState<boolean>(
+    () => resizeCache.get(RESIZE_CACHE_KEY)?.skipSmall ?? RESIZE_CACHE_DEFAULTS.skipSmall
+  );
+  const [fitMode, setFitMode] = useState<FitMode>(
+    () => resizeCache.get(RESIZE_CACHE_KEY)?.fitMode ?? RESIZE_CACHE_DEFAULTS.fitMode
+  );
+  const [outputFormat, setOutputFormat] = useState<"original" | "jpeg" | "png" | "webp">(
+    () => resizeCache.get(RESIZE_CACHE_KEY)?.outputFormat ?? RESIZE_CACHE_DEFAULTS.outputFormat
+  );
 
   // 接收从全局拖拽或其他工具移交的文件
   useEffect(() => {
@@ -88,15 +210,22 @@ export function ImageResizeTool() {
     };
   }, []);
 
-  // Clean up object URLs on unmount
+  // 离开本工具（组件卸载）时不做任何释放 —— 预览与结果的链接归缓存持有，
+  // 这样回来时图片还在、下载按钮还能用。释放时机见 rememberResizeEntry()。
+  // 每次变化都写回缓存，保证离开时缓存里是最新的。
   useEffect(() => {
-    return () => {
-      itemsRef.current.forEach((item) => {
-        URL.revokeObjectURL(item.previewUrl);
-        if (item.resultUrl) URL.revokeObjectURL(item.resultUrl);
-      });
-    };
-  }, []);
+    rememberResizeEntry(RESIZE_CACHE_KEY, {
+      items,
+      scaleType,
+      percent,
+      dimensionMode,
+      targetWidth,
+      targetHeight,
+      skipSmall,
+      fitMode,
+      outputFormat,
+    });
+  }, [items, scaleType, percent, dimensionMode, targetWidth, targetHeight, skipSmall, fitMode, outputFormat]);
 
   const handleFiles = (fileList: FileList | File[]) => {
     const valid = Array.from(fileList).filter((f) => f.type.startsWith("image/"));
@@ -130,22 +259,13 @@ export function ImageResizeTool() {
     });
   };
 
+  // 这里不再手动 revoke：链接归缓存所有，移除后由 rememberResizeEntry
+  // 的「上一份快照里有、新一份里没有」判定来释放，避免同一链接被释放两次。
   const removeItem = (id: string) => {
-    setItems((prev) => {
-      const item = prev.find((it) => it.id === id);
-      if (item) {
-        URL.revokeObjectURL(item.previewUrl);
-        if (item.resultUrl) URL.revokeObjectURL(item.resultUrl);
-      }
-      return prev.filter((it) => it.id !== id);
-    });
+    setItems((prev) => prev.filter((it) => it.id !== id));
   };
 
   const clearAll = () => {
-    items.forEach((item) => {
-      URL.revokeObjectURL(item.previewUrl);
-      if (item.resultUrl) URL.revokeObjectURL(item.resultUrl);
-    });
     setItems([]);
   };
 
@@ -292,9 +412,8 @@ export function ImageResizeTool() {
           );
         });
 
-        if (item.resultUrl && item.resultUrl !== item.previewUrl) {
-          URL.revokeObjectURL(item.resultUrl);
-        }
+        // 旧结果的 URL 不在这里释放：它归模块级缓存所有（见 rememberResizeEntry），
+        // 由「上一份快照里的 resultUrl 与新一份不同」来判定，保证恰好释放一次。
 
         item.resultBlob = blob;
         item.resultUrl = URL.createObjectURL(blob);

@@ -3,12 +3,13 @@ import { z } from "zod";
 export const toolCategories = [
   "image",
   "download",
-  "utility",
-  "pdf",
   "audio",
+  "pdf",
   "text",
+  "mathcalc",
   "dev",
-  "encode",
+  "security",
+  "utility",
 ] as const;
 
 export type ToolCategory = (typeof toolCategories)[number];
@@ -22,7 +23,7 @@ export const jobStatuses = [
 
 export type JobStatus = (typeof jobStatuses)[number];
 
-export const toolInputTypes = ["file", "url", "text", "select", "number", "color"] as const;
+export const toolInputTypes = ["file", "url", "text", "line", "select", "number", "color"] as const;
 export type ToolInputType = (typeof toolInputTypes)[number];
 
 export const ToolInputSchema = z.object({
@@ -92,22 +93,24 @@ export type Job = z.infer<typeof JobSchema>;
 
 export const CATEGORY_LABELS: Record<ToolCategory, string> = {
   image: "图片工具",
-  pdf: "PDF 工具",
   download: "视频工具",
   audio: "音频工具",
-  text: "文本办公",
-  dev: "开发运维",
-  encode: "密码编码",
-  utility: "实用生活",
+  pdf: "PDF 工具",
+  text: "文本工具",
+  mathcalc: "数理工具",
+  dev: "开发工具",
+  security: "编码安全",
+  utility: "生活办公",
 };
 
 export const CATEGORY_DESCRIPTIONS: Record<ToolCategory, string> = {
   image: "图片格式转换、压缩、裁剪、抠图、强化与水印等图像处理",
-  pdf: "PDF 与文档互转、合并、拆分、压缩、页面管理与加密解密",
   download: "网页与各平台视频下载、格式转换、码率压缩与动图制作",
   audio: "音频提取、格式互转、无缝拼接、音量调节与音频倒放",
-  text: "字数统计、文本对比查重、内容替换、思维导图与数据图表制作",
-  dev: "JSON/JS/HTML 格式化、正则测试、JWT 解析、时间戳与网络查询",
-  encode: "Base64、URL 编解码、哈希计算、密码生成、对称加解密与进制转换",
-  utility: "ARCHPR 压缩包密码恢复、二维码、批量重命名、财务与生活便民计算",
+  pdf: "PDF 与文档互转、合并、拆分、压缩、页面管理与加密解密",
+  text: "文字统计与校对、格式互转、排版美化、Markdown 与多语言翻译",
+  mathcalc: "科学计算器与高等数学运算、几何图形计算，以及单位、日期与财务计算",
+  dev: "代码格式化与压缩、正则与时间戳、JSON/CSV 数据格式互转、域名与网络查询",
+  security: "Base64 与 URL 编解码、哈希与校验、对称加密、密码生成与压缩包找回",
+  utility: "计时与番茄钟、二维码、跨设备互传、健康与趣味小工具，以及图表、思维导图与设计素材",
 };

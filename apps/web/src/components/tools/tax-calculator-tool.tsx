@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
-  Calculator,
   Coins,
   Building2,
   Receipt,
@@ -76,9 +75,96 @@ const STAMP_RATES: Record<string, { name: string; rate: number; desc: string }> 
   stock: { name: "证券交易 (股票单边)", rate: 0.0005, desc: "按成交金额 0.05% (出让方单边)" },
 };
 
+/**
+ * 工具级缓存：切到别的工具或回首页会让本组件卸载，用户填的所有税款参数就会丢。
+ *
+ * 这里把七个页签的全部输入（含默认值）固定在模块作用域里：组件挂载时用它初始化 useState，
+ * 之后每次变化写回，只有用户自己修改 / 清空时才会被覆盖。
+ * 计算结果不单独缓存：它们本来就是随这些参数实时派生的 useMemo，恢复参数后会经原有逻辑
+ * 算出与离开前逐字节相同的结果（纯函数、同样输入），不存在「重算一遍可能算出别的数」的问题。
+ * 与项目里已有的 fileHideCache / imagesToPdfCache / toolDraftCache 保持一致的模块缓存方案。
+ */
+type TaxCalculatorCache = {
+  activeTab: TaxCategory;
+  iitType: IitType;
+  salaryMonth: string;
+  socialInsurance: string;
+  specialDeduction: string;
+  monthsCount: string;
+  bonusAmount: string;
+  laborAmount: string;
+  businessRevenue: string;
+  businessCost: string;
+  vatCategory: "general" | "small";
+  vatInputMode: "withTax" | "withoutTax";
+  vatAmount: string;
+  vatRate: string;
+  vatInputTaxDeduction: string;
+  citProfit: string;
+  citEnterpriseType: "standard" | "small_low_profit" | "high_tech";
+  citRdExpense: string;
+  actualVatPaid: string;
+  actualCtPaid: string;
+  urbanArea: UrbanArea;
+  applyHalfReduction: boolean;
+  stampDocType: string;
+  stampAmount: string;
+  stampHalfReduction: boolean;
+  ctMethod: "value" | "quantity" | "compound";
+  ctSalesAmount: string;
+  ctAdValoremRate: string;
+  ctSalesQty: string;
+  ctUnitTax: string;
+  tradeMode: "import" | "export";
+  cifAmount: string;
+  tariffRate: string;
+  importVatRate: string;
+  fobAmount: string;
+  rebateRate: string;
+};
+
+const taxCalculatorCache: TaxCalculatorCache = {
+  activeTab: "individual",
+  iitType: "salary",
+  salaryMonth: "15000",
+  socialInsurance: "2500",
+  specialDeduction: "2000",
+  monthsCount: "12",
+  bonusAmount: "50000",
+  laborAmount: "10000",
+  businessRevenue: "300000",
+  businessCost: "80000",
+  vatCategory: "general",
+  vatInputMode: "withTax",
+  vatAmount: "100000",
+  vatRate: "13",
+  vatInputTaxDeduction: "0",
+  citProfit: "1500000",
+  citEnterpriseType: "small_low_profit",
+  citRdExpense: "0",
+  actualVatPaid: "50000",
+  actualCtPaid: "0",
+  urbanArea: "city",
+  applyHalfReduction: true,
+  stampDocType: "sales",
+  stampAmount: "500000",
+  stampHalfReduction: true,
+  ctMethod: "value",
+  ctSalesAmount: "200000",
+  ctAdValoremRate: "20",
+  ctSalesQty: "1000",
+  ctUnitTax: "0.5",
+  tradeMode: "import",
+  cifAmount: "100000",
+  tariffRate: "6",
+  importVatRate: "13",
+  fobAmount: "200000",
+  rebateRate: "13",
+};
+
 export function TaxCalculatorTool() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<TaxCategory>("individual");
+  const [activeTab, setActiveTab] = useState<TaxCategory>(taxCalculatorCache.activeTab);
   const [copied, setCopied] = useState(false);
 
   // 复制结果
@@ -92,19 +178,19 @@ export function TaxCalculatorTool() {
   // ========================================================
   // 1. 个人所得税状态
   // ========================================================
-  const [iitType, setIitType] = useState<IitType>("salary");
+  const [iitType, setIitType] = useState<IitType>(taxCalculatorCache.iitType);
   // 工资薪金
-  const [salaryMonth, setSalaryMonth] = useState("15000"); // 月收入/月薪
-  const [socialInsurance, setSocialInsurance] = useState("2500"); // 个人五险一金
-  const [specialDeduction, setSpecialDeduction] = useState("2000"); // 专项附加扣除
-  const [monthsCount, setMonthsCount] = useState("12"); // 累计月数
+  const [salaryMonth, setSalaryMonth] = useState(taxCalculatorCache.salaryMonth); // 月收入/月薪
+  const [socialInsurance, setSocialInsurance] = useState(taxCalculatorCache.socialInsurance); // 个人五险一金
+  const [specialDeduction, setSpecialDeduction] = useState(taxCalculatorCache.specialDeduction); // 专项附加扣除
+  const [monthsCount, setMonthsCount] = useState(taxCalculatorCache.monthsCount); // 累计月数
   // 年终奖
-  const [bonusAmount, setBonusAmount] = useState("50000");
+  const [bonusAmount, setBonusAmount] = useState(taxCalculatorCache.bonusAmount);
   // 劳务报酬
-  const [laborAmount, setLaborAmount] = useState("10000");
+  const [laborAmount, setLaborAmount] = useState(taxCalculatorCache.laborAmount);
   // 经营所得
-  const [businessRevenue, setBusinessRevenue] = useState("300000");
-  const [businessCost, setBusinessCost] = useState("80000");
+  const [businessRevenue, setBusinessRevenue] = useState(taxCalculatorCache.businessRevenue);
+  const [businessCost, setBusinessCost] = useState(taxCalculatorCache.businessCost);
 
   // 个税计算逻辑
   const iitResult: IitResultData = useMemo(() => {
@@ -256,11 +342,11 @@ export function TaxCalculatorTool() {
   // ========================================================
   // 2. 增值税状态
   // ========================================================
-  const [vatCategory, setVatCategory] = useState<"general" | "small">("general");
-  const [vatInputMode, setVatInputMode] = useState<"withTax" | "withoutTax">("withTax");
-  const [vatAmount, setVatAmount] = useState("100000");
-  const [vatRate, setVatRate] = useState("13"); // 13%, 9%, 6%, 1%, 3%
-  const [vatInputTaxDeduction, setVatInputTaxDeduction] = useState("0"); // 进项税额抵扣
+  const [vatCategory, setVatCategory] = useState<"general" | "small">(taxCalculatorCache.vatCategory);
+  const [vatInputMode, setVatInputMode] = useState<"withTax" | "withoutTax">(taxCalculatorCache.vatInputMode);
+  const [vatAmount, setVatAmount] = useState(taxCalculatorCache.vatAmount);
+  const [vatRate, setVatRate] = useState(taxCalculatorCache.vatRate); // 13%, 9%, 6%, 1%, 3%
+  const [vatInputTaxDeduction, setVatInputTaxDeduction] = useState(taxCalculatorCache.vatInputTaxDeduction); // 进项税额抵扣
 
   const vatResult = useMemo(() => {
     const amt = Math.max(0, Number(vatAmount) || 0);
@@ -299,9 +385,9 @@ export function TaxCalculatorTool() {
   // ========================================================
   // 3. 企业所得税状态
   // ========================================================
-  const [citProfit, setCitProfit] = useState("1500000"); // 利润总额 / 应纳税所得额
-  const [citEnterpriseType, setCitEnterpriseType] = useState<"standard" | "small_low_profit" | "high_tech">("small_low_profit");
-  const [citRdExpense, setCitRdExpense] = useState("0"); // 研发费用 (享受100%加计扣除)
+  const [citProfit, setCitProfit] = useState(taxCalculatorCache.citProfit); // 利润总额 / 应纳税所得额
+  const [citEnterpriseType, setCitEnterpriseType] = useState<"standard" | "small_low_profit" | "high_tech">(taxCalculatorCache.citEnterpriseType);
+  const [citRdExpense, setCitRdExpense] = useState(taxCalculatorCache.citRdExpense); // 研发费用 (享受100%加计扣除)
 
   const citResult = useMemo(() => {
     const p = Math.max(0, Number(citProfit) || 0);
@@ -342,10 +428,10 @@ export function TaxCalculatorTool() {
   // ========================================================
   // 4. 附加税费状态
   // ========================================================
-  const [actualVatPaid, setActualVatPaid] = useState("50000"); // 实际缴纳增值税
-  const [actualCtPaid, setActualCtPaid] = useState("0"); // 实际缴纳消费税
-  const [urbanArea, setUrbanArea] = useState<"city" | "county" | "other">("city"); // 7%, 5%, 1%
-  const [applyHalfReduction, setApplyHalfReduction] = useState(true); // 六税两费小微减半
+  const [actualVatPaid, setActualVatPaid] = useState(taxCalculatorCache.actualVatPaid); // 实际缴纳增值税
+  const [actualCtPaid, setActualCtPaid] = useState(taxCalculatorCache.actualCtPaid); // 实际缴纳消费税
+  const [urbanArea, setUrbanArea] = useState<"city" | "county" | "other">(taxCalculatorCache.urbanArea); // 7%, 5%, 1%
+  const [applyHalfReduction, setApplyHalfReduction] = useState(taxCalculatorCache.applyHalfReduction); // 六税两费小微减半
 
   const additionalResult = useMemo(() => {
     const vat = Math.max(0, Number(actualVatPaid) || 0);
@@ -380,9 +466,9 @@ export function TaxCalculatorTool() {
   // ========================================================
   // 5. 印花税状态
   // ========================================================
-  const [stampDocType, setStampDocType] = useState("sales");
-  const [stampAmount, setStampAmount] = useState("500000");
-  const [stampHalfReduction, setStampHalfReduction] = useState(true);
+  const [stampDocType, setStampDocType] = useState(taxCalculatorCache.stampDocType);
+  const [stampAmount, setStampAmount] = useState(taxCalculatorCache.stampAmount);
+  const [stampHalfReduction, setStampHalfReduction] = useState(taxCalculatorCache.stampHalfReduction);
 
   const stampResult = useMemo(() => {
     const amt = Math.max(0, Number(stampAmount) || 0);
@@ -403,11 +489,11 @@ export function TaxCalculatorTool() {
   // ========================================================
   // 6. 消费税状态
   // ========================================================
-  const [ctMethod, setCtMethod] = useState<"value" | "quantity" | "compound">("value");
-  const [ctSalesAmount, setCtSalesAmount] = useState("200000"); // 销售额
-  const [ctAdValoremRate, setCtAdValoremRate] = useState("20"); // 比例税率 20%
-  const [ctSalesQty, setCtSalesQty] = useState("1000"); // 销售数量 (如升/斤)
-  const [ctUnitTax, setCtUnitTax] = useState("0.5"); // 定额税 (如0.5元/斤)
+  const [ctMethod, setCtMethod] = useState<"value" | "quantity" | "compound">(taxCalculatorCache.ctMethod);
+  const [ctSalesAmount, setCtSalesAmount] = useState(taxCalculatorCache.ctSalesAmount); // 销售额
+  const [ctAdValoremRate, setCtAdValoremRate] = useState(taxCalculatorCache.ctAdValoremRate); // 比例税率 20%
+  const [ctSalesQty, setCtSalesQty] = useState(taxCalculatorCache.ctSalesQty); // 销售数量 (如升/斤)
+  const [ctUnitTax, setCtUnitTax] = useState(taxCalculatorCache.ctUnitTax); // 定额税 (如0.5元/斤)
 
   const consumptionResult = useMemo(() => {
     const amt = Math.max(0, Number(ctSalesAmount) || 0);
@@ -438,13 +524,91 @@ export function TaxCalculatorTool() {
   // ========================================================
   // 7. 关税与外贸退税状态
   // ========================================================
-  const [tradeMode, setTradeMode] = useState<"import" | "export">("import");
-  const [cifAmount, setCifAmount] = useState("100000"); // 进口完税价格 CIF (元)
-  const [tariffRate, setTariffRate] = useState("6"); // 关税税率 %
-  const [importVatRate, setImportVatRate] = useState("13"); // 进口环节增值税 %
+  const [tradeMode, setTradeMode] = useState<"import" | "export">(taxCalculatorCache.tradeMode);
+  const [cifAmount, setCifAmount] = useState(taxCalculatorCache.cifAmount); // 进口完税价格 CIF (元)
+  const [tariffRate, setTariffRate] = useState(taxCalculatorCache.tariffRate); // 关税税率 %
+  const [importVatRate, setImportVatRate] = useState(taxCalculatorCache.importVatRate); // 进口环节增值税 %
   // 出口退税
-  const [fobAmount, setFobAmount] = useState("200000"); // FOB 离岸价或专用发票不含税价
-  const [rebateRate, setRebateRate] = useState("13"); // 退税率 %
+  const [fobAmount, setFobAmount] = useState(taxCalculatorCache.fobAmount); // FOB 离岸价或专用发票不含税价
+  const [rebateRate, setRebateRate] = useState(taxCalculatorCache.rebateRate); // 退税率 %
+
+  // 上面七个页签的输入任一变化就整体写回缓存，保证离开工具（切工具 / 回首页）时缓存里是最新的一份，
+  // 回来时 useState 用缓存初始化，用户填过的参数与对应的计算结果都会原样回来。
+  useEffect(() => {
+    taxCalculatorCache.activeTab = activeTab;
+    taxCalculatorCache.iitType = iitType;
+    taxCalculatorCache.salaryMonth = salaryMonth;
+    taxCalculatorCache.socialInsurance = socialInsurance;
+    taxCalculatorCache.specialDeduction = specialDeduction;
+    taxCalculatorCache.monthsCount = monthsCount;
+    taxCalculatorCache.bonusAmount = bonusAmount;
+    taxCalculatorCache.laborAmount = laborAmount;
+    taxCalculatorCache.businessRevenue = businessRevenue;
+    taxCalculatorCache.businessCost = businessCost;
+    taxCalculatorCache.vatCategory = vatCategory;
+    taxCalculatorCache.vatInputMode = vatInputMode;
+    taxCalculatorCache.vatAmount = vatAmount;
+    taxCalculatorCache.vatRate = vatRate;
+    taxCalculatorCache.vatInputTaxDeduction = vatInputTaxDeduction;
+    taxCalculatorCache.citProfit = citProfit;
+    taxCalculatorCache.citEnterpriseType = citEnterpriseType;
+    taxCalculatorCache.citRdExpense = citRdExpense;
+    taxCalculatorCache.actualVatPaid = actualVatPaid;
+    taxCalculatorCache.actualCtPaid = actualCtPaid;
+    taxCalculatorCache.urbanArea = urbanArea;
+    taxCalculatorCache.applyHalfReduction = applyHalfReduction;
+    taxCalculatorCache.stampDocType = stampDocType;
+    taxCalculatorCache.stampAmount = stampAmount;
+    taxCalculatorCache.stampHalfReduction = stampHalfReduction;
+    taxCalculatorCache.ctMethod = ctMethod;
+    taxCalculatorCache.ctSalesAmount = ctSalesAmount;
+    taxCalculatorCache.ctAdValoremRate = ctAdValoremRate;
+    taxCalculatorCache.ctSalesQty = ctSalesQty;
+    taxCalculatorCache.ctUnitTax = ctUnitTax;
+    taxCalculatorCache.tradeMode = tradeMode;
+    taxCalculatorCache.cifAmount = cifAmount;
+    taxCalculatorCache.tariffRate = tariffRate;
+    taxCalculatorCache.importVatRate = importVatRate;
+    taxCalculatorCache.fobAmount = fobAmount;
+    taxCalculatorCache.rebateRate = rebateRate;
+  }, [
+    activeTab,
+    iitType,
+    salaryMonth,
+    socialInsurance,
+    specialDeduction,
+    monthsCount,
+    bonusAmount,
+    laborAmount,
+    businessRevenue,
+    businessCost,
+    vatCategory,
+    vatInputMode,
+    vatAmount,
+    vatRate,
+    vatInputTaxDeduction,
+    citProfit,
+    citEnterpriseType,
+    citRdExpense,
+    actualVatPaid,
+    actualCtPaid,
+    urbanArea,
+    applyHalfReduction,
+    stampDocType,
+    stampAmount,
+    stampHalfReduction,
+    ctMethod,
+    ctSalesAmount,
+    ctAdValoremRate,
+    ctSalesQty,
+    ctUnitTax,
+    tradeMode,
+    cifAmount,
+    tariffRate,
+    importVatRate,
+    fobAmount,
+    rebateRate,
+  ]);
 
   const tradeResult: TradeResultData = useMemo(() => {
     if (tradeMode === "import") {
@@ -478,59 +642,37 @@ export function TaxCalculatorTool() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
-      {/* 顶部标题 */}
-      <div className="rounded-2xl border border-border/40 bg-card/60 p-6 backdrop-blur-md shadow-sm">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 text-emerald-500 border border-emerald-500/30">
-              <Calculator className="h-6 w-6" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
-                综合税金与税率计算器
-                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 font-medium">
-                  全税种专业核算
-                </span>
-              </h1>
-              <p className="text-xs text-muted-foreground">
-                囊括中国现行核心税制：个人所得税、增值税、企业所得税、消费税、印花税、附加税费与进出口退税
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* 税种选择 Tabs */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 mt-5 p-1 rounded-xl bg-muted/40 border border-border/40">
-          {[
-            { id: "individual", label: "个人所得税", icon: User },
-            { id: "vat", label: "增值税 (VAT)", icon: Receipt },
-            { id: "corporate", label: "企业所得税", icon: Building2 },
-            { id: "additional", label: "城市及附加税", icon: Coins },
-            { id: "stamp", label: "印花税", icon: FileSpreadsheet },
-            { id: "consumption", label: "消费税", icon: ShoppingBag },
-            { id: "customs", label: "关税与退税", icon: Globe },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id as TaxCategory);
-                  trackToolUsage("tax-calculator");
-                }}
-                className={cn(
-                  "flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all text-center",
-                  activeTab === tab.id
-                    ? "bg-background text-foreground shadow-sm shadow-black/5 font-bold border border-border/40"
-                    : "text-muted-foreground hover:text-foreground hover:bg-background/40"
-                )}
-              >
-                <Icon className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
+      {/* 税种选择 */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 p-1 rounded-xl bg-muted/40 border border-border/40">
+        {[
+          { id: "individual", label: "个人所得税", icon: User },
+          { id: "vat", label: "增值税 (VAT)", icon: Receipt },
+          { id: "corporate", label: "企业所得税", icon: Building2 },
+          { id: "additional", label: "城市及附加税", icon: Coins },
+          { id: "stamp", label: "印花税", icon: FileSpreadsheet },
+          { id: "consumption", label: "消费税", icon: ShoppingBag },
+          { id: "customs", label: "关税与退税", icon: Globe },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setActiveTab(tab.id as TaxCategory);
+                trackToolUsage("tax-calculator");
+              }}
+              className={cn(
+                "flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all text-center",
+                activeTab === tab.id
+                  ? "bg-background text-foreground shadow-sm shadow-black/5 font-bold border border-border/40"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/40"
+              )}
+            >
+              <Icon className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{tab.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* ================= 1. 个人所得税 ================= */}

@@ -45,6 +45,21 @@ const MODELS = [
   { id: "real-x4", name: "通用真实 4倍 (real-x4)", scale: 4, desc: "真人、写实摄影、通用场景抗噪与超分" },
 ];
 
+/**
+ * 释放一项占用的 object URL：原图一条、超分结果一条，各恰好释放一次。
+ *
+ * 只在「这一项离开 store」时调用，具体是三条路径：
+ *   ① 单删（removeItem）
+ *   ② 清空全部（clearAll）
+ *   ③ 这一项的结果被新的一份替换、或结果算完时它已经不在 store 里了（见 updateItem / handleStartBatch）
+ * 仍在 store 里的项一律不释放 —— 链接被提前释放，列表里就会出现死图和点了没反应的下载按钮。
+ * 注意：本工具的上传端在 50 张处直接截断（MAX_FILES），所以不存在「超过上限淘汰旧项」这条路径。
+ */
+function releaseUpscaleItem(item: UpscaleItem): void {
+  if (item.originalUrl) URL.revokeObjectURL(item.originalUrl);
+  if (item.resultUrl) URL.revokeObjectURL(item.resultUrl);
+}
+
 // 模块级全局状态缓存：保持在页面跳转/返回间不丢失，避免用户切出后任务或已上传图片清空
 export const upscaleStore = {
   items: [] as UpscaleItem[],
@@ -97,12 +112,29 @@ export const upscaleStore = {
     this.notify();
   },
 
+  /**
+   * 按 id 精确回写某一项（替代原来的「按数组下标回写」）。
+   * 下标回写在列表发生增删时会错位：结果会写到别的图片上，算好的那份链接则没有任何人持有。
+   * 对外行为不变（正常路径下 id 与下标一一对应），只是不再可能写错位置。
+   * 返回 false 表示这一项已经不在 store 里（处理途中被删除 / 清空）。
+   */
+  updateItem(id: string, updater: (item: UpscaleItem) => UpscaleItem): boolean {
+    let found = false;
+    const next = this.items.map((item) => {
+      if (item.id !== id) return item;
+      found = true;
+      return updater(item);
+    });
+    if (!found) return false;
+    this.items = next;
+    this.notify();
+    return true;
+  },
+
   removeItem(id: string) {
     const target = this.items.find((i) => i.id === id);
-    if (target) {
-      if (target.originalUrl) URL.revokeObjectURL(target.originalUrl);
-      if (target.resultUrl) URL.revokeObjectURL(target.resultUrl);
-    }
+    // 这一项离开 store ⇒ 它的链接在这里释放，且只在这里释放一次
+    if (target) releaseUpscaleItem(target);
     this.items = this.items.filter((i) => i.id !== id);
     if (this.selectedIndex >= this.items.length) {
       this.selectedIndex = Math.max(0, this.items.length - 1);
@@ -111,10 +143,8 @@ export const upscaleStore = {
   },
 
   clearAll() {
-    this.items.forEach((item) => {
-      if (item.originalUrl) URL.revokeObjectURL(item.originalUrl);
-      if (item.resultUrl) URL.revokeObjectURL(item.resultUrl);
-    });
+    // 清空 ⇒ 每一项的链接各释放一次；清空之后就再也拿不到这些链接，不会重复释放
+    this.items.forEach((item) => releaseUpscaleItem(item));
     this.items = [];
     this.selectedIndex = 0;
     this.overallProgress = 0;
@@ -396,40 +426,39 @@ export function ImageUpscaleTool() {
         continue;
       }
 
-      // 标记为处理中
-      upscaleStore.setItems((prev) =>
-        prev.map((item, idx) => (idx === i ? { ...item, status: "processing", progress: 20 } : item))
-      );
+      // 标记为处理中：按 id 回写，中途列表被增删也不会错位
+      upscaleStore.updateItem(current.id, (item) => ({ ...item, status: "processing", progress: 20 }));
 
       try {
         const result = await runUpscaleSingle(current, modelObj.id, modelObj.scale);
         completedCount++;
 
-        upscaleStore.setItems((prev) =>
-          prev.map((item, idx) =>
-            idx === i
-              ? {
-                  ...item,
-                  status: "completed",
-                  progress: 100,
-                  resultUrl: result.url,
-                  resultFilename: result.filename,
-                  resultSize: result.size,
-                }
-              : item
-          )
-        );
+        // 结果按 id 写回（原来是按数组下标，列表一变就会写到别的图上）。
+        // 链接归属在这里一次判清，避免多释放或漏释放：
+        //   · 目标项已经不在 store 里（处理途中被删除 / 清空）⇒ 刚落地的这条新链接没人持有，立刻释放
+        //   · 目标项本来已有结果、这次被新结果顶掉 ⇒ 释放被替换掉的那条旧链接
+        //   · 其余情况一律不释放（仍在 store 里使用的链接一个都不能动）
+        const previousResultUrl = upscaleStore.items.find((it) => it.id === current.id)?.resultUrl;
+        const stored = upscaleStore.updateItem(current.id, (item) => ({
+          ...item,
+          status: "completed",
+          progress: 100,
+          resultUrl: result.url,
+          resultFilename: result.filename,
+          resultSize: result.size,
+        }));
+        if (!stored) {
+          URL.revokeObjectURL(result.url);
+        } else if (previousResultUrl && previousResultUrl !== result.url) {
+          URL.revokeObjectURL(previousResultUrl);
+        }
 
         if (completedCount === 1) {
           upscaleStore.setSelectedIndex(0);
         }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "强化失败";
-        upscaleStore.setItems((prev) =>
-          prev.map((item, idx) =>
-            idx === i ? { ...item, status: "failed", error: message } : item
-          )
-        );
+        upscaleStore.updateItem(current.id, (item) => ({ ...item, status: "failed", error: message }));
       }
 
       upscaleStore.setOverallProgress(Math.floor((completedCount / total) * 100));

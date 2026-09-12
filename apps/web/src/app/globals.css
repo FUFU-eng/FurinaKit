@@ -13,6 +13,10 @@
   --foreground: 210 40% 98%;
   --card: 221 49% 10%;
   --card-foreground: 210 40% 98%;
+  /* 媒体预览的"舞台"底色：视频/图片/音频摆在它上面展示。
+     刻意做成三套主题都一样接近黑 —— 视频的黑边就是这个颜色，任何主题下
+     都不该变成浅灰（那会让画面看起来像浮在一块脏纸上）。 */
+  --stage: 0 0% 7%;
   --popover: 221 46% 12%;
   --popover-foreground: 210 40% 98%;
   --primary: 197 100% 71%;
@@ -319,6 +323,23 @@ body::after {
   border-color: hsl(var(--cat, var(--primary)) / 0.5);
   transform: translateY(-3px);
   box-shadow: 0 16px 36px -18px hsl(var(--cat, var(--primary)) / 0.4);
+}
+
+/* ── 工具卡片：长按拖拽的触感反馈 ──────────────────────────────────────────
+   手机上的长按拖动是「摁住先变小 → 蓄力到时间弹一下变大 → 跟着手走」，这里照做。
+   必须写在这里、而不是用 Tailwind 的 .scale-*：上面 .tool-card-hover:hover 的
+   translateY(-3px) 和它优先级相同(0,2,0)但来源更早，普通工具类(0,1,0)根本盖不住，
+   实测缩放会被整个顶掉、一点反应都没有。所以这里用 (0,2,0)/(0,3,0) 的选择器。 */
+.tool-card-hover.fk-card-pressed,
+.tool-card-hover.fk-card-pressed:hover {
+  transform: scale(0.965);
+  transition: transform 0.1s cubic-bezier(0.2, 0, 0, 1);
+}
+.tool-card-hover.fk-card-dragging,
+.tool-card-hover.fk-card-dragging:hover {
+  /* 0.34/1.56 是带过冲的缓动：先冲过 1.06 再回落，也就是「弹一下」 */
+  transform: scale(1.06) rotate(-1.2deg);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* ── Glass surface ──────────────────────────────────────────────────────── */

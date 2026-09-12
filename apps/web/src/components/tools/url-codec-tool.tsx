@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowRightLeft, AlertTriangle } from "lucide-react";
 import { Button, Label, Textarea } from "@/components/ui/primitives";
 import { CopyButton } from "@/components/tools/copy-button";
@@ -8,9 +8,25 @@ import { cn } from "@/lib/utils";
 
 type Mode = "encode" | "decode";
 
+/**
+ * 工具级缓存：切到别的工具或回首页会让本组件卸载，待编码文本与编码结果就没了。
+ * 这里把它们固定在模块作用域里：组件挂载时用它初始化 useState，之后每次变化写回，
+ * 只有用户自己修改 / 点击清空时才会被覆盖。
+ * 与项目里已有的 fileHideCache / imagesToPdfCache / toolDraftCache 保持一致的模块缓存方案。
+ */
+type UrlCodecCache = { input: string; mode: Mode };
+
+const urlCodecCache: UrlCodecCache = { input: "", mode: "encode" };
+
 export function UrlCodecTool() {
-  const [input, setInput] = useState("");
-  const [mode, setMode] = useState<Mode>("encode");
+  const [input, setInput] = useState(urlCodecCache.input);
+  const [mode, setMode] = useState<Mode>(urlCodecCache.mode);
+
+  // 输入 / 模式一变就写回缓存，保证离开工具时缓存里是最新的一份
+  useEffect(() => {
+    urlCodecCache.input = input;
+    urlCodecCache.mode = mode;
+  }, [input, mode]);
 
   const { output, error } = useMemo(() => {
     if (!input) return { output: "", error: null as string | null };

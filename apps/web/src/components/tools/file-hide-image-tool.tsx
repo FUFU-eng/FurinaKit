@@ -1,18 +1,14 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import JSZip from "jszip";
 import {
   FileImage,
   FolderArchive,
   Lock,
   Unlock,
-  Upload,
   Download,
   CheckCircle2,
-  AlertCircle,
-  Eye,
-  FileCode,
   Sparkles,
   Info,
   Archive,
@@ -83,6 +79,19 @@ export function FileHideImageTool() {
   const [extractedFiles, setExtractedFilesState] = useState<HiddenFileInfo[]>(fileHideCache.extractedFiles);
   const [extractedArchiveBlob, setExtractedArchiveBlobState] = useState<Blob | null>(fileHideCache.extractedArchiveBlob);
   const [extractedArchiveName, setExtractedArchiveNameState] = useState<string>(fileHideCache.extractedArchiveName);
+
+  // 提取出的压缩包下载链接。
+  // 不能直接在 render 里调用 URL.createObjectURL：那样每次渲染都会新建一个 object URL
+  // 且永不释放，而一个解密包动辄几百 MB —— 用户每点一次交互就泄漏一整份数据。
+  const extractedArchiveUrl = useMemo(
+    () => (extractedArchiveBlob ? URL.createObjectURL(extractedArchiveBlob) : null),
+    [extractedArchiveBlob],
+  );
+  useEffect(() => {
+    return () => {
+      if (extractedArchiveUrl) URL.revokeObjectURL(extractedArchiveUrl);
+    };
+  }, [extractedArchiveUrl]);
 
   const setActiveTab = (tab: "pack" | "unpack") => {
     fileHideCache.activeTab = tab;
@@ -422,56 +431,38 @@ export function FileHideImageTool() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
-      {/* 顶部标题与说明卡片 */}
-      <div className="rounded-2xl border border-border/40 bg-card/60 p-6 backdrop-blur-md shadow-sm">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/20 to-sky-500/20 text-sky-500 border border-sky-500/30">
-                <FileImage className="h-5 w-5" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
-                  文件伪装为图片
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-500 border border-sky-500/20 font-medium">
-                    无损隐写
-                  </span>
-                </h1>
-                <p className="text-xs text-muted-foreground">
-                  将任意私密文件、压缩包无缝融入一张正常图片中；正常打开是普通图片，修改后缀或解压即见藏匿文件
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* 模式切换 Tab */}
-          <div className="flex rounded-xl bg-muted/60 p-1 border border-border/40">
-            <button
-              onClick={() => setActiveTab("pack")}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all",
-                activeTab === "pack"
-                  ? "bg-background text-foreground shadow-sm shadow-black/5 font-bold"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Lock className="h-3.5 w-3.5 text-sky-500" />
-              制作图种 (伪装)
-            </button>
-            <button
-              onClick={() => setActiveTab("unpack")}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all",
-                activeTab === "unpack"
-                  ? "bg-background text-foreground shadow-sm shadow-black/5 font-bold"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Unlock className="h-3.5 w-3.5 text-amber-500" />
-              还原提取 (解密)
-            </button>
-          </div>
+      {/* 模式切换：制作图种 / 还原提取 */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex rounded-xl bg-muted/60 p-1 border border-border/40">
+          <button
+            onClick={() => setActiveTab("pack")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all",
+              activeTab === "pack"
+                ? "bg-background text-foreground shadow-sm shadow-black/5 font-bold"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Lock className="h-3.5 w-3.5 text-sky-500" />
+            制作图种 (伪装)
+          </button>
+          <button
+            onClick={() => setActiveTab("unpack")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all",
+              activeTab === "unpack"
+                ? "bg-background text-foreground shadow-sm shadow-black/5 font-bold"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Unlock className="h-3.5 w-3.5 text-amber-500" />
+            还原提取 (解密)
+          </button>
         </div>
+
+        <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2.5 py-0.5 text-xs font-medium text-sky-500">
+          无损隐写
+        </span>
       </div>
 
       {/* ================= TAB 1: 制作图种 ================= */}
@@ -790,7 +781,7 @@ export function FileHideImageTool() {
                 </div>
 
                 <a
-                  href={URL.createObjectURL(extractedArchiveBlob)}
+                  href={extractedArchiveUrl ?? "#"}
                   download={extractedArchiveName}
                 >
                   <Button className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">

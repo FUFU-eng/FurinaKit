@@ -10,14 +10,15 @@ import { getToolIcon } from "@/lib/tool-icons";
 import { Heart, ArrowLeft } from "lucide-react";
 
 const categoryColors: Record<ToolCategory, string> = {
-  image: "#6ad4ff",
-  pdf: "#3ecf8e",
-  download: "#ffd166",
-  audio: "#c084fc",
-  dev: "#6366f1",
+  image: "#0ea5e9",
+  download: "#f59e0b",
+  audio: "#a855f7",
+  pdf: "#10b981",
   text: "#14b8a6",
-  encode: "#f97316",
-  utility: "#f472b6",
+  mathcalc: "#7c3aed",
+  dev: "#3b82f6",
+  security: "#ef4444",
+  utility: "#f97316",
 };
 
 export default function FavoritesPage() {

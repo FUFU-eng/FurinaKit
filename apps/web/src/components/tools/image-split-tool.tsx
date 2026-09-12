@@ -24,28 +24,126 @@ interface SliceItem {
   size: number;
 }
 
+// ==========================================================================
+// 模块级缓存：离开页面（切到别的工具、回首页）再回来时，恢复原图、切片结果与参数。
+//
+// 为什么必须是模块级：File / Blob 无法序列化进 storage，组件卸载后 useState 就清空了。
+// 做法与 fileHideCache、imagesToPdfCache、tool-runner 的 toolDraftCache 一致。
+//
+// 为什么 object URL 也归缓存持有：原图预览链接与每一张切片的链接以前都在组件卸载时
+// 被 revoke，用户切走再回来只剩「死图」，下载按钮点了也没反应。
+// 现在只在三种情况下释放：① 那份文件 / 结果被换成新的一份（重新选图、重新切图）
+// ② 用户清除 / 移除 ③ 缓存条目被淘汰。
+// 判断依据是「上一份快照里的链接与新一份是否还是同一条」，不是每次保存都释放；
+// 恢复时直接复用缓存里的链接，绝不重新 createObjectURL。
+// ==========================================================================
+interface SplitCacheEntry {
+  file: File | null;
+  previewUrl: string;
+  imageSize: { width: number; height: number };
+  rows: number;
+  cols: number;
+  outputFormat: "original" | "png" | "jpeg";
+  slices: SliceItem[];
+}
+
+const SPLIT_CACHE_KEY = "image-split";
+/** 最多保留 6 个条目，与 tool-runner 的 TOOL_DRAFT_LIMIT 对齐；本工具只用一个 key，实际只占 1 份 */
+const SPLIT_CACHE_LIMIT = 6;
+const splitCache = new Map<string, SplitCacheEntry>();
+
+const SPLIT_CACHE_DEFAULTS = {
+  imageSize: { width: 0, height: 0 },
+  rows: 3,
+  cols: 3,
+  outputFormat: "original" as "original" | "png" | "jpeg",
+};
+
+/** 释放单张切片占用的 object URL */
+function releaseSplitSlice(slice: SliceItem): void {
+  URL.revokeObjectURL(slice.url);
+}
+
+/** 恢复用快照：浅拷贝一份，避免运行期的原地改动写进缓存 */
+function snapshotSplitSlices(slices: SliceItem[]): SliceItem[] {
+  return slices.map((s) => ({ ...s }));
+}
+
+/** 从缓存恢复原图预览链接（不存在时给空串，与原来的初始值一致） */
+function readSplitPreviewUrl(): string {
+  return splitCache.get(SPLIT_CACHE_KEY)?.previewUrl ?? "";
+}
+
+/** 从缓存恢复切片结果 */
+function readSplitSlices(): SliceItem[] {
+  const cached = splitCache.get(SPLIT_CACHE_KEY);
+  return cached ? snapshotSplitSlices(cached.slices) : [];
+}
+
+/** 写入缓存：先释放被替换 / 被清除的链接，再按最近使用顺序存入并做上限淘汰 */
+function rememberSplitEntry(key: string, entry: SplitCacheEntry): void {
+  const previous = splitCache.get(key);
+
+  if (previous) {
+    // 原图换了（重新选图 / 清除文件）：旧预览链接释放一次
+    if (previous.previewUrl && previous.previewUrl !== entry.previewUrl) {
+      URL.revokeObjectURL(previous.previewUrl);
+    }
+
+    // 切片结果：按 id 找到上一份，比较链接是否还是同一条
+    // （重新切图时 id 会重复出现，但 url 一定是新建的，所以能判定为「换了新结果」）
+    const nextSlicesById = new Map(entry.slices.map((s) => [s.id, s]));
+    previous.slices.forEach((prevSlice) => {
+      const nextSlice = nextSlicesById.get(prevSlice.id);
+      if (!nextSlice) {
+        // 切片被清空 / 被重新切图替换
+        releaseSplitSlice(prevSlice);
+        return;
+      }
+      if (prevSlice.url !== nextSlice.url) {
+        URL.revokeObjectURL(prevSlice.url);
+      }
+    });
+  }
+
+  // 先删再存：让 Map 的迭代顺序等于「最近使用顺序」
+  splitCache.delete(key);
+  splitCache.set(key, { ...entry, slices: snapshotSplitSlices(entry.slices) });
+
+  while (splitCache.size > SPLIT_CACHE_LIMIT) {
+    const oldestKey = splitCache.keys().next().value;
+    if (oldestKey === undefined) break;
+    const oldest = splitCache.get(oldestKey);
+    if (oldest) {
+      if (oldest.previewUrl) URL.revokeObjectURL(oldest.previewUrl);
+      oldest.slices.forEach((s) => releaseSplitSlice(s));
+    }
+    splitCache.delete(oldestKey);
+  }
+}
+
 export function ImageSplitTool() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [file, setFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string>("");
-  const [imageSize, setImageSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+  // 挂载时从模块级缓存恢复：原图、切片结果与参数都还在
+  const [file, setFile] = useState<File | null>(() => splitCache.get(SPLIT_CACHE_KEY)?.file ?? null);
+  const [previewUrl, setPreviewUrl] = useState<string>(() => readSplitPreviewUrl());
+  const [imageSize, setImageSize] = useState<{ width: number; height: number }>(
+    () => splitCache.get(SPLIT_CACHE_KEY)?.imageSize ?? SPLIT_CACHE_DEFAULTS.imageSize
+  );
 
   // Grid settings
-  const [rows, setRows] = useState<number>(3);
-  const [cols, setCols] = useState<number>(3);
-  const [outputFormat, setOutputFormat] = useState<"original" | "png" | "jpeg">("original");
+  const [rows, setRows] = useState<number>(() => splitCache.get(SPLIT_CACHE_KEY)?.rows ?? SPLIT_CACHE_DEFAULTS.rows);
+  const [cols, setCols] = useState<number>(() => splitCache.get(SPLIT_CACHE_KEY)?.cols ?? SPLIT_CACHE_DEFAULTS.cols);
+  const [outputFormat, setOutputFormat] = useState<"original" | "png" | "jpeg">(
+    () => splitCache.get(SPLIT_CACHE_KEY)?.outputFormat ?? SPLIT_CACHE_DEFAULTS.outputFormat
+  );
 
   // Generated slices
-  const [slices, setSlices] = useState<SliceItem[]>([]);
+  const [slices, setSlices] = useState<SliceItem[]>(() => readSplitSlices());
   const [isProcessing, setIsProcessing] = useState(false);
   const [confetti, setConfetti] = useState(0);
-
-  const previewUrlRef = useRef(previewUrl);
-  previewUrlRef.current = previewUrl;
-  const slicesRef = useRef(slices);
-  slicesRef.current = slices;
 
   // 接收从全局拖拽或其他工具移交的文件
   useEffect(() => {
@@ -79,22 +177,21 @@ export function ImageSplitTool() {
     };
   }, []);
 
-  // Clean up object URLs
+  // 离开本工具（组件卸载）时不做任何释放 —— 预览与切片的链接归缓存持有，
+  // 这样回来时图片还在、下载按钮还能用。释放时机见 rememberSplitEntry()。
+  // 每次变化都写回缓存，保证离开时缓存里是最新的。
   useEffect(() => {
-    return () => {
-      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-      slicesRef.current.forEach((s) => URL.revokeObjectURL(s.url));
-    };
-  }, []);
+    rememberSplitEntry(SPLIT_CACHE_KEY, { file, previewUrl, imageSize, rows, cols, outputFormat, slices });
+  }, [file, previewUrl, imageSize, rows, cols, outputFormat, slices]);
 
+  // 这里不再手动 revoke 旧链接：它们归缓存所有，由 rememberSplitEntry 统一释放，
+  // 避免同一链接被释放两次。
   const handleFile = (f: File) => {
     if (!f.type.startsWith("image/")) {
       toast({ title: "请选择有效的图片文件", variant: "error" });
       return;
     }
 
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    slices.forEach((s) => URL.revokeObjectURL(s.url));
     setSlices([]);
 
     const url = URL.createObjectURL(f);
@@ -112,8 +209,6 @@ export function ImageSplitTool() {
   };
 
   const clearAll = () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    slices.forEach((s) => URL.revokeObjectURL(s.url));
     setFile(null);
     setPreviewUrl("");
     setImageSize({ width: 0, height: 0 });
@@ -135,7 +230,8 @@ export function ImageSplitTool() {
     }
 
     setIsProcessing(true);
-    slices.forEach((s) => URL.revokeObjectURL(s.url));
+    // 旧切片链接不在这里 revoke：它们归缓存所有，setSlices([]) 之后由
+    // rememberSplitEntry 判定「上一份有、新一份没有」统一释放，恰好一次。
     setSlices([]);
 
     try {

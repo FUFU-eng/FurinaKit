@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { saveUpload } from "@/lib/storage";
+import { guardApiRequest } from "@/lib/api-guard";
 
 export const runtime = "nodejs";
 
@@ -294,6 +295,8 @@ function parseMagnetUri(uri: string): MagnetTorrentInfo {
 }
 
 export async function POST(request: Request) {
+  const denied = guardApiRequest(request);
+  if (denied) return denied;
   try {
     const contentType = request.headers.get("content-type") || "";
 

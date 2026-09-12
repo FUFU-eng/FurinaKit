@@ -27,20 +27,94 @@ const HANDLES: { id: Handle; className: string; cursor: string }[] = [
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
+// ==========================================================================
+// 模块级缓存：离开页面（切到别的工具、回首页）再回来时，恢复原图、裁剪框与参数。
+//
+// 为什么必须是模块级：File 无法序列化进 storage，组件卸载后 useState 就清空了。
+// 做法与 fileHideCache、imagesToPdfCache、tool-runner 的 toolDraftCache 一致。
+//
+// 为什么 srcUrl（预览链接）也归缓存持有：以前它在 effect 的清理函数里被 revoke，
+// 组件一卸载链接就死了，回来只剩一张「死图」，无法再裁剪。
+// 现在只在三种情况下释放：① 换了一张原图 ② 用户清除文件 ③ 缓存条目被淘汰。
+// 判断依据是「上一份快照的 srcUrl 与新一份不同」，不是每次保存都释放。
+// 恢复时直接复用缓存里的链接，绝不重新 createObjectURL。
+// ==========================================================================
+interface CropCacheEntry {
+  file: File | null;
+  srcUrl: string | null;
+  display: { w: number; h: number };
+  natural: { w: number; h: number };
+  rect: Rect;
+  ratioMode: RatioMode;
+  customW: string;
+  customH: string;
+  appliedCustomRatio: number | null;
+  format: OutFormat;
+}
+
+const CROP_CACHE_KEY = "image-crop";
+/** 最多保留 6 个条目，与 tool-runner 的 TOOL_DRAFT_LIMIT 对齐；本工具只用一个 key，实际只占 1 份 */
+const CROP_CACHE_LIMIT = 6;
+const cropCache = new Map<string, CropCacheEntry>();
+
+const CROP_CACHE_DEFAULTS = {
+  display: { w: 0, h: 0 },
+  natural: { w: 0, h: 0 },
+  rect: { x: 0, y: 0, w: 0, h: 0 } as Rect,
+  ratioMode: "free" as RatioMode,
+  customW: "16",
+  customH: "10",
+  appliedCustomRatio: null as number | null,
+  format: "jpeg" as OutFormat,
+};
+
+/** 释放条目占用的 object URL（本工具只有一张原图预览） */
+function releaseCropEntry(entry: CropCacheEntry): void {
+  if (entry.srcUrl) URL.revokeObjectURL(entry.srcUrl);
+}
+
+/** 写入缓存：只有「原图预览链接被换成新的一份」时才释放旧链接 */
+function rememberCropEntry(key: string, entry: CropCacheEntry): void {
+  const previous = cropCache.get(key);
+
+  if (previous && previous.srcUrl && previous.srcUrl !== entry.srcUrl) {
+    URL.revokeObjectURL(previous.srcUrl);
+  }
+
+  // 先删再存：让 Map 的迭代顺序等于「最近使用顺序」
+  cropCache.delete(key);
+  cropCache.set(key, entry);
+
+  while (cropCache.size > CROP_CACHE_LIMIT) {
+    const oldestKey = cropCache.keys().next().value;
+    if (oldestKey === undefined) break;
+    const oldest = cropCache.get(oldestKey);
+    if (oldest) releaseCropEntry(oldest);
+    cropCache.delete(oldestKey);
+  }
+}
+
 export function ImageCropTool() {
   const { toast } = useToast();
-  const [files, setFiles] = useState<File[]>([]);
-  const [srcUrl, setSrcUrl] = useState<string | null>(null);
-  const [display, setDisplay] = useState({ w: 0, h: 0 });
-  const [natural, setNatural] = useState({ w: 0, h: 0 });
-  const [rect, setRect] = useState<Rect>({ x: 0, y: 0, w: 0, h: 0 });
+  const cached = cropCache.get(CROP_CACHE_KEY);
+
+  // 挂载时从模块级缓存恢复：原图、预览链接、裁剪框与全部参数。
+  // 恢复的 srcUrl 直接复用缓存里的链接，绝不重新 createObjectURL（否则立刻泄漏旧链接）。
+  const [files, setFiles] = useState<File[]>(() => {
+    const cachedFile = cropCache.get(CROP_CACHE_KEY)?.file ?? null;
+    return cachedFile ? [cachedFile] : [];
+  });
+  const [srcUrl, setSrcUrl] = useState<string | null>(cached?.srcUrl ?? null);
+  const [display, setDisplay] = useState(cached?.display ?? CROP_CACHE_DEFAULTS.display);
+  const [natural, setNatural] = useState(cached?.natural ?? CROP_CACHE_DEFAULTS.natural);
+  const [rect, setRect] = useState<Rect>(cached?.rect ?? CROP_CACHE_DEFAULTS.rect);
 
   // 比例与格式控制（对标 docsmall）
-  const [ratioMode, setRatioMode] = useState<RatioMode>("free");
-  const [customW, setCustomW] = useState("16");
-  const [customH, setCustomH] = useState("10");
-  const [appliedCustomRatio, setAppliedCustomRatio] = useState<number | null>(null);
-  const [format, setFormat] = useState<OutFormat>("jpeg");
+  const [ratioMode, setRatioMode] = useState<RatioMode>(cached?.ratioMode ?? CROP_CACHE_DEFAULTS.ratioMode);
+  const [customW, setCustomW] = useState(cached?.customW ?? CROP_CACHE_DEFAULTS.customW);
+  const [customH, setCustomH] = useState(cached?.customH ?? CROP_CACHE_DEFAULTS.customH);
+  const [appliedCustomRatio, setAppliedCustomRatio] = useState<number | null>(cached?.appliedCustomRatio ?? CROP_CACHE_DEFAULTS.appliedCustomRatio);
+  const [format, setFormat] = useState<OutFormat>(cached?.format ?? CROP_CACHE_DEFAULTS.format);
   const [isCropping, setIsCropping] = useState(false);
 
   const imgRef = useRef<HTMLImageElement>(null);
@@ -48,15 +122,37 @@ export function ImageCropTool() {
 
   const file = files[0] ?? null;
 
+  // 已经为哪个文件建好了预览链接。初始值取自缓存：如果恢复出来的 srcUrl 本来就属于
+  // 这个文件，下面的 effect 就不会再建一条新链接，而是继续用缓存里那条。
+  const srcFileRef = useRef<File | null>(cached?.srcUrl ? cached.file : null);
+
+  // 换文件时才创建一次新链接；不在这里 revoke —— 链接归缓存所有，
+  // 释放时机（被换掉 / 清除 / 淘汰）见 rememberCropEntry()。
   useEffect(() => {
-    if (!file) {
-      setSrcUrl(null);
-      return;
-    }
-    const url = URL.createObjectURL(file);
-    setSrcUrl(url);
-    return () => URL.revokeObjectURL(url);
+    if (file === srcFileRef.current) return;
+    srcFileRef.current = file;
+    setSrcUrl(file ? URL.createObjectURL(file) : null);
   }, [file]);
+
+  // 每次变化都写回缓存，保证离开这个工具时缓存里是最新的
+  useEffect(() => {
+    rememberCropEntry(CROP_CACHE_KEY, {
+      file,
+      srcUrl,
+      display,
+      natural,
+      rect,
+      ratioMode,
+      customW,
+      customH,
+      appliedCustomRatio,
+      format,
+    });
+  }, [file, srcUrl, display, natural, rect, ratioMode, customW, customH, appliedCustomRatio, format]);
+
+  // 从缓存恢复出来的裁剪框：等图片量好尺寸后按显示比例映射回去，只消费一次
+  const pendingRestoreRectRef = useRef<Rect | null>(cached?.rect ?? null);
+  const pendingRestoreDisplayRef = useRef<{ w: number; h: number } | null>(cached?.display ?? null);
 
   // 根据当前选择的比例计算对应比值
   const getNumericRatio = useCallback((): number | null => {
@@ -104,6 +200,31 @@ export function ImageCropTool() {
     const h = img.clientHeight;
     setDisplay({ w, h });
     setNatural({ w: img.naturalWidth, h: img.naturalHeight });
+
+    // 从缓存恢复时保留用户离开时的裁剪框：按显示尺寸等比映射，而不是重新居中重置
+    const pendingRect = pendingRestoreRectRef.current;
+    const pendingDisplay = pendingRestoreDisplayRef.current;
+    if (
+      pendingRect &&
+      pendingDisplay &&
+      pendingRect.w > 0 &&
+      pendingRect.h > 0 &&
+      pendingDisplay.w > 0 &&
+      pendingDisplay.h > 0
+    ) {
+      pendingRestoreRectRef.current = null;
+      pendingRestoreDisplayRef.current = null;
+      const sx = w / pendingDisplay.w;
+      const sy = h / pendingDisplay.h;
+      setRect({
+        x: pendingRect.x * sx,
+        y: pendingRect.y * sy,
+        w: pendingRect.w * sx,
+        h: pendingRect.h * sy,
+      });
+      return;
+    }
+
     applyRatioToCenter(getNumericRatio(), w, h);
   }, [applyRatioToCenter, getNumericRatio]);
 
@@ -328,12 +449,6 @@ export function ImageCropTool() {
 
   return (
     <div className="space-y-5 max-w-6xl mx-auto">
-      {/* 顶部工具栏说明 */}
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-xs text-center space-y-1">
-        <h2 className="text-xl font-bold text-foreground">免费在线图片裁剪工具</h2>
-        <p className="text-xs text-muted-foreground">自由或按比例裁剪图片，可按需求存储为不同格式</p>
-      </div>
-
       {!srcUrl && (
         <FileDropzone
           files={files}

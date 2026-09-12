@@ -1,8 +1,7 @@
 {
   "name": "@furinakit/web",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "private": true,
-
   "main": "electron/main.js",
   "scripts": {
     "predev": "node scripts/copy-pdf-worker.mjs",
@@ -11,7 +10,6 @@
     "build": "next build",
     "start": "next start -H 0.0.0.0",
     "lint": "eslint",
-
     "pack": "electron-builder --dir",
     "dist": "electron-builder"
   },

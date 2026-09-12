@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { Label, Input } from "@/components/ui/primitives";
 import { CopyButton } from "@/components/tools/copy-button";
@@ -96,8 +96,24 @@ function toHex({ r, g, b }: RGB): string {
 
 const SWATCHES = ["#6d4aff", "#22d3ee", "#f43f5e", "#10b981", "#f59e0b", "#ec4899"];
 
+/**
+ * 工具级缓存：切到别的工具或回首页会让本组件卸载，输入的颜色值与 HEX / RGB / HSL 换算结果都会丢。
+ * 颜色原文固定缓存在模块作用域里：挂载时用它初始化 useState，之后每次变化写回，
+ * 只有用户自己修改时才会被覆盖；三种格式的换算结果由缓存的颜色值经原有纯换算逻辑渲染出来，与离开前完全一致。
+ * 与项目里已有的 fileHideCache / imagesToPdfCache / toolDraftCache 保持一致的模块缓存方案。
+ */
+type ColorConverterCache = { input: string };
+
+const colorConverterCache: ColorConverterCache = { input: "#6d4aff" };
+
 export function ColorConverterTool() {
-  const [input, setInput] = useState("#6d4aff");
+  const [input, setInput] = useState(colorConverterCache.input);
+
+  // 颜色值一变就写回缓存，保证离开工具时缓存里是最新的一份
+  useEffect(() => {
+    colorConverterCache.input = input;
+  }, [input]);
+
   const rgb = useMemo(() => parseColor(input), [input]);
 
   const formats = rgb

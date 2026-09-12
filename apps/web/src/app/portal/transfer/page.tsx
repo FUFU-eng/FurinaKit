@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Upload,
   Download,
@@ -54,11 +54,36 @@ export default function MobileTransferPortal() {
   // 复制反馈
   const [copied, setCopied] = useState(false);
 
+  // 从二维码链接里取出本次互传令牌：局域网设备必须携带它才能访问互传接口，
+  // 否则同一网段上的任何设备都能读写这些接口。
+  const [lanToken] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    try {
+      return new URLSearchParams(window.location.search).get("t") || "";
+    } catch {
+      return "";
+    }
+  });
+
+  // 令牌同时写一份 cookie：这样刷新页面（丢掉 ?t=）后依然能正常使用
+  useEffect(() => {
+    if (!lanToken) return;
+    document.cookie = `furinakit_lan_token=${encodeURIComponent(lanToken)}; path=/; max-age=86400; samesite=lax`;
+  }, [lanToken]);
+
+  const withToken = useCallback(
+    (url: string) => {
+      if (!lanToken) return url;
+      return url + (url.includes("?") ? "&" : "?") + `t=${encodeURIComponent(lanToken)}`;
+    },
+    [lanToken],
+  );
+
   // 拉取电脑共享状态
   const fetchStatus = async () => {
     setIsRefreshing(true);
     try {
-      const res = await fetch("/api/transfer");
+      const res = await fetch(withToken("/api/transfer"));
       const data = await res.json();
       if (data.success) {
         setSharedFiles(data.sharedFiles || []);
@@ -98,7 +123,7 @@ export default function MobileTransferPortal() {
 
     try {
       setUploadProgress(45);
-      const res = await fetch("/api/transfer?action=upload", {
+      const res = await fetch(withToken("/api/transfer?action=upload"), {
         method: "POST",
         body: formData,
       });
@@ -126,7 +151,7 @@ export default function MobileTransferPortal() {
     if (!inputText.trim()) return;
     setTextSending(true);
     try {
-      const res = await fetch("/api/transfer?action=clipboard", {
+      const res = await fetch(withToken("/api/transfer?action=clipboard"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: inputText.trim() }),
@@ -392,7 +417,7 @@ export default function MobileTransferPortal() {
                       </div>
                     </div>
                     <a
-                      href={`/api/transfer/download?id=${encodeURIComponent(file.name)}&type=shared`}
+                      href={withToken(`/api/transfer/download?id=${encodeURIComponent(file.name)}&type=shared`)}
                       download={file.name}
                       className="px-3.5 py-1.5 bg-sky-500 hover:bg-sky-600 active:scale-95 text-white font-semibold text-[12px] rounded-lg shrink-0 flex items-center gap-1.5 transition-all"
                     >

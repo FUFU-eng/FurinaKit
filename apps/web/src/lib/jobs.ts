@@ -10,6 +10,7 @@ import {
   updateFileJob,
   countActiveFileJobs,
   isFileQueueEnabled,
+  removeQueuedItems,
 } from "./file-jobs";
 
 const JOB_PREFIX = "furinakit:job:";
@@ -172,6 +173,12 @@ export async function updateJob(
     const existing = await getJob(id);
     if (!existing) return null;
 
+    // 已结束的任务不允许被"进度更新"拉回处理中（与文件队列模式保持一致）
+    const terminal = (s: JobStatus | undefined) => s === "completed" || s === "failed";
+    if (terminal(existing.status) && !terminal(updates.status)) {
+      return existing;
+    }
+
     const updated: Job = {
       ...existing,
       ...updates,
@@ -191,22 +198,52 @@ export async function updateJob(
   return updateFileJob(id, updates);
 }
 
-// 取消任务（将状态标记为失败，错误信息为"已取消"）
+// 取消任务：把状态标记为失败（错误信息"已取消"），并且真正清掉队列里的待处理项，
+// 这样 worker 不会在之后把这个任务取出来执行、完成后再把状态写回 completed。
 export async function cancelJob(id: string): Promise<Job | null> {
   const existing = await getJob(id);
   if (!existing) return null;
-  
+
   // 只有进行中的任务才能取消
   const status = existing.status as string;
   if (status === "completed" || status === "failed") {
     return existing;
   }
-  
-  return updateJob(id, {
+
+  let removed = 0;
+  if (await checkRedisAvailable()) {
+    // Redis 模式的队列项是序列化后的 JSON，扫一遍把属于该任务的项删掉
+    try {
+      const client = getRedisClient();
+      const items = await client.lrange(JOB_QUEUE, 0, -1);
+      for (const raw of items) {
+        try {
+          const item = JSON.parse(raw) as { jobId?: string };
+          if (item && item.jobId === id) {
+            await client.lrem(JOB_QUEUE, 0, raw);
+            removed += 1;
+          }
+        } catch {
+          // 忽略无法解析的队列项
+        }
+      }
+    } catch {
+      // Redis 异常时仍然要把任务标记为已取消
+    }
+  } else {
+    removed = await removeQueuedItems(id);
+  }
+
+  const updated = await updateJob(id, {
     status: "failed",
     error: "已取消",
     progress: existing.progress || 0,
   });
+
+  if (removed > 0) {
+    console.log(`[jobs] 任务 ${id} 已取消，同时从队列移除了 ${removed} 个待处理项`);
+  }
+  return updated;
 }
 
 export async function listRecentJobs(limit = 50): Promise<Job[]> {

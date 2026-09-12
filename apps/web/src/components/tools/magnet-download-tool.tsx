@@ -405,43 +405,32 @@ export function MagnetDownloadTool() {
           }
         }}
       >
-        {/* 工具栏头部 */}
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Magnet className="h-5 w-5 text-primary" />
-            <h2 className="text-base font-semibold text-foreground">磁力链接与 BT 种子</h2>
-            <span className="flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              优质 Tracker 自动加速
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1 rounded-lg border border-border/70 bg-background/80 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
-              title="上传本地 .torrent 种子文件"
-            >
-              <FileUp className="h-3.5 w-3.5 text-primary" />
-              <span>选择种子</span>
-            </button>
-            <button
-              onClick={handlePaste}
-              className="flex items-center gap-1 rounded-lg border border-border/70 bg-background/80 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
-              title="一键粘贴剪贴板内容"
-            >
-              <ClipboardPaste className="h-3.5 w-3.5" />
-              <span>粘贴</span>
-            </button>
-            <button
-              onClick={handleClear}
-              className="flex items-center gap-1 rounded-lg border border-border/70 bg-background/80 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
-              title="清空输入"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              <span>清空</span>
-            </button>
-          </div>
+        {/* 工具栏：选择种子 / 粘贴 / 清空 */}
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-1 rounded-lg border border-border/70 bg-background/80 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+            title="上传本地 .torrent 种子文件"
+          >
+            <FileUp className="h-3.5 w-3.5 text-primary" />
+            <span>选择种子</span>
+          </button>
+          <button
+            onClick={handlePaste}
+            className="flex items-center gap-1 rounded-lg border border-border/70 bg-background/80 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+            title="一键粘贴剪贴板内容"
+          >
+            <ClipboardPaste className="h-3.5 w-3.5" />
+            <span>粘贴</span>
+          </button>
+          <button
+            onClick={handleClear}
+            className="flex items-center gap-1 rounded-lg border border-border/70 bg-background/80 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
+            title="清空输入"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            <span>清空</span>
+          </button>
         </div>
 
         {/* 文本输入框 */}
@@ -536,7 +525,7 @@ export function MagnetDownloadTool() {
                   onClick={handleStartDownload}
                   disabled={job?.status === "processing" || job?.status === "pending"}
                   size="lg"
-                  className="w-full sm:w-auto px-6 font-semibold shadow-md bg-gradient-to-r from-primary to-cyan-500 hover:from-primary/90 hover:to-cyan-600 text-white"
+                  className="w-full sm:w-auto px-6 font-semibold shadow-md bg-gradient-to-r from-primary to-primary/70 text-primary-foreground hover:from-primary/90 hover:to-primary/60"
                 >
                   <Download className="h-4 w-4 mr-1.5" />
                   {job?.status === "processing" || job?.status === "pending"
@@ -698,7 +687,7 @@ export function MagnetDownloadTool() {
             {job.status !== "completed" && job.status !== "failed" && (
               <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted/60">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-primary via-cyan-400 to-blue-500 transition-all duration-300 shadow-xs"
+                  className="h-full rounded-full bg-gradient-to-r from-primary to-primary/60 transition-all duration-300 shadow-xs"
                   style={{ width: `${Math.max(job.progress, 2)}%` }}
                 />
               </div>

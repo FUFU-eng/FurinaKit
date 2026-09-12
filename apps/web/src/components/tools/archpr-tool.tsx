@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import {
-  KeyRound,
   FolderOpen,
   Zap,
   BookOpen,
@@ -82,72 +81,40 @@ export function ArchprTool() {
 
   return (
     <div className="space-y-6">
-      {/* 顶部主横幅 */}
+      {/* 启动与目录操作条 */}
       <div
-        className="relative overflow-hidden rounded-2xl border p-6 shadow-sm"
+        className="relative overflow-hidden rounded-2xl border p-5 shadow-sm"
         style={{
           background: `linear-gradient(135deg, ${colors.card} 0%, ${colors.bg} 100%)`,
           borderColor: colors.borderSolid,
         }}
       >
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <div
-                className="flex h-12 w-12 items-center justify-center rounded-xl shadow-md"
-                style={{ background: colors.gold, color: "#fff" }}
-              >
-                <KeyRound size={26} />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-bold" style={{ color: colors.text }}>
-                    压缩包密码恢复 (ARCHPR)
-                  </h2>
-                  <span
-                    className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
-                    style={{ background: `${colors.gold}22`, color: colors.gold }}
-                  >
-                    专业硬件级破解
-                  </span>
-                </div>
-                <p className="text-xs mt-0.5" style={{ color: colors.muted }}>
-                  Advanced Archive Password Recovery · 深度集成 Elcomsoft 经典高能解密引擎
-                </p>
-              </div>
-            </div>
-            <p className="text-sm leading-relaxed max-w-2xl" style={{ color: colors.muted }}>
-              全能强大的压缩包密码恢复利器，专用于找回遗忘的 ZIP、RAR、ACE、ARJ 等加密压缩包密码。内置高精度汇编与多线程深度加速，支持纯暴力、掩码规则、字典碰撞以及已知明文秒破。
-            </p>
-          </div>
-
-          <div className="flex flex-wrap md:flex-col gap-2.5 shrink-0">
-            <button
-              type="button"
-              onClick={handleLaunch}
-              disabled={launching}
-              className="flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold text-white shadow-lg transition-all hover:brightness-110 active:scale-95 disabled:opacity-50"
-              style={{ background: colors.gold }}
-            >
-              <Zap size={17} />
-              {launching ? "正在启动..." : "一键启动 ARCHPR 破解工具"}
-            </button>
-            <button
-              type="button"
-              onClick={handleOpenDir}
-              className="flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-medium transition-all"
-              style={{
-                background: colors.card,
-                borderColor: colors.borderSolid,
-                color: colors.text,
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = colors.dropdownHover)}
-              onMouseLeave={(e) => (e.currentTarget.style.background = colors.card)}
-            >
-              <FolderOpen size={15} style={{ color: colors.gold }} />
-              查看工具与字典文件夹
-            </button>
-          </div>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={handleLaunch}
+            disabled={launching}
+            className="flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold text-white shadow-lg transition-all hover:brightness-110 active:scale-95 disabled:opacity-50"
+            style={{ background: colors.gold }}
+          >
+            <Zap size={17} />
+            {launching ? "正在启动..." : "一键启动 ARCHPR 破解工具"}
+          </button>
+          <button
+            type="button"
+            onClick={handleOpenDir}
+            className="flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-medium transition-all"
+            style={{
+              background: colors.card,
+              borderColor: colors.borderSolid,
+              color: colors.text,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = colors.dropdownHover)}
+            onMouseLeave={(e) => (e.currentTarget.style.background = colors.card)}
+          >
+            <FolderOpen size={15} style={{ color: colors.gold }} />
+            查看工具与字典文件夹
+          </button>
         </div>
 
         {statusMsg && (

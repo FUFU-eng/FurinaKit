@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Button, Input, Label, Select, Textarea } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
+import { useToolDraft } from "@/lib/use-tool-draft";
 import { Copy, Check, Download, Trash2, Star, Plus, Film, BookOpen, Tv } from "lucide-react";
 
 // ==================== 繁简转换 ====================
@@ -57,8 +58,8 @@ function convertText(text: string, map: Record<string, string>, phrases: Record<
 }
 
 export function ChineseConverterTool() {
-  const [input, setInput] = useState("");
-  const [mode, setMode] = useState<"s2t" | "t2s">("s2t");
+  const [input, setInput] = useToolDraft("chinese-converter", "input", "");
+  const [mode, setMode] = useToolDraft<"s2t" | "t2s">("chinese-converter", "mode", "s2t");
   const { toast } = useToast();
 
   const output = useMemo(() => {
@@ -416,8 +417,9 @@ const KEYWORD_PALETTES: Record<string, string[][]> = {
 };
 
 export function ColorPaletteTool() {
-  const [keyword, setKeyword] = useState("");
-  const [palettes, setPalettes] = useState<string[][]>([]);
+  const [keyword, setKeyword] = useToolDraft("color-palette", "keyword", "");
+  // 配色是点「生成配色」才出来的，把结果也记住，切回来时配色方案还在
+  const [palettes, setPalettes] = useToolDraft<string[][]>("color-palette", "palettes", []);
   const [imageColors, setImageColors] = useState<string[]>([]);
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -671,11 +673,12 @@ export function MediaTrackerTool() {
   });
   const [filter, setFilter] = useState<"all" | "book" | "movie" | "anime">("all");
   const [showForm, setShowForm] = useState(false);
-  const [formType, setFormType] = useState<"book" | "movie" | "anime">("anime");
-  const [formTitle, setFormTitle] = useState("");
-  const [formRating, setFormRating] = useState(5);
-  const [formReview, setFormReview] = useState("");
-  const [formEpisodes, setFormEpisodes] = useState("");
+  const [formType, setFormType] = useToolDraft<"book" | "movie" | "anime">("media-tracker", "formType", "anime");
+  const [formTitle, setFormTitle] = useToolDraft("media-tracker", "formTitle", "");
+  // 评分是 number 类型，交给泛型草稿原样存回，不做字符串转换
+  const [formRating, setFormRating] = useToolDraft("media-tracker", "formRating", 5);
+  const [formReview, setFormReview] = useToolDraft("media-tracker", "formReview", "");
+  const [formEpisodes, setFormEpisodes] = useToolDraft("media-tracker", "formEpisodes", "");
   const { toast } = useToast();
 
   useEffect(() => {

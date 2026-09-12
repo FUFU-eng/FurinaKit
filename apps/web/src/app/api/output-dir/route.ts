@@ -4,6 +4,7 @@ import fs from "fs";
 
 import { getStoragePath } from "@/lib/storage";
 import { getCustomOutputDir } from "@/lib/settings";
+import { guardApiRequest } from "@/lib/api-guard";
 
 export const runtime = "nodejs";
 
@@ -19,7 +20,9 @@ function getOutputDir(): string {
   return path.resolve(getStoragePath(), "results");
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = guardApiRequest(request);
+  if (denied) return denied;
   try {
     const outputDir = getOutputDir();
     const resultsDir = path.resolve(getStoragePath(), "results");
@@ -40,7 +43,9 @@ export async function GET() {
   }
 }
 
-export async function POST() {
+export async function POST(request: Request) {
+  const denied = guardApiRequest(request);
+  if (denied) return denied;
   try {
     const outputDir = getOutputDir();
     if (!fs.existsSync(outputDir)) {

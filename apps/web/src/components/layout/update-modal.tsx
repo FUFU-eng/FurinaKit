@@ -571,23 +571,24 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-4"
               >
-                {/* 顶部版本选择栏 */}
-                <div className="flex items-center justify-between pb-1 border-b border-border/40">
-                  <div className="flex items-center gap-2">
+                {/* 顶部版本选择栏：左标题固定不压缩，右版本胶囊横向滚动（版本会越来越多，
+                    不能让它们把标题挤成竖排、也不能把整个面板撑出横向滚动条） */}
+                <div className="flex items-center gap-3 border-b border-border/40 pb-2.5">
+                  <div className="flex shrink-0 items-center gap-2">
                     <History size={14} className="text-primary" />
-                    <span className="text-xs font-semibold" style={{ color: colors.text }}>
+                    <span className="whitespace-nowrap text-xs font-semibold" style={{ color: colors.text }}>
                       发版历史与更新说明
                     </span>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="thin-scroll flex min-w-0 flex-1 items-center justify-end gap-1.5 overflow-x-auto">
                     {APP_CHANGELOG.map((log) => (
                       <button
                         key={log.version}
                         onClick={() => setSelectedVersion(log.version)}
                         className={cn(
-                          "px-2.5 py-1 text-xs rounded-lg transition-all font-mono",
+                          "shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-mono transition-all",
                           selectedVersion === log.version
-                            ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                            ? "bg-primary font-semibold text-primary-foreground shadow-xs"
                             : "bg-muted/50 text-muted-foreground hover:text-foreground"
                         )}
                       >
@@ -630,23 +631,10 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
                       </p>
                     </div>
 
-                    {/* 核心亮点 */}
-                    <div className="space-y-2">
-                      <div className="font-semibold flex items-center gap-1 text-foreground/90">
-                        <Sparkles size={13} className="text-amber-500" />
-                        版本核心亮点
-                      </div>
-                      <div className="bg-background/80 rounded-xl p-3 border border-border/50 space-y-1.5">
-                        {currentLog.highlights.map((h, i) => (
-                          <div key={i} className="flex items-start gap-2 text-muted-foreground">
-                            <span className="text-primary font-bold">✓</span>
-                            <span className="leading-relaxed">{h}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* 详细更新类别列表 */}
+                    {/* 详细更新类别列表。
+                        这里不再单独列一遍「版本核心亮点」—— 下面的新增/重做/优化分类已经
+                        把同一批内容写全了，两遍是重复的（highlights 仍保留在 version.ts 里，
+                        供软件内「发现新版本」提示与远端 version.json 使用）。 */}
                     <div className="space-y-3">
                       {currentLog.details.map((cat, idx) => (
                         <div key={idx} className="space-y-1.5">

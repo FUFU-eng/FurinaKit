@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import QRCode from "qrcode";
 import {
-  Share2,
   Smartphone,
   Laptop,
   FolderOpen,
@@ -46,6 +45,7 @@ export function LanTransferTool() {
   const [selectedIp, setSelectedIp] = useState<string>("");
   const [port, setPort] = useState<string>("3001");
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
+  const [lanToken, setLanToken] = useState<string>("");
 
   const [sharedFiles, setSharedFiles] = useState<TransferredFile[]>([]);
   const [receivedFiles, setReceivedFiles] = useState<TransferredFile[]>([]);
@@ -127,8 +127,25 @@ export function LanTransferTool() {
     return () => clearInterval(timer);
   }, [fetchStatus]);
 
-  // 生成二维码
-  const portalUrl = selectedIp ? `http://${selectedIp}:${port}/portal/transfer` : "";
+  // 读取本次启动的互传令牌：只有本机界面能读到它，手机必须靠二维码里的令牌才能访问互传接口，
+  // 这样即使前端服务监听在整个局域网上，同网段的其它设备也无法调用（含写入与打开文件）。
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/lan-token")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d?.token) setLanToken(d.token);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 生成二维码（带上令牌，扫码即可授权）
+  const portalUrl = selectedIp
+    ? `http://${selectedIp}:${port}/portal/transfer${lanToken ? `?t=${encodeURIComponent(lanToken)}` : ""}`
+    : "";
 
   useEffect(() => {
     if (portalUrl) {
@@ -207,7 +224,8 @@ export function LanTransferTool() {
     } catch {}
   };
 
-  // 电脑端删除已接收记录
+  // 电脑端移除已接收记录
+  // 注意：只移除列表里的记录，**不会删除磁盘上的文件** —— 用户想删文件时自己去接收文件夹里删
   const handleDeleteReceived = async (id: string) => {
     try {
       await fetch("/api/transfer?action=delete-received", {
@@ -239,32 +257,12 @@ export function LanTransferTool() {
 
   return (
     <div className="space-y-6">
-      {/* 顶部横幅与局域网二维码连接卡 */}
+      {/* 连接操作条与局域网二维码：地址、复制、打开、刷新与扫码入口 */}
       <div className="rounded-2xl border border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-5 shadow-sm">
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-          {/* 左侧：说明与 IP 切换 */}
+          {/* 左侧：IP 选单与快捷操作 */}
           <div className="space-y-3 flex-1 min-w-0">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/20 text-primary">
-                <Share2 size={22} />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-[17px] font-bold text-foreground">
-                    跨设备互传
-                  </h2>
-                  <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                    连接同一 Wi-Fi 或手机热点 · 手机免装 App
-                  </span>
-                </div>
-                <p className="text-[12px] text-muted-foreground mt-0.5">
-                  手机无需安装任何 App，只要连接同一 Wi-Fi 或手机热点，任意软件扫码即可极速双向互通！
-                </p>
-              </div>
-            </div>
-
-            {/* IP 选单与快捷操作 */}
-            <div className="flex flex-wrap items-center gap-2 pt-1">
+            <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center gap-1.5 rounded-lg border border-border/80 bg-background/80 px-2.5 py-1 text-[12px]">
                 <span className="text-muted-foreground">本机 IP:</span>
                 <select
@@ -571,7 +569,7 @@ export function LanTransferTool() {
                     <button
                       onClick={() => handleDeleteReceived(f.id)}
                       className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-500 transition-colors"
-                      title="删除记录"
+                      title="删除记录（不会删除磁盘上的文件）"
                     >
                       <Trash2 size={14} />
                     </button>

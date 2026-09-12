@@ -27,6 +27,16 @@ import {
   repairPdf,
 } from "./pdf";
 import { generateQr, generateHash } from "./utility";
+import {
+  dnsLookup,
+  sslChecker,
+  urlParser,
+  loremGen,
+  cssGradient,
+  imageExif,
+  svgOptimize,
+  asciiArt,
+} from "./quick-tools";
 
 export type SyncInput = {
   files: Buffer[];
@@ -196,4 +206,14 @@ export const SYNC_HANDLERS: Record<string, SyncHandler> = {
     if (r.kind !== "text") throw new Error("Hash generation failed");
     return { kind: "text", text: r.text, filename: "hash.txt", mimeType: "text/plain; charset=utf-8" };
   },
+
+  // ── 开发/网络查询类（实现在 quick-tools.ts，界面走通用表单）──
+  "dns-lookup": dnsLookup,
+  "ssl-checker": sslChecker,
+  "url-parser": urlParser,
+  "lorem-gen": loremGen,
+  "css-gradient": cssGradient,
+  "image-exif": imageExif,
+  "svg-optimize": svgOptimize,
+  "ascii-art": asciiArt,
 };

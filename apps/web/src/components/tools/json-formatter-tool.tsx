@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Copy, Wand2, Minimize2, AlertTriangle, Columns2, Rows2, Trash2, FileJson } from "lucide-react";
 import { Button, Label, Textarea } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
@@ -18,13 +18,45 @@ const SAMPLE_JSON = JSON.stringify(
   2
 );
 
+/**
+ * 工具级缓存：切到别的工具或回首页会让本组件卸载，粘贴的 JSON 与格式化结果都会丢。
+ * 这里把「输入 + 结果 + 报错 + 视窗布局」一起固定在模块作用域里：挂载时用它初始化 useState，
+ * 之后每次变化写回，只有用户自己修改 / 清空时才覆盖。
+ *
+ * output 是「格式化美化 / 压缩成单行」按钮算出来的结果状态（不是随输入实时派生的），
+ * 所以它必须整份缓存并原样复原 —— 不能靠回来时重跑一次 run() 来还原，
+ * 那样既会丢掉用户当时选择的是美化还是压缩，也可能得到与离开前不同的呈现。
+ * 与项目里已有的 fileHideCache / imagesToPdfCache / toolDraftCache 保持一致的模块缓存方案。
+ */
+type JsonFormatterCache = {
+  input: string;
+  output: string;
+  error: string | null;
+  layout: "split" | "stacked";
+};
+
+const jsonFormatterCache: JsonFormatterCache = {
+  input: "",
+  output: "",
+  error: null,
+  layout: "split",
+};
+
 export function JsonFormatterTool() {
-  const [input, setInput] = useState("");
-  const [output, setOutput] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [input, setInput] = useState(jsonFormatterCache.input);
+  const [output, setOutput] = useState(jsonFormatterCache.output);
+  const [error, setError] = useState<string | null>(jsonFormatterCache.error);
   const [copied, setCopied] = useState(false);
-  const [layout, setLayout] = useState<"split" | "stacked">("split");
+  const [layout, setLayout] = useState<"split" | "stacked">(jsonFormatterCache.layout);
   const { toast } = useToast();
+
+  // 任何一项变化都写回缓存，保证离开工具时缓存里是最新的一份
+  useEffect(() => {
+    jsonFormatterCache.input = input;
+    jsonFormatterCache.output = output;
+    jsonFormatterCache.error = error;
+    jsonFormatterCache.layout = layout;
+  }, [input, output, error, layout]);
 
   const run = (minify: boolean) => {
     setError(null);

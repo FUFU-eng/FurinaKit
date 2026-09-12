@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Label, Textarea } from "@/components/ui/primitives";
 import { CopyButton } from "@/components/tools/copy-button";
 import { renderMarkdown } from "@/lib/markdown";
@@ -23,9 +23,26 @@ const code = "代码块使用等宽字体";
 \`\`\`
 `;
 
+/**
+ * 工具级缓存：切到别的工具或回首页会让本组件卸载，写的 Markdown 与右侧预览都会丢。
+ * 这里把原文与视窗布局固定在模块作用域里：挂载时用它初始化 useState，之后每次变化写回，
+ * 只有用户自己修改 / 重置为示例 / 清空时才会被覆盖；
+ * 预览由缓存的原文经原有 renderMarkdown 渲染出来，与离开前完全一致。
+ * 与项目里已有的 fileHideCache / imagesToPdfCache / toolDraftCache 保持一致的模块缓存方案。
+ */
+type MarkdownPreviewCache = { input: string; layout: "split" | "stacked" };
+
+const markdownPreviewCache: MarkdownPreviewCache = { input: SAMPLE, layout: "split" };
+
 export function MarkdownPreviewTool() {
-  const [input, setInput] = useState(SAMPLE);
-  const [layout, setLayout] = useState<"split" | "stacked">("split");
+  const [input, setInput] = useState(markdownPreviewCache.input);
+  const [layout, setLayout] = useState<"split" | "stacked">(markdownPreviewCache.layout);
+
+  // 原文 / 布局一变就写回缓存，保证离开工具时缓存里是最新的一份
+  useEffect(() => {
+    markdownPreviewCache.input = input;
+    markdownPreviewCache.layout = layout;
+  }, [input, layout]);
 
   return (
     <div className="space-y-4">

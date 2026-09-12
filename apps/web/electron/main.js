@@ -15,6 +15,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const http = require('http');
 const net = require('net');
+const os = require('os');
 const fs = require('fs');
 
 // ============ 配置 ============
@@ -91,11 +92,39 @@ if (fs.existsSync(FFMPEG_PATH)) {
 // ============ 全局变量 ============
 let mainWindow = null;
 let tray = null;
+/** 系统托盘是否真的创建成功。创建失败时绝不能再「关闭即隐藏窗口」，否则用户无法把窗口找回来 */
+let trayAvailable = false;
 let workerProc = null;
 let webProc = null;
 let isQuitting = false;
 let datatoolBrowserView = null;
 let datatoolViewVisible = false;
+
+// ============ 单实例：一次只允许跑一个 FurinaKit ============
+// 不加这道锁时，双击两次图标会真的起两个实例：两个窗口、两个托盘图标，
+// 更麻烦的是**每个实例都会拉起一个自己的 Python worker**，两个 worker 盯着
+// 同一份任务队列，会出现任务被抢、进度乱跳、结果对不上这类问题。
+// 拿了锁失败的那个实例直接退出，并让已有实例把窗口叫到前面来。
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  console.log('[FurinaKit] 已有一个实例在运行，本次启动直接退出');
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    console.log('[FurinaKit] 检测到第二次启动，把已有窗口叫到前面');
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    if (!mainWindow.isVisible()) mainWindow.show();
+    mainWindow.focus();
+    // Windows 上 focus() 有时不足以把窗口提到最前，补一次置顶/取消置顶
+    try {
+      mainWindow.setAlwaysOnTop(true);
+      mainWindow.setAlwaysOnTop(false);
+    } catch {
+      /* 忽略：个别环境下不支持 */
+    }
+  });
+}
 
 // ============ 工具函数 ============
 function findNode() {
@@ -149,6 +178,118 @@ async function waitForService(maxRetries = 30) {
   }
   return false;
 }
+
+// 定期清理上传/结果/互传的过期临时文件。
+// 之前这些文件只在手动调用 /api/cleanup 时才会被清理，实际上从来没人调用，
+// 于是用户的磁盘里会不断堆积（本机曾累积到 1GB 以上）。
+const CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000; // 每 6 小时
+let cleanupTimer = null;
+
+function runStorageCleanup(reason) {
+  try {
+    const req = http.request(`${URL}/api/cleanup`, { method: 'POST', timeout: 60000 }, (res) => {
+      // 必须把响应体读掉，否则 socket 不会释放
+      res.resume();
+      console.log(`[FurinaKit] 临时文件清理完成(${reason})，HTTP ${res.statusCode}`);
+    });
+    req.on('error', (err) => {
+      console.log(`[FurinaKit] 临时文件清理失败(${reason}):`, err.message);
+    });
+    req.on('timeout', () => {
+      req.destroy();
+      console.log(`[FurinaKit] 临时文件清理超时(${reason})`);
+    });
+    req.end();
+  } catch (err) {
+    console.log('[FurinaKit] 临时文件清理异常:', err.message);
+  }
+}
+
+function startCleanupSchedule() {
+  runStorageCleanup('启动时');
+  cleanupTempPackDirs('启动时');
+  if (cleanupTimer) clearInterval(cleanupTimer);
+  cleanupTimer = setInterval(() => {
+    runStorageCleanup('定时');
+    cleanupTempPackDirs('定时');
+  }, CLEANUP_INTERVAL_MS);
+  // 不要因为这个定时器而阻止进程退出
+  if (cleanupTimer.unref) cleanupTimer.unref();
+}
+
+// ============ 清理 PyInstaller 解包残留（这个不管会吃掉几十 GB 的 C 盘）============
+// worker 是 PyInstaller onefile 打出来的 exe，**每次启动都会把自己解包到系统临时目录**
+// 的一个 `_MEIxxxxxx` 文件夹里（解包后约 500MB），正常退出时它会自己删掉。
+// 但只要是「被强制结束」的情况 —— 任务管理器结束任务、崩溃、被 taskkill /T 连带杀掉 ——
+// 它就来不及删，那 500MB 就永久留在 `%TEMP%` 里。
+// 实测：攒了 71 个这样的目录，合计 33 GB，直接把 C 盘塞满了。
+// 所以每次启动（以及每 6 小时）扫一遍，把**不是这次会话正在用的**那些清掉。
+const TEMP_PACK_DIR_PATTERN = /^_MEI\d+$/;
+/** 只清理「至少这么久没动过」的目录，避免误删当前正在运行的 worker 刚解包出来的那份 */
+const TEMP_PACK_DIR_MIN_AGE_MS = 30 * 60 * 1000;
+
+function dirSizeBytes(dir) {
+  let total = 0;
+  let entries = [];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    try {
+      if (entry.isDirectory()) total += dirSizeBytes(full);
+      else total += fs.statSync(full).size;
+    } catch {
+      /* 读不到的跳过 */
+    }
+  }
+  return total;
+}
+
+function cleanupTempPackDirs(reason) {
+  const tmpDir = app.getPath('temp') || os.tmpdir();
+  let entries = [];
+  try {
+    entries = fs.readdirSync(tmpDir, { withFileTypes: true });
+  } catch (err) {
+    console.log(`[FurinaKit] 临时目录扫描失败(${reason}):`, err.message);
+    return;
+  }
+
+  const now = Date.now();
+  let removed = 0;
+  let freed = 0;
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !TEMP_PACK_DIR_PATTERN.test(entry.name)) continue;
+    const full = path.join(tmpDir, entry.name);
+    let stat;
+    try {
+      stat = fs.statSync(full);
+    } catch {
+      continue;
+    }
+    // 正在运行的 worker 用它自己的那份；年龄门槛保证不会误删
+    if (now - stat.mtimeMs < TEMP_PACK_DIR_MIN_AGE_MS) continue;
+
+    const size = dirSizeBytes(full);
+    try {
+      fs.rmSync(full, { recursive: true, force: true });
+      removed += 1;
+      freed += size;
+    } catch {
+      /* 有文件被占用就跳过，下次再说 */
+    }
+  }
+
+  if (removed > 0) {
+    console.log(
+      `[FurinaKit] 清理了 ${removed} 个残留的运行时解包目录(${reason})，回收 ${(freed / 1048576).toFixed(0)} MB`,
+    );
+  }
+}
+
 
 // ============ 启动子进程 ============
 function startWorker() {
@@ -350,6 +491,9 @@ function notifyTrayOnce() {
 }
 
 function shouldCloseToTray() {
+  // 托盘不可用时（例如图标创建失败）不能把窗口藏起来：
+  // 那样托盘里没有任何入口，用户只能去任务管理器结束进程才能再打开软件。
+  if (!trayAvailable) return false;
   try {
     if (fs.existsSync(SETTINGS_FILE)) {
       const s = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
@@ -933,43 +1077,60 @@ ipcMain.handle('open-datatool', async () => {
 });
 // ============ 系统托盘 ============
 function createTray() {
-  const icon = nativeImage.createFromPath(ICON_PATH);
-  tray = new Tray(icon);
-  tray.setToolTip('FurinaKit 芙宁娜工具箱');
-
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: '打开主界面',
-      click: () => {
-        if (mainWindow) {
-          mainWindow.show();
-          mainWindow.focus();
-        }
-      },
-    },
-    { type: 'separator' },
-    {
-      label: '退出软件',
-      click: () => {
-        console.log('[FurinaKit] 用户从系统托盘点击彻底退出');
-        isQuitting = true;
-        stopAll();
-        app.exit(0);
-      },
-    },
-  ]);
-
-  tray.setContextMenu(contextMenu);
-  tray.on('double-click', () => {
-    if (mainWindow) {
-      mainWindow.show();
-      mainWindow.focus();
+  try {
+    const icon = nativeImage.createFromPath(ICON_PATH);
+    if (!icon || icon.isEmpty()) {
+      throw new Error(`托盘图标读取失败: ${ICON_PATH}`);
     }
-  });
+    tray = new Tray(icon);
+    tray.setToolTip('FurinaKit 芙宁娜工具箱');
+
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: '打开主界面',
+        click: () => {
+          if (mainWindow) {
+            mainWindow.show();
+            mainWindow.focus();
+          }
+        },
+      },
+      { type: 'separator' },
+      {
+        label: '退出软件',
+        click: () => {
+          console.log('[FurinaKit] 用户从系统托盘点击彻底退出');
+          isQuitting = true;
+          stopAll();
+          app.exit(0);
+        },
+      },
+    ]);
+
+    tray.setContextMenu(contextMenu);
+    tray.on('double-click', () => {
+      if (mainWindow) {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    });
+    trayAvailable = true;
+    console.log('[FurinaKit] 系统托盘创建成功');
+  } catch (err) {
+    // 常见于资源管理器未运行、远程桌面会话等环境。
+    // 这里必须降级为「关闭即退出」，否则窗口会被隐藏且无法再唤出。
+    trayAvailable = false;
+    tray = null;
+    console.error('[FurinaKit] 系统托盘创建失败，已降级为：关闭窗口直接退出软件。原因:', err && err.message);
+  }
 }
 
 // ============ App 生命周期 ============
 app.whenReady().then(async () => {
+  // 第二个实例不该再拉起 Web 服务 / worker / 窗口（quit() 已经调过，这里再兜一层，
+  // 避免退出过程较慢时它已经开始干活）
+  if (!gotSingleInstanceLock) return;
+
   console.log('[FurinaKit] Electron 已启动');
 
   // ============ 配置 datatool partition 的 session（解决 webview 经常打不开的问题） ============
@@ -1089,6 +1250,9 @@ app.whenReady().then(async () => {
   createWindow();
   createTray();
   checkAndReportInstall();
+
+  // 服务就绪后立即清理一次过期临时文件，并开始定时清理
+  startCleanupSchedule();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

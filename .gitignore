@@ -1,5 +1,8 @@
 node_modules/
 .next/
+# 并行开发时用 FK_DIST_DIR 生成的独立构建目录（见 apps/web/next.config.ts）
+.next-dev*/
+.next-probe*/
 dist/
 build/
 .env
@@ -89,3 +92,7 @@ patch_payload/
 releases_repo/
 create_shortcut.*
 test_patch.exe
+
+# Release pipeline local state: hashes of the runtime components shipped last time
+# (written by scripts/package_release.py). Machine-local build state, not source.
+.release-runtime-manifest.json

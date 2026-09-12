@@ -21,6 +21,12 @@ import {
 import { Input } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import {
+  addSignatureHistoryRecord,
+  loadSignatureHistory,
+  SIGNATURE_HISTORY_MAX_ENTRIES,
+  type SignatureHistoryRecord,
+} from "@/lib/signature-history-store";
 
 // 62 种艺术字与一笔签字体样式
 export interface YishuziFont {
@@ -142,49 +148,263 @@ interface Stroke {
   type: "pen" | "brush" | "marker";
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+ * 工具级缓存：切到别的工具 / 回首页会让本组件卸载，手写笔画、一笔签结果、
+ * 字体与印章设置、当前标签页都会丢。这里把它们固定在模块作用域里，
+ * 组件挂载时用它初始化 useState，之后每次变化写回，只有用户自己修改 / 清空时才覆盖。
+ * 与项目里已有的 fileHideCache / imagesToPdfCache / toolDraftCache 是同一套做法。
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/** 缓存里最多保留多少笔画 / 多少个采样点（长时间作画时从最旧的笔画开始淘汰，保证内存有上限） */
+const SIGNATURE_MAX_CACHED_STROKES = 1000;
+const SIGNATURE_MAX_CACHED_POINTS = 120000;
+/**
+ * 单张图片链接（canvas.toDataURL 的 base64 文本）允许进入缓存的最大字符数。
+ * 超出的链接不纳入缓存（不接管所有权，也就不释放），避免一份超大结果把模块缓存撑爆。
+ * 最多 3 个链接槽位，所以图片部分的内存上限 = 3 × 此值。
+ */
+const SIGNATURE_MAX_CACHED_LINK_CHARS = 6 * 1024 * 1024;
+
+/**
+ * 需要跨「离开页面」保留下来的内容。
+ *
+ * 刻意不缓存的：
+ * - osHistory（近期生成记录）：每份记录都带 url + transparentUrl 两张完整 data URL，
+ *   10 份就是 20-40MB。这里只保留「当前正在看的那一张 + 关键设置」，历史列表不恢复。
+ * - redoStrokes（重做栈）：属于撤销/重做历史，按需求只恢复当前画布内容。
+ * - osLoading / copied / isDragging：纯瞬时状态，恢复它们反而会卡住界面。
+ */
+type SignatureDraft = {
+  activeTab: "onestroke" | "calligraphy" | "handwriting" | "contract";
+  osName: string;
+  osFontId: string;
+  osColor: string;
+  osAutoTransparent: boolean;
+  osResultDataUrl: string | null;
+  osTransparentDataUrl: string | null;
+  calName: string;
+  calFontId: string;
+  calColor: string;
+  showUnderline: boolean;
+  underlineStyle: "flourish" | "straight" | "curve" | "zigzag";
+  hasSeal: boolean;
+  sealText: string;
+  sealStyle: "yang" | "yin";
+  sealShape: "square" | "circle";
+  showDateStamp: boolean;
+  dateStampText: string;
+  hwColor: string;
+  hwPenType: "pen" | "brush" | "marker";
+  hwBaseWidth: number;
+  showGuidelines: boolean;
+  strokes: Stroke[];
+  contractSignatureUrl: string | null;
+  sigPosition: { x: number; y: number };
+  sigScale: number;
+};
+
+const signatureDraftCache: SignatureDraft = {
+  activeTab: "onestroke",
+  osName: "芙宁娜",
+  osFontId: "901",
+  osColor: "#0000FF",
+  osAutoTransparent: true,
+  osResultDataUrl: null,
+  osTransparentDataUrl: null,
+  calName: "芙宁娜",
+  calFontId: "zhimangxing",
+  calColor: "#0000FF",
+  showUnderline: true,
+  underlineStyle: "flourish",
+  hasSeal: true,
+  sealText: "芙宁娜印",
+  sealStyle: "yang",
+  sealShape: "square",
+  showDateStamp: false,
+  dateStampText: new Date().toISOString().split("T")[0],
+  hwColor: "#0000FF",
+  hwPenType: "pen",
+  hwBaseWidth: 4,
+  showGuidelines: true,
+  strokes: [],
+  contractSignatureUrl: null,
+  sigPosition: { x: 260, y: 395 },
+  sigScale: 0.85,
+};
+
+/**
+ * 释放一张签名图片链接。
+ *
+ * 目前缓存里的链接都是 canvas.toDataURL() 产出的 data: URL，本身不是可回收的浏览器资源；
+ * 一旦将来换成 URL.createObjectURL（blob:），这里就负责真正撤销，
+ * 保证「被替换 / 被清空 / 被淘汰」时不会把整份 Blob 一直钉在内存里。
+ * 链接的所有权归这份缓存：组件卸载（切工具 / 回首页）时不动它们，
+ * 用户回来时才能拿到仍然有效、而且是同一个字符串的链接。
+ */
+function releaseSignatureImage(url: string | null): void {
+  if (!url) return;
+  if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+}
+
+/** 按笔画数 / 采样点上限裁剪要缓存的笔画：只丢最旧的，且不修改界面上的 strokes 本身 */
+function trimCachedStrokes(strokes: Stroke[]): Stroke[] {
+  let total = 0;
+  for (const s of strokes) total += s.points.length;
+  if (strokes.length <= SIGNATURE_MAX_CACHED_STROKES && total <= SIGNATURE_MAX_CACHED_POINTS) {
+    // 绝大多数情况：直接沿用同一个数组引用，避免无谓拷贝
+    return strokes;
+  }
+
+  const kept: Stroke[] = [];
+  let points = 0;
+  for (let i = strokes.length - 1; i >= 0; i--) {
+    const s = strokes[i];
+    if (kept.length >= SIGNATURE_MAX_CACHED_STROKES) break;
+    if (points + s.points.length > SIGNATURE_MAX_CACHED_POINTS && kept.length > 0) break;
+    kept.push(s);
+    points += s.points.length;
+  }
+  kept.reverse();
+  return kept;
+}
+
+/** 超过单张上限的链接不纳入缓存（缓存不接管它，也就不释放它 —— 界面上还在用） */
+function adoptSignatureImage(url: string | null): string | null {
+  if (!url) return null;
+  return url.length <= SIGNATURE_MAX_CACHED_LINK_CHARS ? url : null;
+}
+
+/**
+ * 写入缓存，并处理图片链接的所有权。
+ *
+ * 只有「缓存不再引用」的链接才会被释放：被新结果替换掉的、被清空的。
+ * 判断依据是链接字符串是否变化（同一个链接 = 同一个对象引用，值不变就不释放），
+ * 而且如果同一个链接还挂在别的槽位上（例如合同预览正在用一笔签那张透明图），也绝不释放，
+ * 否则用户回来看到的就是死图。
+ */
+function rememberSignatureDraft(next: SignatureDraft): void {
+  const previous = signatureDraftCache;
+
+  const osResultDataUrl = adoptSignatureImage(next.osResultDataUrl);
+  const osTransparentDataUrl = adoptSignatureImage(next.osTransparentDataUrl);
+  const contractSignatureUrl = adoptSignatureImage(next.contractSignatureUrl);
+  const keptUrls = [osResultDataUrl, osTransparentDataUrl, contractSignatureUrl];
+
+  const handled = new Set<string>();
+  for (const url of [previous.osResultDataUrl, previous.osTransparentDataUrl, previous.contractSignatureUrl]) {
+    if (!url || handled.has(url)) continue;
+    handled.add(url);
+    if (keptUrls.includes(url)) continue; // 仍然在用，不能释放
+    releaseSignatureImage(url);
+  }
+
+  signatureDraftCache.activeTab = next.activeTab;
+  signatureDraftCache.osName = next.osName;
+  signatureDraftCache.osFontId = next.osFontId;
+  signatureDraftCache.osColor = next.osColor;
+  signatureDraftCache.osAutoTransparent = next.osAutoTransparent;
+  signatureDraftCache.osResultDataUrl = osResultDataUrl;
+  signatureDraftCache.osTransparentDataUrl = osTransparentDataUrl;
+  signatureDraftCache.calName = next.calName;
+  signatureDraftCache.calFontId = next.calFontId;
+  signatureDraftCache.calColor = next.calColor;
+  signatureDraftCache.showUnderline = next.showUnderline;
+  signatureDraftCache.underlineStyle = next.underlineStyle;
+  signatureDraftCache.hasSeal = next.hasSeal;
+  signatureDraftCache.sealText = next.sealText;
+  signatureDraftCache.sealStyle = next.sealStyle;
+  signatureDraftCache.sealShape = next.sealShape;
+  signatureDraftCache.showDateStamp = next.showDateStamp;
+  signatureDraftCache.dateStampText = next.dateStampText;
+  signatureDraftCache.hwColor = next.hwColor;
+  signatureDraftCache.hwPenType = next.hwPenType;
+  signatureDraftCache.hwBaseWidth = next.hwBaseWidth;
+  signatureDraftCache.showGuidelines = next.showGuidelines;
+  signatureDraftCache.strokes = trimCachedStrokes(next.strokes);
+  signatureDraftCache.contractSignatureUrl = contractSignatureUrl;
+  signatureDraftCache.sigPosition = next.sigPosition;
+  signatureDraftCache.sigScale = next.sigScale;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * 历史设计灵感（一笔签的历史生成记录）
+ *
+ * 与其它缓存不同，这份列表**要落盘**：用户关掉软件、下次再打开还应该看得到，
+ * 并且保留期为一个月（见 lib/signature-history-store.ts）。
+ * 界面上按「同一枚签名只占一格」来维护：姓名 + 字体 + 透明图链接完全一致时，
+ * 只把它挪到最前面，不再堆一条一模一样的，否则每次冷启动自动生成的那张默认签名
+ * 都会在列表里叠一层。
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/** 给本次会话里新生成的记录一个稳定 id，用作 React key（落盘时会被换成存储里的 id） */
+function newHistoryId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** 把一条新记录并进历史列表：最新的排最前、同一枚签名去重、按条数上限裁剪 */
+function mergeSignatureHistory(
+  prev: SignatureHistoryRecord[],
+  incoming: SignatureHistoryRecord,
+): SignatureHistoryRecord[] {
+  const rest = prev.filter(
+    (item) =>
+      !(
+        item.name === incoming.name &&
+        item.fontName === incoming.fontName &&
+        item.transparentUrl === incoming.transparentUrl
+      ),
+  );
+  return [incoming, ...rest].slice(0, SIGNATURE_HISTORY_MAX_ENTRIES);
+}
+
 export function SignatureDesignerTool() {
   const { toast } = useToast();
 
   // Tab 状态: onestroke (一笔签名设计) | calligraphy (本地书法字库) | handwriting (自由手写板) | contract (合同实景预览)
-  const [activeTab, setActiveTab] = useState<"onestroke" | "calligraphy" | "handwriting" | "contract">("onestroke");
+  // 下面所有 useState 的初始值都来自模块级缓存：上次离开这个工具时的样子
+  const [activeTab, setActiveTab] = useState<"onestroke" | "calligraphy" | "handwriting" | "contract">(signatureDraftCache.activeTab);
 
   // ===== 1. 一笔签名设计状态 (默认名字芙宁娜) =====
-  const [osName, setOsName] = useState<string>("芙宁娜");
-  const [osFontId, setOsFontId] = useState<string>("901"); // 默认 2.一笔艺术签
-  const [osColor, setOsColor] = useState<string>("#0000FF"); // 默认商务蓝（与截图一致）
-  const [osAutoTransparent, setOsAutoTransparent] = useState<boolean>(true); // 智能去除背景生成纯透明PNG
+  const [osName, setOsName] = useState<string>(signatureDraftCache.osName);
+  const [osFontId, setOsFontId] = useState<string>(signatureDraftCache.osFontId); // 默认 2.一笔艺术签
+  const [osColor, setOsColor] = useState<string>(signatureDraftCache.osColor); // 默认商务蓝（与截图一致）
+  const [osAutoTransparent, setOsAutoTransparent] = useState<boolean>(signatureDraftCache.osAutoTransparent); // 智能去除背景生成纯透明PNG
   const [osLoading, setOsLoading] = useState<boolean>(false);
-  const [osResultDataUrl, setOsResultDataUrl] = useState<string | null>(null);
-  const [osTransparentDataUrl, setOsTransparentDataUrl] = useState<string | null>(null);
-  const [osHistory, setOsHistory] = useState<Array<{ name: string; fontName: string; url: string; transparentUrl: string }>>([]);
+  const [osResultDataUrl, setOsResultDataUrl] = useState<string | null>(signatureDraftCache.osResultDataUrl);
+  const [osTransparentDataUrl, setOsTransparentDataUrl] = useState<string | null>(signatureDraftCache.osTransparentDataUrl);
+  // 近期生成记录刻意不进缓存（每份都是两张完整 data URL，10 份 20-40MB），只恢复当前结果
+  // 历史设计灵感：挂载后从磁盘读回（保留一个月），见下面的加载 effect
+  const [osHistory, setOsHistory] = useState<SignatureHistoryRecord[]>([]);
 
   // ===== 2. 书法字库与印章状态 =====
-  const [calName, setCalName] = useState<string>("芙宁娜");
-  const [calFontId, setCalFontId] = useState<string>("zhimangxing");
-  const [calColor, setCalColor] = useState<string>("#0000FF");
-  const [showUnderline, setShowUnderline] = useState<boolean>(true);
-  const [underlineStyle, setUnderlineStyle] = useState<"flourish" | "straight" | "curve" | "zigzag">("flourish");
-  const [hasSeal, setHasSeal] = useState<boolean>(true);
-  const [sealText, setSealText] = useState<string>("芙宁娜印");
-  const [sealStyle, setSealStyle] = useState<"yang" | "yin">("yang");
-  const [sealShape, setSealShape] = useState<"square" | "circle">("square");
-  const [showDateStamp, setShowDateStamp] = useState<boolean>(false);
-  const [dateStampText, setDateStampText] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [calName, setCalName] = useState<string>(signatureDraftCache.calName);
+  const [calFontId, setCalFontId] = useState<string>(signatureDraftCache.calFontId);
+  const [calColor, setCalColor] = useState<string>(signatureDraftCache.calColor);
+  const [showUnderline, setShowUnderline] = useState<boolean>(signatureDraftCache.showUnderline);
+  const [underlineStyle, setUnderlineStyle] = useState<"flourish" | "straight" | "curve" | "zigzag">(signatureDraftCache.underlineStyle);
+  const [hasSeal, setHasSeal] = useState<boolean>(signatureDraftCache.hasSeal);
+  const [sealText, setSealText] = useState<string>(signatureDraftCache.sealText);
+  const [sealStyle, setSealStyle] = useState<"yang" | "yin">(signatureDraftCache.sealStyle);
+  const [sealShape, setSealShape] = useState<"square" | "circle">(signatureDraftCache.sealShape);
+  const [showDateStamp, setShowDateStamp] = useState<boolean>(signatureDraftCache.showDateStamp);
+  const [dateStampText, setDateStampText] = useState<string>(signatureDraftCache.dateStampText);
 
   // ===== 3. 手写板状态 =====
-  const [hwColor, setHwColor] = useState<string>("#0000FF");
-  const [hwPenType, setHwPenType] = useState<"pen" | "brush" | "marker">("pen");
-  const [hwBaseWidth, setHwBaseWidth] = useState<number>(4);
-  const [showGuidelines, setShowGuidelines] = useState<boolean>(true);
-  const [strokes, setStrokes] = useState<Stroke[]>([]);
+  const [hwColor, setHwColor] = useState<string>(signatureDraftCache.hwColor);
+  const [hwPenType, setHwPenType] = useState<"pen" | "brush" | "marker">(signatureDraftCache.hwPenType);
+  const [hwBaseWidth, setHwBaseWidth] = useState<number>(signatureDraftCache.hwBaseWidth);
+  const [showGuidelines, setShowGuidelines] = useState<boolean>(signatureDraftCache.showGuidelines);
+  // 手写笔画：缓存里是「笔画数组」（点坐标 + 颜色 + 粗细 + 笔型），回来时经原有渲染逻辑重绘画布。
+  // 不缓存重做栈（redoStrokes）：撤销/重做属于历史，按需求只恢复当前画布内容。
+  const [strokes, setStrokes] = useState<Stroke[]>(signatureDraftCache.strokes);
   const [redoStrokes, setRedoStrokes] = useState<Stroke[]>([]);
   const isDrawingRef = useRef<boolean>(false);
   const currentStrokeRef = useRef<StrokePoint[]>([]);
 
   // ===== 4. 合同实景预览状态 =====
-  const [contractSignatureUrl, setContractSignatureUrl] = useState<string | null>(null);
-  const [sigPosition, setSigPosition] = useState<{ x: number; y: number }>({ x: 260, y: 395 });
-  const [sigScale, setSigScale] = useState<number>(0.85);
+  const [contractSignatureUrl, setContractSignatureUrl] = useState<string | null>(signatureDraftCache.contractSignatureUrl);
+  const [sigPosition, setSigPosition] = useState<{ x: number; y: number }>(signatureDraftCache.sigPosition);
+  const [sigScale, setSigScale] = useState<number>(signatureDraftCache.sigScale);
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const dragStartRef = useRef<{ mouseX: number; mouseY: number; startX: number; startY: number }>({ mouseX: 0, mouseY: 0, startX: 0, startY: 0 });
 
@@ -192,6 +412,67 @@ export function SignatureDesignerTool() {
   const calCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const hwCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const contractContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // 任何内容 / 设置变化都写回模块缓存，保证离开工具（切别的工具、回首页）时缓存里是最新的一份。
+  // 图片链接的所有权交给 rememberSignatureDraft 处理：这里只负责如实上报当前状态，
+  // 组件卸载时不做任何释放，用户回来才能拿到同一个链接。
+  useEffect(() => {
+    rememberSignatureDraft({
+      activeTab,
+      osName,
+      osFontId,
+      osColor,
+      osAutoTransparent,
+      osResultDataUrl,
+      osTransparentDataUrl,
+      calName,
+      calFontId,
+      calColor,
+      showUnderline,
+      underlineStyle,
+      hasSeal,
+      sealText,
+      sealStyle,
+      sealShape,
+      showDateStamp,
+      dateStampText,
+      hwColor,
+      hwPenType,
+      hwBaseWidth,
+      showGuidelines,
+      strokes,
+      contractSignatureUrl,
+      sigPosition,
+      sigScale,
+    });
+  }, [
+    activeTab,
+    osName,
+    osFontId,
+    osColor,
+    osAutoTransparent,
+    osResultDataUrl,
+    osTransparentDataUrl,
+    calName,
+    calFontId,
+    calColor,
+    showUnderline,
+    underlineStyle,
+    hasSeal,
+    sealText,
+    sealStyle,
+    sealShape,
+    showDateStamp,
+    dateStampText,
+    hwColor,
+    hwPenType,
+    hwBaseWidth,
+    showGuidelines,
+    strokes,
+    contractSignatureUrl,
+    sigPosition,
+    sigScale,
+  ]);
 
   // 引入 Google 艺术书法字体
   useEffect(() => {
@@ -288,68 +569,111 @@ export function SignatureDesignerTool() {
   }, []);
 
   // 生成「一笔签名」核心请求方法
-  const handleGenerateOneStroke = useCallback(async (customName?: string, customFont?: string, customColor?: string) => {
-    const targetName = (customName !== undefined ? customName : osName).trim();
-    const targetFont = customFont || osFontId;
-    const targetColor = customColor || osColor;
+  // persistToDisk=false 用于「首次进入自动生成默认签名」那条路径，不写入历史存储
+  const handleGenerateOneStroke = useCallback(
+    async (customName?: string, customFont?: string, customColor?: string, persistToDisk = true) => {
+      const targetName = (customName !== undefined ? customName : osName).trim();
+      const targetFont = customFont || osFontId;
+      const targetColor = customColor || osColor;
 
-    if (!targetName) {
-      toast({ title: "请输入姓名", description: "输入要设计的中文姓名或英文艺术签名", variant: "info" });
-      return;
-    }
-
-    setOsLoading(true);
-    try {
-      const res = await fetch("/api/tools/yishuzi-signature", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: targetName,
-          fontId: targetFont,
-          fontColor: targetColor,
-          bgColor: "#FFFFFE",
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success || !data.dataUrl) {
-        throw new Error(data.error || "生成失败，请检查网络或稍后重试");
+      if (!targetName) {
+        toast({ title: "请输入姓名", description: "输入要设计的中文姓名或英文艺术签名", variant: "info" });
+        return;
       }
 
-      setOsResultDataUrl(data.dataUrl);
+      setOsLoading(true);
+      try {
+        const res = await fetch("/api/tools/yishuzi-signature", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: targetName,
+            fontId: targetFont,
+            fontColor: targetColor,
+            bgColor: "#FFFFFE",
+          }),
+        });
 
-      // 处理为纯透明高保真 PNG
-      const transparentPng = await processImageToTransparent(data.dataUrl);
-      setOsTransparentDataUrl(transparentPng);
+        const data = await res.json();
+        if (!res.ok || !data.success || !data.dataUrl) {
+          throw new Error(data.error || "生成失败，请检查网络或稍后重试");
+        }
 
-      // 默认同步到合同预览签名源
-      setContractSignatureUrl(transparentPng);
+        setOsResultDataUrl(data.dataUrl);
 
-      // 存入历史记录
-      const fontObj = YISHUZI_FONTS.find((f) => f.id === targetFont);
-      setOsHistory((prev) => [
-        {
+        // 处理为纯透明高保真 PNG
+        const transparentPng = await processImageToTransparent(data.dataUrl);
+        setOsTransparentDataUrl(transparentPng);
+
+        // 默认同步到合同预览签名源
+        setContractSignatureUrl(transparentPng);
+
+        // 存入历史记录（内存里立即生效，同时落盘保留一个月）
+        const fontObj = YISHUZI_FONTS.find((f) => f.id === targetFont);
+        const fontName = fontObj ? fontObj.name : "一笔签";
+        const historyRecord: SignatureHistoryRecord = {
+          id: newHistoryId(),
           name: targetName,
-          fontName: fontObj ? fontObj.name : "一笔签",
+          fontName,
           url: data.dataUrl,
           transparentUrl: transparentPng,
-        },
-        ...prev.slice(0, 9),
-      ]);
+          savedAt: Date.now(),
+        };
+        setOsHistory((prev) => mergeSignatureHistory(prev, historyRecord));
 
-      toast({ title: "签名设计成功", description: `已为您生成「${targetName}」的一笔艺术签名`, variant: "success" });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "未能完成签名渲染";
-      toast({ title: "设计生成出错", description: msg, variant: "error" });
-    } finally {
-      setOsLoading(false);
-    }
-  }, [osName, osFontId, osColor, processImageToTransparent, toast]);
+        // 落盘是「尽力而为」：存储不可用、被禁用、写失败都不会影响界面上的历史列表，
+        // addSignatureHistoryRecord 内部已经把异常全部兜住（见 lib/signature-history-store.ts）。
+        // 刻意跳过自动生成的那一张默认签名：用户没主动生成，每次冷启动都会自动来一张，
+        // 存下来只会白白占位置。
+        if (persistToDisk) {
+          void addSignatureHistoryRecord({
+            id: historyRecord.id,
+            name: historyRecord.name,
+            fontName: historyRecord.fontName,
+            url: historyRecord.url,
+            transparentUrl: historyRecord.transparentUrl,
+          });
+        }
 
-  // 初次加载时自动为默认名字“芙宁娜”生成一笔签名
+        toast({ title: "签名设计成功", description: `已为您生成「${targetName}」的一笔艺术签名`, variant: "success" });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "未能完成签名渲染";
+        toast({ title: "设计生成出错", description: msg, variant: "error" });
+      } finally {
+        setOsLoading(false);
+      }
+    },
+    [osName, osFontId, osColor, processImageToTransparent, toast],
+  );
+
+  // 首次进入这个工具时自动为默认名字“芙宁娜”生成一笔签名。
+  // 但如果缓存里已经有用户上次的成果（生成过的一笔签 / 置入过合同预览的签名），就直接复用缓存里的图片：
+  // 既不重新请求接口，也不重新生成。否则用户切走再回来会看到刚被默认签名顶替的内容，
+  // 而且会白白多发一次网络请求（链接所有权见 releaseSignatureImage / rememberSignatureDraft）。
+  // 最后一个参数 false：这是系统自动生成的，不算用户的历史作品，不写进历史存储。
   useEffect(() => {
-    handleGenerateOneStroke("芙宁娜", "901", "#0000FF");
+    if (signatureDraftCache.osResultDataUrl || signatureDraftCache.contractSignatureUrl) return;
+    handleGenerateOneStroke("芙宁娜", "901", "#0000FF", false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 挂载时把落盘的历史设计灵感读回来（保留一个月，过期记录由存储层顺手清掉）。
+  // 本次会话里已经生成的记录排在前面，磁盘上的补在后面，同一枚签名（透明图链接相同）不重复。
+  // 读盘失败 / 存储不可用时返回空数组，这里的判断让界面保持原样，不受任何影响。
+  useEffect(() => {
+    let cancelled = false;
+    void loadSignatureHistory().then((saved) => {
+      if (cancelled || saved.length === 0) return;
+      setOsHistory((current) => {
+        const seen = new Set(current.map((item) => item.transparentUrl));
+        const restored = saved.filter((item) => !seen.has(item.transparentUrl));
+        if (restored.length === 0) return current;
+        return [...current, ...restored].slice(0, SIGNATURE_HISTORY_MAX_ENTRIES);
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // ===== 2. 本地字库签名重绘渲染逻辑 =====
@@ -735,74 +1059,56 @@ export function SignatureDesignerTool() {
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 pb-12">
-      {/* 顶部标题与功能定位 */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card/60 backdrop-blur-md border border-border/70 rounded-2xl p-6 shadow-sm">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="p-2 rounded-xl bg-primary/10 text-primary">
-              <PenTool className="w-6 h-6" />
-            </span>
-            <h1 className="text-2xl font-bold tracking-tight">艺术与电子签名设计器</h1>
-            <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-500 font-medium border border-blue-500/20">
-              极品连笔 · 手写板 · 合同预览
-            </span>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            融合一笔签名设计转换算法与平滑压感画布，一键生成飘逸连笔、国风印章与透明无白边高清 PNG。
-          </p>
-        </div>
-
-        {/* 顶部标签页切换 */}
-        <div className="flex items-center gap-1 bg-muted/60 p-1.5 rounded-xl border border-border/50 self-start md:self-auto">
-          <button
-            onClick={() => setActiveTab("onestroke")}
-            className={cn(
-              "flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium rounded-lg transition-all",
-              activeTab === "onestroke"
-                ? "bg-background text-foreground shadow-sm font-semibold text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            一笔签名设计
-          </button>
-          <button
-            onClick={() => setActiveTab("calligraphy")}
-            className={cn(
-              "flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium rounded-lg transition-all",
-              activeTab === "calligraphy"
-                ? "bg-background text-foreground shadow-sm font-semibold text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Stamp className="w-3.5 h-3.5" />
-            书法字库与印章
-          </button>
-          <button
-            onClick={() => setActiveTab("handwriting")}
-            className={cn(
-              "flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium rounded-lg transition-all",
-              activeTab === "handwriting"
-                ? "bg-background text-foreground shadow-sm font-semibold text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <PenTool className="w-3.5 h-3.5" />
-            自由手写板
-          </button>
-          <button
-            onClick={() => setActiveTab("contract")}
-            className={cn(
-              "flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium rounded-lg transition-all",
-              activeTab === "contract"
-                ? "bg-background text-foreground shadow-sm font-semibold text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <FileText className="w-3.5 h-3.5" />
-            合同实景预览
-          </button>
-        </div>
+      {/* 模式切换：一笔签名 / 书法字库 / 手写板 / 合同预览 */}
+      <div className="flex w-fit flex-wrap items-center gap-1 rounded-xl border border-border/50 bg-muted/60 p-1.5">
+        <button
+          onClick={() => setActiveTab("onestroke")}
+          className={cn(
+            "flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium rounded-lg transition-all",
+            activeTab === "onestroke"
+              ? "bg-background text-foreground shadow-sm font-semibold text-primary"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          一笔签名设计
+        </button>
+        <button
+          onClick={() => setActiveTab("calligraphy")}
+          className={cn(
+            "flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium rounded-lg transition-all",
+            activeTab === "calligraphy"
+              ? "bg-background text-foreground shadow-sm font-semibold text-primary"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Stamp className="w-3.5 h-3.5" />
+          书法字库与印章
+        </button>
+        <button
+          onClick={() => setActiveTab("handwriting")}
+          className={cn(
+            "flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium rounded-lg transition-all",
+            activeTab === "handwriting"
+              ? "bg-background text-foreground shadow-sm font-semibold text-primary"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <PenTool className="w-3.5 h-3.5" />
+          自由手写板
+        </button>
+        <button
+          onClick={() => setActiveTab("contract")}
+          className={cn(
+            "flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium rounded-lg transition-all",
+            activeTab === "contract"
+              ? "bg-background text-foreground shadow-sm font-semibold text-primary"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <FileText className="w-3.5 h-3.5" />
+          合同实景预览
+        </button>
       </div>
 
       {/* ========================================================================= */}
@@ -1065,17 +1371,20 @@ export function SignatureDesignerTool() {
               </div>
             </div>
 
-            {/* 近期生成记录 */}
+            {/* 近期生成记录（落盘保存，保留一个月） */}
             {osHistory.length > 0 && (
               <div className="bg-card/50 backdrop-blur-md border border-border/70 rounded-2xl p-4 shadow-sm space-y-3">
                 <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
                   <span>历史设计灵感 (快速换选)</span>
                   <span>{osHistory.length} 款记录</span>
                 </div>
+                <p className="text-[11px] leading-relaxed text-amber-600 dark:text-amber-400/90">
+                  历史签名会留存一个月，请及时保存
+                </p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {osHistory.map((item, idx) => (
+                  {osHistory.map((item) => (
                     <div
-                      key={idx}
+                      key={item.id}
                       onClick={() => {
                         setOsName(item.name);
                         setOsResultDataUrl(item.url);

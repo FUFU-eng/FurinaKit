@@ -162,8 +162,37 @@ function getChaosSequence(length: number, seed: number): number[] {
   return arr;
 }
 
+/** 混沌序列是否已经退化（取值几乎全都相同） */
+function isDegenerateSequence(seq: number[]): boolean {
+  if (seq.length < 2) return true;
+  let min = Infinity;
+  let max = -Infinity;
+  for (const v of seq) {
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  return !(max - min > 1e-12);
+}
+
 function getChaosPermutation(length: number, seed: number): number[] {
-  const seq = getChaosSequence(length, seed);
+  // 注意：logistic 映射在个别密钥下会退化。例如取 r=3.9999999 时不动点是
+  // x* = 1 - 1/r ≈ 0.74999999375，密钥填 0.75 迭代几十次后所有取值在 double 精度下
+  // 完全相同，排序结果就是「恒等置换」—— 界面提示"已加密"，实际一个像素都没动。
+  // 这里检测到退化就确定性地扰动密钥重试，保证同一密钥每次得到同一结果。
+  let currentSeed = seed;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const seq = getChaosSequence(length, currentSeed);
+    if (!isDegenerateSequence(seq)) {
+      const indices = Array.from({ length }, (_, i) => i);
+      indices.sort((a, b) => seq[a] - seq[b]);
+      return indices;
+    }
+    // 用黄金比例做确定性偏移，避免随机性（否则解混淆无法还原）
+    currentSeed = (currentSeed + 0.6180339887498949) % 1;
+    if (!(currentSeed > 0 && currentSeed < 1)) currentSeed = 0.6180339887498949;
+  }
+
+  const seq = getChaosSequence(length, currentSeed);
   const indices = Array.from({ length }, (_, i) => i);
   indices.sort((a, b) => seq[a] - seq[b]);
   return indices;
@@ -280,38 +309,46 @@ function processYbzj(
     }
   } else {
     // 方块混淆 (32x32 像素块置乱)
+    //
+    // 关键：只对「完整落在图像内的方块」做置换，右侧/底部不足一整块的边缘区域保持原样。
+    // 旧实现按 ceil(w/32) × ceil(h/32) 生成置换，但边缘的不完整方块「读」和「写」的矩形
+    // 不一致（写入范围由来源方块决定、读走范围由目标方块决定），于是有些像素在被覆盖之前
+    // 从未被搬到别处 —— 结果不可逆、永久丢像素，而界面却承诺「完全可逆、无损还原」。
+    // 限制在完整方块内之后，置换是这些方块之间的双射，scramble 与 restore 严格互逆。
     const blockSize = 32;
-    const bx = Math.ceil(w / blockSize);
-    const by = Math.ceil(h / blockSize);
-    const totalBlocks = bx * by;
-    const perm = getChaosPermutation(totalBlocks, seed);
+    const fullCols = Math.floor(w / blockSize);
+    const fullRows = Math.floor(h / blockSize);
+    const totalBlocks = fullCols * fullRows;
 
-    for (let bi = 0; bi < totalBlocks; bi++) {
-      const targetBi = perm[bi];
-      const srcBlock = mode === "scramble" ? bi : targetBi;
-      const dstBlock = mode === "scramble" ? targetBi : bi;
+    // 少于 2 个完整方块时置换没有意义（等价于原图），此时保持原样即可
+    if (totalBlocks >= 2) {
+      const perm = getChaosPermutation(totalBlocks, seed);
 
-      const srcBx = srcBlock % bx;
-      const srcBy = Math.floor(srcBlock / bx);
-      const dstBx = dstBlock % bx;
-      const dstBy = Math.floor(dstBlock / bx);
+      for (let bi = 0; bi < totalBlocks; bi++) {
+        const targetBi = perm[bi];
+        const srcBlock = mode === "scramble" ? bi : targetBi;
+        const dstBlock = mode === "scramble" ? targetBi : bi;
 
-      for (let py = 0; py < blockSize; py++) {
-        const sy = srcBy * blockSize + py;
-        const dy = dstBy * blockSize + py;
-        if (sy >= h || dy >= h) continue;
+        const srcBx = srcBlock % fullCols;
+        const srcBy = Math.floor(srcBlock / fullCols);
+        const dstBx = dstBlock % fullCols;
+        const dstBy = Math.floor(dstBlock / fullCols);
 
-        for (let px = 0; px < blockSize; px++) {
-          const sx = srcBx * blockSize + px;
-          const dx = dstBx * blockSize + px;
-          if (sx >= w || dx >= w) continue;
+        for (let py = 0; py < blockSize; py++) {
+          const sy = srcBy * blockSize + py;
+          const dy = dstBy * blockSize + py;
 
-          const s = (sy * w + sx) * 4;
-          const d = (dy * w + dx) * 4;
-          dst[d] = src[s];
-          dst[d + 1] = src[s + 1];
-          dst[d + 2] = src[s + 2];
-          dst[d + 3] = src[s + 3];
+          for (let px = 0; px < blockSize; px++) {
+            const sx = srcBx * blockSize + px;
+            const dx = dstBx * blockSize + px;
+
+            const s = (sy * w + sx) * 4;
+            const d = (dy * w + dx) * 4;
+            dst[d] = src[s];
+            dst[d + 1] = src[s + 1];
+            dst[d + 2] = src[s + 2];
+            dst[d + 3] = src[s + 3];
+          }
         }
       }
     }
@@ -332,24 +369,161 @@ interface ImageItem {
   error?: string;
 }
 
+// ==========================================================================
+// 模块级缓存：离开页面（切到别的工具、回首页）再回来时，恢复图片、混淆结果与参数。
+//
+// 为什么必须是模块级：File / Blob 无法序列化进 storage，组件卸载后 useState 就清空了。
+// 做法与 fileHideCache、imagesToPdfCache、tool-runner 的 toolDraftCache 一致。
+//
+// 为什么 object URL 也归缓存持有：原图与混淆结果的链接以前只会在「清空列表」时释放，
+// 组件卸载时既不释放（泄漏）也无法还原（回来一看链接可能已经断了）。
+// 现在链接统一归缓存持有，只在三种情况下释放：
+//   ① 那张图 / 那份结果被换成新的一份（重新选图、重新处理）
+//   ② 用户移除 / 清空列表
+//   ③ 缓存条目被淘汰
+// 判断依据是「上一份快照里的链接与新一份是否还是同一条」，不是每次保存都释放；
+// 恢复时直接复用缓存里的链接，绝不重新 createObjectURL。
+// ==========================================================================
+interface ObfuscateCacheEntry {
+  items: ImageItem[];
+  algoMode: "gilbert" | "ybzj";
+  direction: "scramble" | "restore";
+  ybzjType: "block" | "row_pixel" | "pixel" | "row_mode" | "row_col";
+  chaosKey: string;
+  selectedIndex: number;
+  sliderPos: number;
+}
+
+const OBFUSCATE_CACHE_KEY = "image-obfuscate";
+/** 最多保留 6 个条目，与 tool-runner 的 TOOL_DRAFT_LIMIT 对齐；本工具只用一个 key，实际只占 1 份 */
+const OBFUSCATE_CACHE_LIMIT = 6;
+const obfuscateCache = new Map<string, ObfuscateCacheEntry>();
+
+const OBFUSCATE_CACHE_DEFAULTS = {
+  algoMode: "gilbert" as "gilbert" | "ybzj",
+  direction: "scramble" as "scramble" | "restore",
+  ybzjType: "pixel" as "block" | "row_pixel" | "pixel" | "row_mode" | "row_col",
+  chaosKey: "0.666",
+  selectedIndex: 0,
+  sliderPos: 50,
+};
+
+/** 释放单张图片占用的 object URL；原图与结果是两条不同的链接，各释放一次 */
+function releaseObfuscateItem(item: ImageItem): void {
+  if (item.originalUrl) URL.revokeObjectURL(item.originalUrl);
+  if (item.processedUrl && item.processedUrl !== item.originalUrl) {
+    URL.revokeObjectURL(item.processedUrl);
+  }
+}
+
+/** 恢复用快照：浅拷贝一份，避免运行期的原地改动写进缓存 */
+function snapshotObfuscateItems(items: ImageItem[]): ImageItem[] {
+  return items.map((it) => ({ ...it }));
+}
+
+/** 从缓存恢复图片列表（处理中的项回退到「待处理」，免得回来时永远转圈） */
+function readObfuscateItems(): ImageItem[] {
+  const cached = obfuscateCache.get(OBFUSCATE_CACHE_KEY);
+  if (!cached) return [];
+  return snapshotObfuscateItems(cached.items).map((it) => ({
+    ...it,
+    status: it.status === "processing" ? "idle" : it.status,
+  }));
+}
+
+/** 从缓存恢复「当前查看第几张」，并夹在列表范围内，避免恢复后右侧空白 */
+function readObfuscateSelectedIndex(): number {
+  const cached = obfuscateCache.get(OBFUSCATE_CACHE_KEY);
+  if (!cached) return OBFUSCATE_CACHE_DEFAULTS.selectedIndex;
+  const max = cached.items.length - 1;
+  if (max < 0) return 0;
+  return Math.min(Math.max(0, cached.selectedIndex), max);
+}
+
+/** 写入缓存：先释放被替换 / 被移除的链接，再按最近使用顺序存入并做上限淘汰 */
+function rememberObfuscateEntry(key: string, entry: ObfuscateCacheEntry): void {
+  const previous = obfuscateCache.get(key);
+
+  if (previous) {
+    const nextById = new Map(entry.items.map((it) => [it.id, it]));
+    previous.items.forEach((prevItem) => {
+      const nextItem = nextById.get(prevItem.id);
+      if (!nextItem) {
+        // 用户移除单项 / 清空列表
+        releaseObfuscateItem(prevItem);
+        return;
+      }
+      // 原图换了新的一份才释放旧链接
+      if (prevItem.originalUrl !== nextItem.originalUrl) {
+        URL.revokeObjectURL(prevItem.originalUrl);
+      }
+      // 结果换了新的一份才释放旧链接（重新处理 / 重新选图都会换）
+      if (
+        prevItem.processedUrl &&
+        prevItem.processedUrl !== prevItem.originalUrl &&
+        prevItem.processedUrl !== nextItem.processedUrl
+      ) {
+        URL.revokeObjectURL(prevItem.processedUrl);
+      }
+    });
+  }
+
+  // 先删再存：让 Map 的迭代顺序等于「最近使用顺序」
+  obfuscateCache.delete(key);
+  obfuscateCache.set(key, { ...entry, items: snapshotObfuscateItems(entry.items) });
+
+  while (obfuscateCache.size > OBFUSCATE_CACHE_LIMIT) {
+    const oldestKey = obfuscateCache.keys().next().value;
+    if (oldestKey === undefined) break;
+    const oldest = obfuscateCache.get(oldestKey);
+    if (oldest) oldest.items.forEach((it) => releaseObfuscateItem(it));
+    obfuscateCache.delete(oldestKey);
+  }
+}
+
 export function ImageObfuscateTool() {
   const { toast } = useToast();
-  const [algoMode, setAlgoMode] = useState<"gilbert" | "ybzj">("gilbert");
-  const [direction, setDirection] = useState<"scramble" | "restore">("scramble");
+  const [algoMode, setAlgoMode] = useState<"gilbert" | "ybzj">(
+    () => obfuscateCache.get(OBFUSCATE_CACHE_KEY)?.algoMode ?? OBFUSCATE_CACHE_DEFAULTS.algoMode
+  );
+  const [direction, setDirection] = useState<"scramble" | "restore">(
+    () => obfuscateCache.get(OBFUSCATE_CACHE_KEY)?.direction ?? OBFUSCATE_CACHE_DEFAULTS.direction
+  );
 
   // YBZJ 设置
-  const [ybzjType, setYbzjType] = useState<"block" | "row_pixel" | "pixel" | "row_mode" | "row_col">("pixel");
-  const [chaosKey, setChaosKey] = useState("0.666");
+  const [ybzjType, setYbzjType] = useState<"block" | "row_pixel" | "pixel" | "row_mode" | "row_col">(
+    () => obfuscateCache.get(OBFUSCATE_CACHE_KEY)?.ybzjType ?? OBFUSCATE_CACHE_DEFAULTS.ybzjType
+  );
+  const [chaosKey, setChaosKey] = useState<string>(
+    () => obfuscateCache.get(OBFUSCATE_CACHE_KEY)?.chaosKey ?? OBFUSCATE_CACHE_DEFAULTS.chaosKey
+  );
 
-  // 批量图片列表与当前选中项
-  const [items, setItems] = useState<ImageItem[]>([]);
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  // 批量图片列表与当前选中项（挂载时从模块级缓存恢复）
+  const [items, setItems] = useState<ImageItem[]>(() => readObfuscateItems());
+  const [selectedIndex, setSelectedIndex] = useState<number>(() => readObfuscateSelectedIndex());
   const [isProcessing, setIsProcessing] = useState(false);
 
   // 对比滑块
-  const [sliderPos, setSliderPos] = useState(50);
+  const [sliderPos, setSliderPos] = useState<number>(
+    () => obfuscateCache.get(OBFUSCATE_CACHE_KEY)?.sliderPos ?? OBFUSCATE_CACHE_DEFAULTS.sliderPos
+  );
   const [isDragging, setIsDragging] = useState(false);
   const compareRef = useRef<HTMLDivElement>(null);
+
+  // 离开本工具（组件卸载）时不做任何释放 —— 原图与结果的链接归缓存持有，
+  // 这样回来时预览、对比滑块、下载按钮都还能用。释放时机见 rememberObfuscateEntry()。
+  // 每次变化都写回缓存，保证离开时缓存里是最新的。
+  useEffect(() => {
+    rememberObfuscateEntry(OBFUSCATE_CACHE_KEY, {
+      items,
+      algoMode,
+      direction,
+      ybzjType,
+      chaosKey,
+      selectedIndex,
+      sliderPos,
+    });
+  }, [items, algoMode, direction, ybzjType, chaosKey, selectedIndex, sliderPos]);
 
   const updateSlider = useCallback((clientX: number) => {
     if (!compareRef.current) return;
@@ -411,12 +585,9 @@ export function ImageObfuscateTool() {
     });
   };
 
-  // 清空
+  // 清空列表：这里不再手动 revoke —— 链接归缓存所有，setItems([]) 之后由
+  // rememberObfuscateEntry 判定「上一份有、新一份没有」统一释放，恰好一次。
   const handleClearAll = () => {
-    items.forEach((it) => {
-      if (it.originalUrl) URL.revokeObjectURL(it.originalUrl);
-      if (it.processedUrl) URL.revokeObjectURL(it.processedUrl);
-    });
     setItems([]);
     setSelectedIndex(0);
   };
@@ -544,54 +715,32 @@ export function ImageObfuscateTool() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      {/* 顶部标题栏 */}
-      <div className="rounded-2xl border border-border/40 bg-card/60 p-6 backdrop-blur-md shadow-sm">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500/20 to-sky-500/20 text-indigo-500 border border-indigo-500/30">
-              <Shuffle className="h-6 w-6" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
-                图片混淆与加密还原
-                <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 font-medium">
-                  双引擎全功能
-                </span>
-              </h1>
-              <p className="text-xs text-muted-foreground">
-                支持空间填充曲线置乱与 YBZJ 混沌像素映射两大核心算法，数学级完全可逆，支持自定义加密密钥
-              </p>
-            </div>
-          </div>
-
-          {/* 方向选择器：混淆 vs 解密还原 */}
-          <div className="flex rounded-xl bg-muted/60 p-1 border border-border/40">
-            <button
-              onClick={() => setDirection("scramble")}
-              className={cn(
-                "flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg transition-all",
-                direction === "scramble"
-                  ? "bg-indigo-500 text-white shadow-sm font-bold"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Shuffle className="h-3.5 w-3.5" />
-              混淆打乱 (加密)
-            </button>
-            <button
-              onClick={() => setDirection("restore")}
-              className={cn(
-                "flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg transition-all",
-                direction === "restore"
-                  ? "bg-emerald-500 text-white shadow-sm font-bold"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              解混淆还原 (解密)
-            </button>
-          </div>
-        </div>
+      {/* 方向切换：混淆打乱 / 解混淆还原 */}
+      <div className="flex w-fit rounded-xl bg-muted/60 p-1 border border-border/40">
+        <button
+          onClick={() => setDirection("scramble")}
+          className={cn(
+            "flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg transition-all",
+            direction === "scramble"
+              ? "bg-indigo-500 text-white shadow-sm font-bold"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Shuffle className="h-3.5 w-3.5" />
+          混淆打乱 (加密)
+        </button>
+        <button
+          onClick={() => setDirection("restore")}
+          className={cn(
+            "flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg transition-all",
+            direction === "restore"
+              ? "bg-emerald-500 text-white shadow-sm font-bold"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Sparkles className="h-3.5 w-3.5" />
+          解混淆还原 (解密)
+        </button>
       </div>
 
       {/* 算法模式与参数控制卡片 */}

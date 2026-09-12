@@ -340,24 +340,6 @@ export function BgRemoveTool() {
 
   return (
     <div className="space-y-5 max-w-5xl mx-auto">
-      {/* 顶部标题与提示 */}
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-xs flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="text-base font-bold text-foreground flex items-center gap-2">
-            <Sparkles size={18} className="text-primary" />
-            AI 一键抠图、移除图片背景
-          </h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            基于领先的深度学习 AI 模型，精准识别并保留人像、商品、素材等主体元素，支持在线比对与底色自由切换
-          </p>
-        </div>
-        {result && (
-          <Button variant="outline" size="sm" onClick={reset} className="gap-1.5 text-xs">
-            <RotateCcw size={13} /> 上传新图
-          </Button>
-        )}
-      </div>
-
       {!result && (
         <div className="space-y-4">
           <FileDropzone
@@ -419,9 +401,14 @@ export function BgRemoveTool() {
           <div className="rounded-2xl border border-border bg-card p-4 shadow-xs space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs font-bold text-foreground">背景底色切换</span>
-              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-                <Check size={14} /> 抠图完成 · {formatBytes(result.size)}
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                  <Check size={14} /> 抠图完成 · {formatBytes(result.size)}
+                </span>
+                <Button variant="outline" size="sm" onClick={reset} className="gap-1.5 text-xs">
+                  <RotateCcw size={13} /> 上传新图
+                </Button>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 pt-1">

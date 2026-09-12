@@ -50,7 +50,8 @@ import {
   Wrench,
   Code,
   Type,
-  Hash,
+  Sigma,
+  Shield,
   Search,
   Moon,
   Sun,
@@ -80,18 +81,111 @@ interface NavItem {
   isCategory: boolean;
 }
 
+// 侧边栏最多放 12 行（含「全部工具」与「我的收藏」），所以分类固定为 10 个。
+// 顺序 = 使用频率：先四类「按文件类型找」的（图片/视频/音频/PDF），再六类「按做什么找」的。
 const NAV_ITEMS: NavItem[] = [
-  { key: "all", label: "全部工具", icon: LayoutGrid, color: "#6366f1", href: "/", isCategory: false },
+  { key: "all", label: "全部工具", icon: LayoutGrid, color: "#8b5cf6", href: "/", isCategory: false },
   { key: "favorites", label: "我的收藏", icon: Heart, color: "#ec4899", href: "/favorites", isCategory: false },
   { key: "image", label: "图片工具", icon: ImageIcon, color: "#0ea5e9", href: "/?c=image", isCategory: true },
   { key: "download", label: "视频工具", icon: Download, color: "#f59e0b", href: "/?c=download", isCategory: true },
-  { key: "utility", label: "实用生活", icon: Wrench, color: "#f472b6", href: "/?c=utility", isCategory: true },
-  { key: "pdf", label: "PDF 工具", icon: FileText, color: "#10b981", href: "/?c=pdf", isCategory: true },
   { key: "audio", label: "音频工具", icon: Music, color: "#a855f7", href: "/?c=audio", isCategory: true },
-  { key: "text", label: "文本办公", icon: Type, color: "#14b8a6", href: "/?c=text", isCategory: true },
-  { key: "dev", label: "开发运维", icon: Code, color: "#6366f1", href: "/?c=dev", isCategory: true },
-  { key: "encode", label: "密码编码", icon: Hash, color: "#f97316", href: "/?c=encode", isCategory: true },
+  { key: "pdf", label: "PDF 工具", icon: FileText, color: "#10b981", href: "/?c=pdf", isCategory: true },
+  { key: "text", label: "文本工具", icon: Type, color: "#14b8a6", href: "/?c=text", isCategory: true },
+  { key: "mathcalc", label: "数理工具", icon: Sigma, color: "#7c3aed", href: "/?c=mathcalc", isCategory: true },
+  { key: "dev", label: "开发工具", icon: Code, color: "#3b82f6", href: "/?c=dev", isCategory: true },
+  { key: "security", label: "编码安全", icon: Shield, color: "#ef4444", href: "/?c=security", isCategory: true },
+  { key: "utility", label: "生活办公", icon: Wrench, color: "#f97316", href: "/?c=utility", isCategory: true },
 ];
+
+/**
+ * ── 顶部搜索的匹配与排序核心 ──────────────────────────────────────────
+ * 这一整段是纯函数（不碰 React、不碰 DOM），改动后请同步跑一下单测。
+ *
+ * 排序规则（越靠前越相关）：
+ *   0 名称以关键字开头 → 1 名称包含 → 2 id 包含 → 3 描述或分类包含
+ * 同一档内保持 tools 数组原有顺序（Array.prototype.sort 自 ES2019 起保证稳定）。
+ *
+ * 之所以要排序：以前是「谁在 tools 数组里靠前谁先出」，而候选又被截断到 8 条，
+ * 于是像「Markdown 转 PDF」这种追加在数组末尾的新工具，搜 pdf 时会被前面的
+ * PDF 系列挤掉、根本进不了候选列表。
+ */
+// #region fk-search-core
+export type SearchableTool = {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+};
+
+export type ToolSearchHit<T extends SearchableTool = SearchableTool> = {
+  tool: T;
+  /** 命中档位，见上方排序规则；未命中不会出现在结果里 */
+  rank: number;
+  /** 名称里的命中区间，用来做高亮；名称没命中时为 null */
+  nameRange: [number, number] | null;
+  /** 描述里的命中区间，用来做高亮；没命中时为 null */
+  descriptionRange: [number, number] | null;
+};
+
+/** 候选上限：下拉框本身是 max-h-80 + overflow-y-auto，可以滚动，放宽到 20 条即可。 */
+export const SEARCH_RESULT_LIMIT = 20;
+
+/** 大小写不敏感的子串定位，找不到返回 -1 */
+export function indexOfLoose(haystack: string, needle: string): number {
+  return haystack.toLowerCase().indexOf(needle.toLowerCase());
+}
+
+/** 命中档位；未命中返回 -1 */
+export function rankToolMatch(tool: SearchableTool, rawQuery: string): number {
+  const q = rawQuery.trim().toLowerCase();
+  if (!q) return -1;
+  const name = tool.name.toLowerCase();
+  if (name.startsWith(q)) return 0;
+  if (name.includes(q)) return 1;
+  if (tool.id.toLowerCase().includes(q)) return 2;
+  if (tool.description.toLowerCase().includes(q)) return 3;
+  const categoryLabel = CATEGORY_LABELS[tool.category as ToolCategory];
+  if (categoryLabel && categoryLabel.toLowerCase().includes(q)) return 3;
+  return -1;
+}
+
+export function searchTools<T extends SearchableTool>(
+  tools: readonly T[],
+  query: string,
+  limit: number = SEARCH_RESULT_LIMIT,
+): ToolSearchHit<T>[] {
+  const q = query.trim();
+  if (!q || limit <= 0) return [];
+  const hits: ToolSearchHit<T>[] = [];
+  for (const tool of tools) {
+    const rank = rankToolMatch(tool, q);
+    if (rank < 0) continue;
+    const nameAt = indexOfLoose(tool.name, q);
+    const descAt = indexOfLoose(tool.description, q);
+    hits.push({
+      tool,
+      rank,
+      nameRange: nameAt >= 0 ? [nameAt, nameAt + q.length] : null,
+      descriptionRange: descAt >= 0 ? [descAt, descAt + q.length] : null,
+    });
+  }
+  return hits.sort((a, b) => a.rank - b.rank).slice(0, limit);
+}
+// #endregion fk-search-core
+
+/** 把命中的那一段用 <mark> 标出来（主题色，三套主题自适应，不用 dangerouslySetInnerHTML） */
+function HighlightedText({ text, range }: { text: string; range: [number, number] | null }) {
+  if (!range) return <>{text}</>;
+  const [start, end] = range;
+  if (start < 0 || start >= end || end > text.length) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, start)}
+      <mark className="rounded-[3px] bg-primary/25 px-px text-inherit">{text.slice(start, end)}</mark>
+      {text.slice(end)}
+    </>
+  );
+}
 
 const COLLAPSE_KEY = "furina:sidebar-collapsed";
 
@@ -113,32 +207,34 @@ function TopSearchBar() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  /** 候选按钮的 ref：键盘上下选择时要把选中项滚进可视区（候选放宽到 20 条后尤其需要） */
+  const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const tools = useMemo(() => getAvailableTools().filter((t) => !t.comingSoon), []);
 
-  const results = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    return tools
-      .filter((t) => {
-        return (
-          t.name.toLowerCase().includes(q) ||
-          t.description.toLowerCase().includes(q) ||
-          t.id.toLowerCase().includes(q) ||
-          (CATEGORY_LABELS[t.category] && CATEGORY_LABELS[t.category].toLowerCase().includes(q))
-        );
-      })
-      .slice(0, 8);
-  }, [query, tools]);
+  // 过滤 + 按相关性排序 + 截断（纯函数在文件顶部 fk-search-core 区，单独有单测）
+  const results = useMemo(() => searchTools(tools, query), [query, tools]);
 
-  // 全局快捷键 Ctrl+K 聚焦输入框直接打字
+  // 结果集变小（继续打字）时把选中项夹回范围内，避免 Enter 落到空处
+  useEffect(() => {
+    setSelectedIndex((prev) => (prev < results.length ? prev : 0));
+  }, [results]);
+
+  // 全局快捷键 Ctrl+空格 聚焦输入框直接打字（Ctrl+K 作为老习惯保留，主推 Ctrl+空格）
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        inputRef.current?.focus();
-        inputRef.current?.select();
-      }
+      // 主键是 Ctrl+空格：用 e.code === "Space" 判断物理空格键，同时排除
+      // Ctrl+Shift+空格（输入法全角空格）与 Ctrl+Alt+空格（部分键盘布局的 AltGr）。
+      const isSpace = e.code === "Space" && !e.shiftKey && !e.altKey;
+      const isLegacyK = e.code === "KeyK";
+      if (!((e.ctrlKey || e.metaKey) && (isSpace || isLegacyK))) return;
+      e.preventDefault();
+      inputRef.current?.focus();
+      inputRef.current?.select();
+      // 用下拉选过一个工具之后，输入框仍然带着 DOM 焦点，这时再按快捷键调
+      // .focus() 不会触发 focus 事件，React 里的 focused 会一直停在 false ——
+      // 于是「能打字但下拉不出来」。这里显式置为 true。
+      setFocused(true);
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
@@ -161,19 +257,36 @@ function TopSearchBar() {
     router.push(`/tools/${toolId}`);
   };
 
+  /**
+   * 上下键移动选中项。循环语义与原来完全一致，只是额外把选中项滚进可视区 ——
+   * 候选放宽到 20 条后，光靠 bg-accent 高亮而列表不滚动，选中项会跑到视野外面去。
+   * 鼠标悬停（onMouseEnter）不触发滚动，避免和用户自己滚轮打架。
+   */
+  const moveSelection = (delta: number) => {
+    if (!results.length) {
+      setSelectedIndex(0);
+      return;
+    }
+    const next = (selectedIndex + delta + results.length) % results.length;
+    setSelectedIndex(next);
+    requestAnimationFrame(() => {
+      itemRefs.current[next]?.scrollIntoView({ block: "nearest" });
+    });
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
       setFocused(false);
       inputRef.current?.blur();
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
-      setSelectedIndex((prev) => (results.length ? (prev + 1) % results.length : 0));
+      moveSelection(1);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setSelectedIndex((prev) => (results.length ? (prev - 1 + results.length) % results.length : 0));
+      moveSelection(-1);
     } else if (e.key === "Enter" && results.length > 0) {
       e.preventDefault();
-      handleSelect(results[selectedIndex]?.id || results[0].id);
+      handleSelect(results[selectedIndex]?.tool.id || results[0].tool.id);
     }
   };
 
@@ -192,9 +305,10 @@ function TopSearchBar() {
             setSelectedIndex(0);
           }}
           onFocus={() => setFocused(true)}
+          onClick={() => setFocused(true)}
           onKeyDown={handleKeyDown}
-          placeholder="搜索工具 (Ctrl+K)..."
-          className="h-9 w-full rounded-xl border border-input bg-card pl-9 pr-8 text-xs text-foreground placeholder:text-muted-foreground/60 transition-all duration-200 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+          placeholder="搜索工具 (Ctrl+空格)..."
+          className="h-9 w-full rounded-xl border border-input bg-card pl-9 pr-[3.75rem] text-xs text-foreground placeholder:text-muted-foreground/60 transition-all duration-200 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
         {query ? (
           <button
@@ -209,7 +323,7 @@ function TopSearchBar() {
           </button>
         ) : (
           <kbd className="absolute right-2 pointer-events-none rounded border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground">
-            Ctrl K
+            Ctrl 空格
           </kbd>
         )}
       </div>
@@ -221,12 +335,16 @@ function TopSearchBar() {
               未找到匹配的工具
             </div>
           ) : (
-            results.map((tool, index) => {
+            results.map((hit, index) => {
               const isSelected = index === selectedIndex;
+              const tool = hit.tool;
               return (
                 <button
                   key={tool.id}
                   type="button"
+                  ref={(el) => {
+                    itemRefs.current[index] = el;
+                  }}
                   onClick={() => handleSelect(tool.id)}
                   onMouseEnter={() => setSelectedIndex(index)}
                   className={cn(
@@ -236,12 +354,16 @@ function TopSearchBar() {
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold">{tool.name}</span>
+                      <span className="text-xs font-semibold">
+                        <HighlightedText text={tool.name} range={hit.nameRange} />
+                      </span>
                       <span className="rounded bg-primary/10 px-1.5 py-0.2 text-[10px] text-primary">
                         {CATEGORY_LABELS[tool.category]}
                       </span>
                     </div>
-                    <p className="truncate text-[11px] text-muted-foreground">{tool.description}</p>
+                    <p className="truncate text-[11px] text-muted-foreground">
+                      <HighlightedText text={tool.description} range={hit.descriptionRange} />
+                    </p>
                   </div>
                 </button>
               );

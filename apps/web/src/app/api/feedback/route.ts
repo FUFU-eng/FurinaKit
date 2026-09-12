@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
 import { getStoragePath } from "@/lib/storage";
+import { guardApiRequest } from "@/lib/api-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,8 @@ interface FeedbackPayload {
 }
 
 export async function POST(req: Request) {
+  const denied = guardApiRequest(req);
+  if (denied) return denied;
   try {
     const body: FeedbackPayload = await req.json();
     const content = (body.content || "").trim();
@@ -90,7 +93,9 @@ export async function POST(req: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = guardApiRequest(request);
+  if (denied) return denied;
   try {
     const storagePath = getStoragePath();
     const feedbackFile = path.join(storagePath, "feedback_history.json");

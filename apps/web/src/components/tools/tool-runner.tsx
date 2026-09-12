@@ -42,18 +42,17 @@ import { trackToolUsage } from "@/lib/analytics";
 // 大量纯前端小工具
 import {
   RmbUppercaseTool, LoanCalculatorTool, BmiCalculatorTool, BaseConverterTool,
-  ByteConverterTool, WordCountTool, TextDedupTool, MorseCodeTool, CaesarCipherTool,
+  WordCountTool, TextDedupTool, MorseCodeTool, CaesarCipherTool,
   UuidGeneratorTool, TimestampConverterTool, PasswordGeneratorTool, RandomNumberTool,
-  DateCalculatorTool, LengthConverterTool,
-  TimeConverterTool, AreaConverterTool, WeightConverterTool, TextReplaceTool,
+  DateCalculatorTool, TextReplaceTool,
   FullwidthHalfwidthTool, AesEncryptTool, RomanNumeralTool, CrontabGeneratorTool,
   CreditCardCalculatorTool,
-  EnglishAmountUppercaseTool, NumberEnglishTool, ExchangeRateTool, GeometryCalculatorTool,
-  VolumeConverterTool, LunarCalendarTool, TextCompareTool,
+  EnglishAmountUppercaseTool, NumberEnglishTool, ExchangeRateTool,
+  LunarCalendarTool, TextCompareTool,
   FancyTextTool, PinyinConverterTool, ShaHashTool, UnicodeConverterTool, GuidGeneratorTool,
   JsonToTsTool, UserAgentAnalyzerTool, QrDecoderTool, PeriodicTableTool, ImageBase64Tool,
-  CrcChecksumTool, FileHexTool, StopwatchTool, SpecialSymbolsTool,
-  UnitConverterTool, BatchRenameTool, MindMapTool,
+  CrcChecksumTool, FileHexTool, SpecialSymbolsTool,
+  BatchRenameTool, MindMapTool,
   JsFormatterTool, HtmlFormatterTool, CaseConverterTool, DateConverterTool,
   IpConverterTool, HttpStatusTool, ScatterChartTool, PieChartTool, LineChartTool, BarChartTool,
 } from "@/components/tools/simple-tools";
@@ -63,6 +62,35 @@ import {
 import { ArchprTool } from "@/components/tools/archpr-tool";
 import { AdvancedCalculatorTool } from "@/components/tools/calculator-tool";
 import { SignatureDesignerTool } from "@/components/tools/signature-tool";
+import { JsonYamlTool, JsonXmlTool, JsonCsvTool } from "@/components/tools/format-convert-tools";
+import { DnsLookupTool, SslCheckerTool, UrlParserTool, ImageExifTool } from "@/components/tools/net-query-tools";
+import { CssGradientTool, SvgOptimizeTool, AsciiArtTool } from "@/components/tools/dev-format-tools";
+import {
+  VideoTrimTool,
+  AudioTrimTool,
+  VideoThumbnailTool as VideoFrameExtractTool,
+  CsvExcelTool,
+  MarkdownToPdfTool,
+} from "@/components/tools/media-sheet-tools";
+import {
+  CssFormatterTool,
+  SqlFormatterTool,
+  CodeMinifyTool,
+  JsonSchemaTool,
+} from "@/components/tools/dev-code-tools";
+import {
+  PomodoroTool,
+  BusinessCardTool,
+  WordCloudTool,
+  PerlerBeadsTool,
+} from "@/components/tools/fun-tools";
+import { GeometryCalculatorTool } from "@/components/tools/geometry-tools";
+import { TimeToolboxTool } from "@/components/tools/time-toolbox-tools";
+import { FunctionGraphTool } from "@/components/tools/math-graph-tools";
+import { AdvancedMathTool } from "@/components/tools/advanced-math-tools";
+import { TradeCalculatorTool } from "@/components/tools/trade-calculator-tools";
+import { UnitConvertTool } from "@/components/tools/unit-convert-tools";
+import { TranslatorTool } from "@/components/tools/translate-tools";
 import { useRecentTools, loadToolSettings, saveToolSettings } from "@/lib/use-tool-prefs";
 import { consumePendingFiles } from "@/lib/file-handoff";
 import { useToast } from "@/components/ui/toast";
@@ -91,14 +119,12 @@ const CLIENT_TOOL_COMPONENTS: Record<string, React.ComponentType> = {
   // simple-tools
   "rmb-uppercase": RmbUppercaseTool, "loan-calculator": LoanCalculatorTool,
   "bmi-calculator": BmiCalculatorTool, "base-converter": BaseConverterTool,
-  "byte-converter": ByteConverterTool, "word-count": WordCountTool,
+  "word-count": WordCountTool,
   "text-dedup": TextDedupTool, "morse-code": MorseCodeTool,
   "caesar-cipher": CaesarCipherTool, "uuid-generator": UuidGeneratorTool,
   "timestamp-converter": TimestampConverterTool, "password-generator": PasswordGeneratorTool,
   "random-number": RandomNumberTool, "simple-calculator": AdvancedCalculatorTool,
   "date-calculator": DateCalculatorTool,
-  "length-converter": LengthConverterTool, "time-converter": TimeConverterTool,
-  "area-converter": AreaConverterTool, "weight-converter": WeightConverterTool,
   "text-replace": TextReplaceTool, "fullwidth-halfwidth": FullwidthHalfwidthTool,
   "aes-encrypt": AesEncryptTool, "roman-numeral": RomanNumeralTool,
   "crontab-generator": CrontabGeneratorTool,
@@ -106,17 +132,21 @@ const CLIENT_TOOL_COMPONENTS: Record<string, React.ComponentType> = {
   "func-calc": FunctionCalculatorTool,
   "credit-card-calculator": CreditCardCalculatorTool,
   "english-amount-uppercase": EnglishAmountUppercaseTool, "number-english": NumberEnglishTool,
-  "exchange-rate": ExchangeRateTool, "geometry-calculator": GeometryCalculatorTool,
-  "volume-converter": VolumeConverterTool, "lunar-calendar": LunarCalendarTool,
+  "exchange-rate": ExchangeRateTool,
+  // geometry-calculator 用新组件（见上方 import），旧版已从 simple-tools 删除
+  "lunar-calendar": LunarCalendarTool,
   "text-compare": TextCompareTool,
   "fancy-text": FancyTextTool, "pinyin-converter": PinyinConverterTool,
   "sha-hash": ShaHashTool, "unicode-converter": UnicodeConverterTool,
   "guid-generator": GuidGeneratorTool, "json-to-ts": JsonToTsTool,
   "user-agent-analyzer": UserAgentAnalyzerTool, "qr-decoder": QrDecoderTool,
   "periodic-table": PeriodicTableTool, "image-base64": ImageBase64Tool,
-  "crc-checksum": CrcChecksumTool, "file-hex": FileHexTool, "stopwatch": StopwatchTool,
+  "crc-checksum": CrcChecksumTool,
+  "file-hex": FileHexTool,
+  // stopwatch 已被「时间管理大师」(time-toolbox) 取代，见新组件 import
   "special-symbols": SpecialSymbolsTool,
-  "unit-converter": UnitConverterTool, "batch-rename": BatchRenameTool,
+  // 7 个零散的单位转换工具已整合成「单位换算」，见下方 unit-converter
+  "batch-rename": BatchRenameTool,
   "mind-map": MindMapTool,
   // 新增开发/文本/网络工具
   "js-formatter": JsFormatterTool, "html-formatter": HtmlFormatterTool,
@@ -129,6 +159,30 @@ const CLIENT_TOOL_COMPONENTS: Record<string, React.ComponentType> = {
   "color-palette": ColorPaletteTool, "media-tracker": MediaTrackerTool,
   "archpr": ArchprTool,
   "signature-designer": SignatureDesignerTool,
+  // 格式转换（纯浏览器本地完成）
+  "json-yaml": JsonYamlTool, "json-xml": JsonXmlTool, "json-csv": JsonCsvTool,
+  // 开发/网络查询类（各自量身定制的界面：记录卡 / 状态卡 / 部件高亮 / 分块字段表）
+  "dns-lookup": DnsLookupTool, "ssl-checker": SslCheckerTool,
+  "url-parser": UrlParserTool, "image-exif": ImageExifTool,
+  // 开发/生成类（实时预览 / 前后对比 / 边打边出图）
+  "css-gradient": CssGradientTool, "svg-optimize": SvgOptimizeTool, "ascii-art": AsciiArtTool,
+  // 音视频处理与文档格式转换（本地引擎异步任务）
+  "video-trim": VideoTrimTool, "audio-trim": AudioTrimTool, "video-frame-extract": VideoFrameExtractTool,
+  "csv-excel": CsvExcelTool, "markdown-to-pdf": MarkdownToPdfTool,
+  // 开发/代码处理（纯浏览器本地完成）
+  "css-format": CssFormatterTool, "sql-format": SqlFormatterTool,
+  "code-minify": CodeMinifyTool, "json-schema-validate": JsonSchemaTool,
+  // 趣味与生活小工具（纯浏览器本地完成）
+  "pomodoro": PomodoroTool, "business-card": BusinessCardTool,
+  "word-cloud": WordCloudTool, "perler-beads": PerlerBeadsTool,
+  // 数学与时间（各自量身定制的工作台）
+  "geometry-calculator": GeometryCalculatorTool,
+  "function-graph": FunctionGraphTool,
+  "advanced-math": AdvancedMathTool,
+  "time-toolbox": TimeToolboxTool,
+  "trade-calculator": TradeCalculatorTool,
+  "unit-converter": UnitConvertTool,
+  "translator": TranslatorTool,
 };
 
 type SyncResultState = {
@@ -331,13 +385,126 @@ export function ToolRunner({ toolId }: ToolRunnerProps) {
 
 type Tool = NonNullable<ReturnType<typeof getToolById>>;
 
+/**
+ * 按工具缓存「用户还没提交完的输入」。
+ *
+ * 需求：在工具 A 上传了图片，切到工具 B 再切回 A，A 应该还是离开时的样子；
+ * 同时每个工具必须互相独立 —— 切到 B 时不该看到 A 的文件和结果。
+ *
+ * File 对象无法序列化进 localStorage / sessionStorage，所以这里用模块级缓存：
+ * 应用内切换工具、回首页再进来都能恢复；整页刷新（F5）会丢失，这是 File 的固有限制。
+ * 只缓存「文件选择」，不缓存运行结果：结果的预览用的是 object URL，
+ * 组件卸载时会被释放，缓存下来只会得到一个失效的链接。
+ */
+type ToolDraft = {
+  files: File[];
+  multiFiles: File[];
+  /** 上一次的执行结果（同步工具的产出）。异步工具的产出靠 jobId 恢复，不走这里。 */
+  result: SyncResultState | null;
+};
+
+/** 只保留最近用过的几个工具，避免长时间使用把文件对象与结果都攥在手里 */
+const TOOL_DRAFT_LIMIT = 6;
+const toolDraftCache = new Map<string, ToolDraft>();
+
+/**
+ * 释放某份草稿里结果所占用 object URL。
+ *
+ * 结果里 url / beforeUrl 是 URL.createObjectURL 的产物，不释放就会把整份 Blob 钉在内存里。
+ * 现在这些链接的「所有权」归草稿缓存：只有确认要被替换或被淘汰时才释放，
+ * 这样组件卸载（切到别的工具、回首页）之后链接依然有效，回来时结果还能正常显示与下载。
+ */
+function releaseDraftResult(draft: ToolDraft | undefined): void {
+  if (!draft?.result) return;
+  if (draft.result.url) URL.revokeObjectURL(draft.result.url);
+  if (draft.result.beforeUrl) URL.revokeObjectURL(draft.result.beforeUrl);
+}
+
+function rememberToolDraft(toolId: string, draft: ToolDraft): void {
+  const previous = toolDraftCache.get(toolId);
+
+  // 结果被换成新的一份（或清空）时，释放旧结果占用的 URL，避免泄漏
+  if (previous?.result && previous.result !== draft.result) {
+    releaseDraftResult(previous);
+  }
+
+  // 先删再存：让 Map 的迭代顺序等于「最近使用顺序」，便于淘汰最旧的
+  toolDraftCache.delete(toolId);
+  toolDraftCache.set(toolId, draft);
+
+  while (toolDraftCache.size > TOOL_DRAFT_LIMIT) {
+    const oldest = toolDraftCache.keys().next().value;
+    if (oldest === undefined) break;
+    releaseDraftResult(toolDraftCache.get(oldest));
+    toolDraftCache.delete(oldest);
+  }
+}
+
+/**
+ * 通用表单里「纯文本输入」的草稿（按工具 + 字段名分开存）。
+ *
+ * 为什么单独用 sessionStorage：File 与 Blob 没法序列化，但文本可以 —— 存一份
+ * 就能让用户切走再回来、甚至按 F5 都不丢输入。
+ * 为什么内存里再放一份：读起来是同步零成本的，而且能避免大段文本（比如粘贴几十万
+ * 字的 JSON）每次按键都写一次 sessionStorage 卡住界面 —— 写盘做了 400ms 防抖。
+ */
+const TEXT_DRAFT_PREFIX = "furina:textdraft:";
+const textDraftMemory = new Map<string, Record<string, string>>();
+const textDraftTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function readTextDraft(toolId: string): Record<string, string> {
+  const cached = textDraftMemory.get(toolId);
+  if (cached) return cached;
+
+  let parsed: Record<string, string> = {};
+  try {
+    const raw = sessionStorage.getItem(TEXT_DRAFT_PREFIX + toolId);
+    const obj = raw ? JSON.parse(raw) : null;
+    if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+      for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+        if (typeof v === "string") parsed[k] = v;
+      }
+    }
+  } catch {
+    parsed = {};
+  }
+  textDraftMemory.set(toolId, parsed);
+  return parsed;
+}
+
+function writeTextDraft(toolId: string, fieldId: string, value: string): void {
+  const draft = readTextDraft(toolId);
+  if (value) draft[fieldId] = value;
+  else delete draft[fieldId];
+
+  const key = TEXT_DRAFT_PREFIX + toolId;
+  const pending = textDraftTimers.get(key);
+  if (pending) clearTimeout(pending);
+  textDraftTimers.set(
+    key,
+    setTimeout(() => {
+      textDraftTimers.delete(key);
+      try {
+        sessionStorage.setItem(key, JSON.stringify(draft));
+      } catch {
+        /* 存储不可用或被写满时忽略 */
+      }
+    }, 400),
+  );
+}
+
 function GenericToolRunner({ tool }: { tool: Tool }) {
-  const [files, setFiles] = useState<File[]>([]);
-  const [multiFiles, setMultiFiles] = useState<File[]>([]);
+  // 挂载时就要从草稿缓存恢复。
+  // 从首页进入工具页时这个组件是「新挂载」的（不是被复用），只靠下面那个
+  // 「工具 id 变化」分支是恢复不了的 —— 这个坑是真机点击测试才发现的。
+  const [files, setFiles] = useState<File[]>(() => toolDraftCache.get(tool.id)?.files ?? []);
+  const [multiFiles, setMultiFiles] = useState<File[]>(() => toolDraftCache.get(tool.id)?.multiFiles ?? []);
   const [values, setValues] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<SyncResultState | null>(null);
+  const [result, setResult] = useState<SyncResultState | null>(
+    () => toolDraftCache.get(tool.id)?.result ?? null,
+  );
   const [copied, setCopied] = useState(false);
   const [jobId, setJobId] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
@@ -350,6 +517,30 @@ function GenericToolRunner({ tool }: { tool: Tool }) {
       return null;
     }
   });
+
+  // 工具切换时，在「提交之前」同步装载该工具自己的草稿。
+  //
+  // 这里必须用渲染期纠正，不能放进 useEffect：同一次提交里下面的写缓存 effect 会先执行，
+  // 那时 files 还是上一个工具的值，于是会把「工具 A 的图片」写进「工具 B 的存档」——
+  // 这正是「切到 B 却看到 A 的文件与结果」的成因。
+  // 同步纠正能保证：渲染出来的内容和即将写回缓存的内容，始终属于同一个工具。
+  const [draftToolId, setDraftToolId] = useState(tool.id);
+  if (draftToolId !== tool.id) {
+    setDraftToolId(tool.id);
+    const draft = toolDraftCache.get(tool.id);
+    setFiles(draft?.files ?? []);
+    setMultiFiles(draft?.multiFiles ?? []);
+    // 恢复该工具自己的结果；没有就是空 —— 绝不会看到上一个工具的结果卡片 / 下载按钮
+    setResult(draft?.result ?? null);
+    // 任务编号按工具从 sessionStorage 恢复（见下面的探测 effect），这里先清掉上一轮的残留
+    setJobId(null);
+    setError(null);
+  }
+
+  // 文件或结果有变化就更新缓存，保证离开这个工具时缓存里是最新的
+  useEffect(() => {
+    rememberToolDraft(tool.id, { files, multiFiles, result });
+  }, [tool.id, files, multiFiles, result]);
 
   // 监听 URL searchParams、全局选择事件、并自动探测正在运行中的该工具后台任务
   useEffect(() => {
@@ -414,8 +605,6 @@ function GenericToolRunner({ tool }: { tool: Tool }) {
     }
   }, [jobId, tool.id]);
   const [jobConfetti, setJobConfetti] = useState(0);
-  const lastUrl = useRef<string | null>(null);
-  const lastBeforeUrl = useRef<string | null>(null);
   const { toast } = useToast();
   const prevJobStatus = useRef<string | null>(null);
 
@@ -436,7 +625,9 @@ function GenericToolRunner({ tool }: { tool: Tool }) {
   useEffect(() => {
     const saved = loadToolSettings(tool.id);
     const restored = Object.fromEntries(Object.entries(saved).filter(([key]) => persistIds.has(key)));
-    setValues(restored);
+    // 先铺「记住的选项/数字设置」，再盖上「文本草稿」—— 文本草稿是用户上一次真正输入的内容，优先。
+    // 这样选择项/数字仍由原机制记住，而纯文本输入也不会再丢。
+    setValues({ ...restored, ...readTextDraft(tool.id) });
     settingsToolRef.current = tool.id;
   }, [tool.id, persistIds]);
 
@@ -451,31 +642,51 @@ function GenericToolRunner({ tool }: { tool: Tool }) {
     if (handed.length === 0) return;
     const fileInput = tool.inputs.find((i) => i.type === "file");
     if (!fileInput) return;
+    // 从别的工具拖文件过来 = 一次新的输入，清掉上一次的结果
+    setResult(null);
     if (fileInput.multiple) setMultiFiles(handed);
     else setFiles(handed.slice(0, 1));
   }, [tool.id, tool.inputs]);
 
-  useEffect(() => {
-    return () => {
-      if (lastUrl.current) URL.revokeObjectURL(lastUrl.current);
-      if (lastBeforeUrl.current) URL.revokeObjectURL(lastBeforeUrl.current);
-    };
-  }, []);
+  // 注意：结果的 object URL 不在这里释放。
+  // 它现在由上面的「按工具草稿缓存」持有 —— 只有这样，用户切到别的工具、回首页再回来时，
+  // 结果卡片与下载按钮依然可用。释放时机是「被新结果替换」或「缓存淘汰」，
+  // 见 releaseDraftResult()。
 
-  const beforePreviewUrl = useMemo(() => {
-    if (files[0] && files[0].type.startsWith("image/")) {
-      return URL.createObjectURL(files[0]);
+  // 预览用的 object URL 必须成对创建/释放。
+  // 之前用 useMemo 在每次 files 变化时新建 URL 却从不 revoke：每换一次文件就泄漏
+  // 一份已解码的位图，本次会话内不会回收。
+  const [beforePreviewUrl, setBeforePreviewUrl] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    if (!files[0] || !files[0].type.startsWith("image/")) {
+      setBeforePreviewUrl(undefined);
+      return;
     }
-    return undefined;
+    const url = URL.createObjectURL(files[0]);
+    setBeforePreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
   }, [files]);
 
   const mergedValues = { ...defaults, ...values };
+
+  /**
+   * 通用表单所有输入值的统一写入口：
+   * 除了更新界面，还把该字段的值写进「文本草稿」，让用户切走再回来、按 F5 都不丢。
+   */
+  const updateValue = (fieldId: string, value: string) => {
+    setValues((prev) => ({ ...prev, [fieldId]: value }));
+    writeTextDraft(tool.id, fieldId, value);
+  };
 
   const jobQuery = useQuery({
     queryKey: ["job", jobId],
     queryFn: () => fetchJob(jobId!),
     enabled: Boolean(jobId),
     refetchInterval: (query) => {
+      // 请求出错时必须停止轮询。
+      // 否则任务记录过期被清理后，页面会对着同一个必然失败的请求每 1.5 秒轮询一次、
+      // 永不停止，而且界面上不显示任何原因，用户只看到一个空白区域。
+      if (query.state.error) return false;
       const status = query.state.data?.status;
       return status === "completed" || status === "failed" ? false : 1500;
     },
@@ -551,19 +762,16 @@ function GenericToolRunner({ tool }: { tool: Tool }) {
       const kind = (response.headers.get("x-result-kind") as "file" | "text") || "file";
       const blob = await response.blob();
 
-      if (lastUrl.current) URL.revokeObjectURL(lastUrl.current);
+      // 旧结果的 URL 由草稿缓存负责释放（见 releaseDraftResult），这里只负责创建新的
 
       if (kind === "text") {
         setResult({ kind: "text", filename, mimeType: contentType, text: await blob.text(), size: blob.size });
       } else {
         const url = URL.createObjectURL(blob);
-        lastUrl.current = url;
         const inputImage = files[0];
         const showCompare =
           inputImage && inputImage.type.startsWith("image/") && contentType.startsWith("image/");
-        if (lastBeforeUrl.current) URL.revokeObjectURL(lastBeforeUrl.current);
         const beforeUrl = showCompare ? URL.createObjectURL(inputImage) : undefined;
-        lastBeforeUrl.current = beforeUrl ?? null;
         setResult({
           kind: "file", filename, mimeType: contentType, url, size: blob.size,
           beforeUrl, beforeSize: showCompare ? inputImage.size : undefined,
@@ -600,7 +808,13 @@ function GenericToolRunner({ tool }: { tool: Tool }) {
         {tool.inputs.map((input) => {
           if (input.type === "file") {
             const list = input.multiple ? multiFiles : files;
-            const setter = input.multiple ? setMultiFiles : setFiles;
+            const baseSetter = input.multiple ? setMultiFiles : setFiles;
+            // 用户改了输入文件（重新选择、或从列表里移除）之后，上一次的结果就不再对应当前输入，
+            // 这里把它清掉。结果本身由「按工具草稿缓存」保存，切到别的工具再回来仍能恢复。
+            const setter = (next: File[]) => {
+              baseSetter(next);
+              setResult(null);
+            };
             return (
               <Field key={input.id} label={input.label} help={input.help}>
                 <FileDropzone files={list} onChange={setter} multiple={input.multiple} accept={input.accept ? undefined : accept} />
@@ -613,7 +827,7 @@ function GenericToolRunner({ tool }: { tool: Tool }) {
                 <Select
                   id={input.id}
                   value={mergedValues[input.id] ?? ""}
-                  onChange={(e) => setValues((p) => ({ ...p, [input.id]: e.target.value }))}
+                  onChange={(e) => updateValue(input.id, e.target.value)}
                 >
                   <option value="" disabled>请选择…</option>
                   {(input.options ?? []).map((o) => (
@@ -630,7 +844,7 @@ function GenericToolRunner({ tool }: { tool: Tool }) {
                   id={input.id} type="number" step={input.step ?? "any"} min={input.min} max={input.max}
                   placeholder={input.placeholder}
                   value={mergedValues[input.id] ?? ""}
-                  onChange={(e) => setValues((p) => ({ ...p, [input.id]: e.target.value }))}
+                  onChange={(e) => updateValue(input.id, e.target.value)}
                 />
               </Field>
             );
@@ -644,16 +858,38 @@ function GenericToolRunner({ tool }: { tool: Tool }) {
                       id={input.id}
                       type="color"
                       value={mergedValues[input.id] ?? "#ffffff"}
-                      onChange={(e) => setValues((p) => ({ ...p, [input.id]: e.target.value }))}
+                      onChange={(e) => updateValue(input.id, e.target.value)}
                       className="absolute -inset-2 h-[calc(100%+1rem)] w-[calc(100%+1rem)] cursor-pointer border-0 bg-transparent p-0"
                     />
                   </div>
                   <Input
                     type="text"
                     value={mergedValues[input.id] ?? "#ffffff"}
-                    onChange={(e) => setValues((p) => ({ ...p, [input.id]: e.target.value }))}
+                    onChange={(e) => updateValue(input.id, e.target.value)}
                     className="font-mono text-sm"
                   />
+                </div>
+              </Field>
+            );
+          }
+          if (input.type === "line") {
+            // 单行文本：给"域名""短文本"这类只有一个词的输入用。
+            // 与 url 的区别：不会触发浏览器对 <input type="url"> 的格式校验，
+            // 所以 example.com 这种不带协议的域名也能正常提交。
+            return (
+              <Field key={input.id} label={input.label} htmlFor={input.id} help={input.help}>
+                <div className="relative w-full">
+                  <Input
+                    id={input.id}
+                    type="text"
+                    placeholder={input.placeholder ?? "请输入内容"}
+                    value={mergedValues[input.id] ?? ""}
+                    onChange={(e) => updateValue(input.id, e.target.value)}
+                    className="w-full h-12 pr-20 pl-4 rounded-xl text-sm"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <PasteButton onPaste={(text) => updateValue(input.id, text)} />
+                  </div>
                 </div>
               </Field>
             );
@@ -667,11 +903,11 @@ function GenericToolRunner({ tool }: { tool: Tool }) {
                     placeholder={input.placeholder ?? "输入要转换或计算的文本..."}
                     rows={5}
                     value={mergedValues[input.id] ?? ""}
-                    onChange={(e) => setValues((p) => ({ ...p, [input.id]: e.target.value }))}
+                    onChange={(e) => updateValue(input.id, e.target.value)}
                     className="w-full min-h-[140px] pr-20 p-4 text-sm leading-relaxed rounded-2xl"
                   />
                   <div className="absolute right-3 top-3">
-                    <PasteButton onPaste={(text) => setValues((p) => ({ ...p, [input.id]: text }))} />
+                    <PasteButton onPaste={(text) => updateValue(input.id, text)} />
                   </div>
                 </div>
               </Field>
@@ -685,11 +921,11 @@ function GenericToolRunner({ tool }: { tool: Tool }) {
                   type={input.type === "url" ? "url" : "text"}
                   placeholder={input.placeholder ?? "请输入内容，可直接粘贴文字或链接"}
                   value={mergedValues[input.id] ?? ""}
-                  onChange={(e) => setValues((p) => ({ ...p, [input.id]: e.target.value }))}
+                  onChange={(e) => updateValue(input.id, e.target.value)}
                   className="w-full h-12 pr-20 pl-4 rounded-xl text-sm"
                 />
                 <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
-                  <PasteButton onPaste={(text) => setValues((p) => ({ ...p, [input.id]: text }))} />
+                  <PasteButton onPaste={(text) => updateValue(input.id, text)} />
                 </div>
               </div>
             </Field>
@@ -777,7 +1013,12 @@ function GenericToolRunner({ tool }: { tool: Tool }) {
           <JobProgress
             job={jobQuery.data ?? null}
             isLoading={loading || jobQuery.isLoading}
-            error={error}
+            error={
+              error ??
+              (jobQuery.isError
+                ? "任务记录已失效（可能已被自动清理，或本机服务重启过）。请重新提交一次任务。"
+                : undefined)
+            }
             beforeUrl={beforePreviewUrl}
             beforeName={files[0]?.name}
             beforeSize={files[0]?.size}
@@ -835,7 +1076,7 @@ class ToolErrorBoundary extends Component<
   }
 }
 
-function ToolShell({ tool, children }: { tool: Tool; children: React.ReactNode }) {
+export function ToolShell({ tool, children }: { tool: Tool; children: React.ReactNode }) {
   const router = useRouter();
   const accent = CATEGORY_COLOR[tool.category] ?? "#0ea5e9";
   const { recordTool } = useRecentTools();
@@ -882,12 +1123,13 @@ function ToolShell({ tool, children }: { tool: Tool; children: React.ReactNode }
         <span className="text-foreground/70">{tool.name}</span>
       </nav>
 
-      {/* 紧凑标题卡片 */}
-      <div className="flex items-center gap-3.5 rounded-2xl border border-border bg-card px-5 py-4">
-        <span className="h-9 w-1.5 shrink-0 rounded-full" style={{ background: accent }} />
+      {/* 紧凑标题卡片：只负责"报个名字"，视觉上要安静 —— 不加阴影、字号与内边距都收着，
+          让工作区（输入区）成为页面的视觉主体。 */}
+      <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-card px-4 py-2.5">
+        <span className="h-8 w-1 shrink-0 rounded-full opacity-90" style={{ background: accent }} />
         <div className="min-w-0">
-          <h1 className="text-[18px] font-bold leading-tight tracking-tight">{tool.name}</h1>
-          <p className="mt-0.5 truncate text-[13px] text-muted-foreground">{tool.description}</p>
+          <h1 className="text-[16px] font-semibold leading-tight tracking-tight">{tool.name}</h1>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">{tool.description}</p>
         </div>
       </div>
 

@@ -5,6 +5,8 @@ import path from "path";
 
 const execFileAsync = promisify(execFile);
 
+import { guardApiRequest } from "@/lib/api-guard";
+
 export const runtime = "nodejs";
 
 // 检测打包环境：优先使用环境变量指定的yt-dlp.exe，其次使用开发环境的python -m yt_dlp
@@ -105,6 +107,8 @@ function extractUrl(text: string): string {
 }
 
 export async function POST(request: Request) {
+  const denied = guardApiRequest(request);
+  if (denied) return denied;
   try {
     const body = await request.json();
     const rawUrl = body.url;

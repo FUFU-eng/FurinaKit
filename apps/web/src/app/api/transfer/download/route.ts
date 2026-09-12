@@ -3,10 +3,14 @@ import fsSync from "fs";
 import fs from "fs/promises";
 import path from "path";
 import { getStoragePath } from "@/lib/storage";
+import { guardApiRequest } from "@/lib/api-guard";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
+  // 互传功能：本机请求需同源；手机等局域网设备需携带本次启动的互传令牌
+  const denied = guardApiRequest(req, { allowLanToken: true });
+  if (denied) return denied;
   try {
     const url = new URL(req.url);
     const fileName = url.searchParams.get("id") || url.searchParams.get("name");

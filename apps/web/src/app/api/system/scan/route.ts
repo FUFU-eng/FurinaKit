@@ -2,10 +2,13 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { cleanupExpiredFiles } from "@/lib/storage";
+import { guardApiRequest } from "@/lib/api-guard";
 
 export const runtime = "nodejs";
 
-export async function POST() {
+export async function POST(request: Request) {
+  const denied = guardApiRequest(request);
+  if (denied) return denied;
   const cwd = process.cwd();
   const execDir = path.dirname(process.execPath);
 

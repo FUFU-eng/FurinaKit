@@ -14,7 +14,7 @@ import { formatBytes } from "@/lib/utils";
 // 按拖入文件类型推荐工具（id 均为 tools.ts 中真实存在的工具）
 const IMAGE_PICKS = [
   "image-format-convert", "image-compress", "image-resize", "image-crop",
-  "bg-remove", "image-rotate", "images-to-pdf", "image-watermark",
+  "bg-remove", "image-rotate", "image-to-pdf", "image-watermark",
 ];
 const PDF_PICKS = [
   "pdf-merge", "pdf-split", "pdf-compress", "pdf-to-images",

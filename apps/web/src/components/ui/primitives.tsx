@@ -37,24 +37,34 @@ export function Button({
   );
 }
 
-export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
+/**
+ * 单行输入框。
+ *
+ * ⚠️ className 必须**解构**出来（像 Button/Label 那样），不能让它留在 props 里：
+ * 下面 `{...props}` 是写在 className 之后的，props 里的 className 会把
+ * 上面合并好的完整样式**整个覆盖掉** —— 一旦调用方传了 className，
+ * 边框、主题背景色、内边距、聚焦光圈就全没了，输入框会露出浏览器默认的白底
+ * （在「护眼」主题下就是一块刺眼的白，和米色背景完全不搭）。
+ */
+export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       className={cn(
         "flex h-11 w-full rounded-lg border border-input bg-card px-3.5 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 transition-all duration-200 focus-visible:outline-none focus-visible:border-primary/60 focus-visible:ring-4 focus-visible:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50",
-        props.className,
+        className,
       )}
       {...props}
     />
   );
 }
 
-export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+/** 多行输入框。className 同样必须解构，原因见上面 Input 的说明。 */
+export function Textarea({ className, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
       className={cn(
         "thin-scroll flex min-h-[160px] w-full rounded-xl border border-input bg-card px-4 py-3 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/70 transition-all duration-200 focus-visible:outline-none focus-visible:border-primary/60 focus-visible:ring-4 focus-visible:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-50",
-        props.className,
+        className,
       )}
       {...props}
     />

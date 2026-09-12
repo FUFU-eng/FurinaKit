@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
 import { downloadsEnabled } from "@furinakit/shared";
 import { getJob } from "@/lib/jobs";
+import { guardApiRequest } from "@/lib/api-guard";
 
 export const runtime = "nodejs";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  const denied = guardApiRequest(request);
+  if (denied) return denied;
   if (!downloadsEnabled()) {
     return NextResponse.json({ error: "Jobs are disabled on this deployment" }, { status: 404 });
   }

@@ -13,6 +13,26 @@ function isValidJobId(id: string): boolean {
   return typeof id === "string" && UUID_RE.test(id);
 }
 
+/** 终态：写下去之后任务就结束了，前端不再轮询 */
+function isTerminalStatus(status: JobStatus | undefined): boolean {
+  return status === "completed" || status === "failed";
+}
+
+/**
+ * 进度更新是否可以覆盖终态。
+ *
+ * 背景：worker 的「进度回调」和「完成回调」是两条独立的异步链，顺序交错时会把已经写好的
+ * `completed` 覆盖回 `processing`。后果是前端永远转圈、下载按钮永远不出现，
+ * 而结果文件其实早就生成好了 —— 用户只能重启软件。
+ * 所以终态一旦写入，就不允许被非终态更新覆盖回去。
+ */
+function wouldResurrectTerminal(
+  existingStatus: JobStatus | undefined,
+  incomingStatus: JobStatus | undefined,
+): boolean {
+  return isTerminalStatus(existingStatus) && !isTerminalStatus(incomingStatus);
+}
+
 function jobsDir(): string {
   return path.join(getStoragePath(), "jobs");
 }
@@ -136,6 +156,11 @@ export async function updateFileJob(
   const existing = await getFileJob(id);
   if (!existing) return null;
 
+  // 已结束的任务不允许被"进度更新"拉回处理中
+  if (wouldResurrectTerminal(existing.status, updates.status)) {
+    return existing;
+  }
+
   const updated: Job = {
     ...existing,
     ...updates,
@@ -150,20 +175,33 @@ function isExpired(job: Job, now = Date.now()): boolean {
   return Boolean(job.expiresAt && new Date(job.expiresAt).getTime() <= now);
 }
 
+/**
+ * 只移除该任务在队列里的待处理项，保留任务记录本身。
+ * 取消任务时必须调用它：否则任务虽然显示"已取消"，worker 稍后仍会把它从队列里取出来执行，
+ * 完成时再把状态写回 completed —— 用户会看到任务"自己复活"。
+ * @returns 实际移除的队列项数量
+ */
+export async function removeQueuedItems(id: string): Promise<number> {
+  if (!isValidJobId(id)) return 0;
+  let removed = 0;
+  try {
+    const files = await fs.readdir(queueDir());
+    for (const f of files) {
+      if (!f.endsWith(`-${id}.json`)) continue;
+      await fs.rm(path.join(queueDir(), f), { force: true }).catch(() => {});
+      removed += 1;
+    }
+  } catch {
+    /* queue dir may be absent */
+  }
+  return removed;
+}
+
 /** Delete a job's state file plus any pending queue items referencing it. */
 async function purgeJobFiles(id: string): Promise<void> {
   if (!isValidJobId(id)) return;
   await fs.rm(jobFilePath(id), { force: true }).catch(() => {});
-  try {
-    const files = await fs.readdir(queueDir());
-    await Promise.all(
-      files
-        .filter((f) => f.endsWith(`-${id}.json`))
-        .map((f) => fs.rm(path.join(queueDir(), f), { force: true }).catch(() => {})),
-    );
-  } catch {
-    /* queue dir may be absent */
-  }
+  await removeQueuedItems(id);
 }
 
 export async function countActiveFileJobs(): Promise<number> {
@@ -201,6 +239,37 @@ export async function listFileJobs(limit = 50): Promise<Job[]> {
   if (expired.length > 0) {
     await Promise.all(expired.map((job) => purgeJobFiles(job.id)));
   }
+
+  // 回收「僵尸任务」：状态还停在待处理/处理中，但很久没有任何更新。
+  // 这类任务会一直占着并发名额，等累积到上限之后所有新任务都会被 429 拒绝，
+  // 而且重建前端也无法自愈（限制是读磁盘上的任务状态算出来的）。
+  // 注意：这里只影响「多久没更新」的判定，真正长时间在跑的任务仍会持续刷新进度；
+  // 万一误判，任务真正完成时 worker 会把终态写回来（completed 也是终态，允许覆盖）。
+  const staleHours = Math.max(1, Number(process.env.JOB_STALE_HOURS || 3) || 3);
+  const staleMs = staleHours * 60 * 60 * 1000;
+  const stale = live.filter((job) => {
+    if (job.status !== "processing" && job.status !== "pending") return false;
+    const updated = new Date(job.updatedAt || job.createdAt).getTime();
+    return Number.isFinite(updated) && now - updated > staleMs;
+  });
+  if (stale.length > 0) {
+    for (const job of stale) {
+      const reason = `超过 ${staleHours} 小时没有任何进度更新，已判定为卡死并回收`;
+      await updateFileJob(job.id, {
+        status: "failed",
+        progress: 100,
+        message: "任务已失效",
+        error: reason,
+      });
+      // 同步内存中的副本，让本次返回的结果与磁盘一致
+      job.status = "failed";
+      job.progress = 100;
+      job.message = "任务已失效";
+      job.error = reason;
+    }
+    console.log(`[file-jobs] 回收了 ${stale.length} 个卡死的任务`);
+  }
+
   if (expired.length > 0 || index.length === 0) {
     await writeJobIndex(live.map((j) => j.id));
   }

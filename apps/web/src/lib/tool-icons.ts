@@ -249,11 +249,12 @@ export function getToolIcon(name: string): LucideIcon {
 /** Per-category Lucide icon used for section headers, nav, palette groups. */
 export const categoryIcon: Record<ToolCategory, LucideIcon> = {
   image: Image,
-  pdf: FileText,
   download: Video,
   audio: Music,
+  pdf: FileText,
   text: Type,
+  mathcalc: Sigma,
   dev: Code,
-  encode: Hash,
+  security: Shield,
   utility: Wrench,
 };

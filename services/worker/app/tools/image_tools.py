@@ -7,9 +7,36 @@ import io
 from typing import List, Dict, Any, Optional, Tuple
 from PIL import Image, ImageSequence
 
+# 需要输出为 JPEG/BMP（不支持透明通道）时统一使用的白底颜色
+_FLATTEN_BACKGROUND = (255, 255, 255)
+
+
+def _has_alpha(img: Image.Image) -> bool:
+    """判断图片是否携带透明通道（含调色板模式的 transparency 信息）"""
+    if img.mode in ("RGBA", "LA", "PA"):
+        return True
+    return img.mode == "P" and "transparency" in img.info
+
+
+def _flatten_on_white(img: Image.Image) -> Image.Image:
+    """把带透明通道的图片先合成到白底再转 RGB。
+
+    直接把 RGBA 转 RGB 只会丢弃 alpha，透明像素会保留自己的 RGB 值（很多 PNG 的
+    透明区 RGB 是 (0,0,0)），成品上就会出现黑块。这里先把透明区垫成白底，
+    与 image_to_jpg 的历史行为保持一致。
+    """
+    if _has_alpha(img):
+        rgba = img.convert("RGBA")
+        background = Image.new("RGB", rgba.size, _FLATTEN_BACKGROUND)
+        background.paste(rgba, mask=rgba.split()[3])
+        return background
+    if img.mode != "RGB":
+        return img.convert("RGB")
+    return img
+
 
 def image_compress(file_path: str, output_path: str, quality: int = 75, max_width: Optional[int] = None) -> Dict[str, Any]:
-    """压缩图片"""
+    """压缩图片（输出 JPEG；带透明通道时先垫白底，避免透明区变黑）"""
     img = Image.open(file_path)
     original_size = os.path.getsize(file_path)
     
@@ -18,8 +45,8 @@ def image_compress(file_path: str, output_path: str, quality: int = 75, max_widt
         new_height = int(img.height * ratio)
         img = img.resize((max_width, new_height), Image.LANCZOS)
     
-    if img.mode in ("RGBA", "P"):
-        img = img.convert("RGB")
+    # JPEG 不支持 alpha：透明区合成到白底，而不是直接丢弃 alpha
+    img = _flatten_on_white(img)
     
     img.save(output_path, format="JPEG", quality=quality, optimize=True)
     compressed_size = os.path.getsize(output_path)
@@ -118,17 +145,8 @@ def image_split(file_path: str, output_dir: str, rows: int = 2, cols: int = 2) -
 
 
 def image_to_jpg(file_path: str, output_path: str, quality: int = 95) -> Dict[str, Any]:
-    """图片转 JPG"""
-    img = Image.open(file_path)
-    if img.mode in ("RGBA", "P", "LA"):
-        background = Image.new("RGB", img.size, (255, 255, 255))
-        if img.mode == "RGBA":
-            background.paste(img, mask=img.split()[3])
-        else:
-            background.paste(img)
-        img = background
-    elif img.mode != "RGB":
-        img = img.convert("RGB")
+    """图片转 JPG（透明区垫白底）"""
+    img = _flatten_on_white(Image.open(file_path))
     
     img.save(output_path, format="JPEG", quality=quality)
     return {"success": True, "output": output_path}
@@ -248,41 +266,101 @@ def image_to_ico(file_path: str, output_path: str, sizes: Optional[List[int]] = 
     # 确保图片是 RGBA 模式（保持透明）
     if img.mode != "RGBA":
         img = img.convert("RGBA")
-    
-    # 生成各个尺寸的图标
-    icon_images = []
-    for size in sizes:
-        # 等比例缩放，居中裁剪为正方形
-        w, h = img.size
-        if w != h:
-            min_dim = min(w, h)
-            left = (w - min_dim) // 2
-            top = (h - min_dim) // 2
-            img_cropped = img.crop((left, top, left + min_dim, top + min_dim))
-        else:
-            img_cropped = img.copy()
-        
-        # 缩放到目标尺寸
-        if img_cropped.size != (size, size):
-            img_resized = img_cropped.resize((size, size), Image.LANCZOS)
-        else:
-            img_resized = img_cropped
-        
-        icon_images.append(img_resized)
-    
-    # 保存为 ICO
-    if len(icon_images) == 1:
-        icon_images[0].save(output_path, format="ICO", sizes=[(sizes[0], sizes[0])])
-    else:
-        icon_images[0].save(
-            output_path,
-            format="ICO",
-            sizes=[(s, s) for s in sizes],
-            append_images=icon_images[1:]
-        )
-    
+
+    # 先按原始尺寸居中裁剪为正方形，作为 ICO 的基准图
+    w, h = img.size
+    if w != h:
+        min_dim = min(w, h)
+        left = (w - min_dim) // 2
+        top = (h - min_dim) // 2
+        img = img.crop((left, top, left + min_dim, top + min_dim))
+
+    # 关键：基准图必须是「原始尺寸」的 RGBA 图。
+    # Pillow 的 IcoImagePlugin 在写多尺寸 ICO 时会把基准图缩放到 sizes 里列出的每个尺寸，
+    # 并跳过所有大于基准图的尺寸。若像以前那样把已经缩到最小尺寸（如 16×16）的图当基准，
+    # 最终文件里只剩 (16,16) 一个尺寸（实测 116 字节），Windows 大图标必然模糊。
+    # 因此这里不再传 append_images，直接让 Pillow 从原始尺寸图生成全部尺寸。
+    max_requested = min(max(sizes), 256)  # Pillow 的 ICO 写入口径上限为 256
+    if min(img.size) < max_requested:
+        # 基准图比请求的最大尺寸还小时，Pillow 会跳过放不下的尺寸（thumbnail 只缩不放）。
+        # 极端情况下会写出 0 个尺寸的坏 ICO，所以这里先把基准图放到请求的最大尺寸，
+        # 保证用户勾选的尺寸都真的写进文件。
+        img = img.resize((max_requested, max_requested), Image.LANCZOS)
+
+    img.save(output_path, format="ICO", sizes=[(s, s) for s in sizes])
+
     return {"success": True, "output": output_path, "sizes": sizes}
 
+
+
+def _save_gif_with_alpha(img: Image.Image, output_path: str) -> None:
+    """保存 GIF：GIF 只支持 1 位透明度，这里用调色板里的一个专用索引表示透明。
+
+    直接把 RGBA 量化会丢掉透明通道（透明区变成黑色/实色），因此先把 RGB 量化到
+    0-254 号索引，再把 alpha < 128 的像素标记成保留索引 255（并额外声明为透明色）。
+    """
+    rgba = img.convert("RGBA")
+    alpha = rgba.getchannel("A")
+    pal_img = rgba.convert("RGB").quantize(colors=255, method=Image.MEDIANCUT)
+    # 补齐调色板到 256 项，保证索引 255 一定存在（量化本身只会用到 0-254）
+    palette = (pal_img.getpalette() or []) + [0] * 768
+    pal_img.putpalette(palette[:768])
+    pal_img.paste(255, mask=alpha.point(lambda a: 255 if a < 128 else 0))
+    pal_img.save(output_path, format="GIF", transparency=255)
+
+
+# 输出扩展名 → (Pillow 格式名, MIME)。写出的真实格式必须与扩展名、返回的 MIME 三者一致，
+# 否则会产生"PNG 内容 + .gif 扩展名"这类坏文件，上层还会按扩展名给出错误的 MIME。
+_WATERMARK_OUTPUT_FORMATS = {
+    ".png": ("PNG", "image/png"),
+    ".jpg": ("JPEG", "image/jpeg"),
+    ".jpeg": ("JPEG", "image/jpeg"),
+    ".webp": ("WEBP", "image/webp"),
+    ".gif": ("GIF", "image/gif"),
+    ".bmp": ("BMP", "image/bmp"),
+    ".tif": ("TIFF", "image/tiff"),
+    ".tiff": ("TIFF", "image/tiff"),
+    ".ico": ("ICO", "image/x-icon"),
+}
+
+
+def _save_watermarked(result: Image.Image, output_path: str) -> Tuple[str, str, str]:
+    """按输出扩展名写出与之匹配的真实格式，返回 (实际输出路径, Pillow 格式, MIME)。
+
+    不支持的扩展名（或缺少对应 Pillow 编码器）一律改写为 PNG，并把输出路径同步改成 .png，
+    这样扩展名、真实格式与返回的 MIME 始终一致。
+    """
+    ext = os.path.splitext(output_path)[1].lower()
+    if ext in _WATERMARK_OUTPUT_FORMATS:
+        path = output_path
+        fmt, mime = _WATERMARK_OUTPUT_FORMATS[ext]
+    else:
+        path = os.path.splitext(output_path)[0] + ".png"
+        fmt, mime = "PNG", "image/png"
+
+    try:
+        if fmt == "JPEG":
+            _flatten_on_white(result).save(path, format="JPEG", quality=95, optimize=True)
+        elif fmt == "BMP":
+            _flatten_on_white(result).save(path, format="BMP")
+        elif fmt == "GIF":
+            _save_gif_with_alpha(result, path)
+        elif fmt == "WEBP":
+            result.save(path, format="WEBP", quality=95)
+        elif fmt == "ICO":
+            result.convert("RGBA").save(path, format="ICO")
+        else:
+            result.save(path, format=fmt)
+    except (OSError, ValueError, KeyError) as exc:
+        # 该格式不可用（例如缺少编码器）：退化为 PNG，并同步修正扩展名与 MIME
+        if fmt != "PNG":
+            path = os.path.splitext(path)[0] + ".png"
+            fmt, mime = "PNG", "image/png"
+            result.save(path, format="PNG")
+        else:  # pragma: no cover - PNG 写出失败属于真实错误，交给上层报告
+            raise RuntimeError(f"水印结果写出失败: {exc}") from exc
+
+    return path, fmt, mime
 
 
 def image_watermark(file_path: str, output_path: str, text: str,
@@ -378,14 +456,12 @@ def image_watermark(file_path: str, output_path: str, text: str,
     # 合并图层
     result = Image.alpha_composite(img, overlay)
 
-    # 根据输出格式保存
-    ext = os.path.splitext(output_path)[1].lower()
-    if ext in (".jpg", ".jpeg"):
-        result = result.convert("RGB")
-        result.save(output_path, format="JPEG", quality=95)
-    elif ext == ".webp":
-        result.save(output_path, format="WEBP", quality=95)
-    else:
-        result.save(output_path, format="PNG")
+    # 按输出扩展名保存：写出的真实格式、扩展名、返回的 MIME 三者保持一致
+    out_path, out_format, out_mime = _save_watermarked(result, output_path)
 
-    return {"success": True, "output": output_path}
+    return {
+        "success": True,
+        "output": out_path,
+        "format": out_format,
+        "mime": out_mime,
+    }
