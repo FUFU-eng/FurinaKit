@@ -1,0 +1,70 @@
+/* English copy expands; keep controls usable without changing the Chinese layout. */
+html[lang="en"] .fk-app-sidebar nav button {
+  min-height: 44px;
+  height: auto;
+  white-space: normal !important;
+  padding-block: 10px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+html[lang="en"] .fk-app-sidebar nav button > span { min-width: 0; overflow-wrap: anywhere; }
+html[lang="en"] .fk-top-search { flex: 1 1 240px; min-width: 120px; max-width: 320px; }
+html[lang="en"] .fk-app-header { gap: 8px; }
+html[lang="en"] .fk-app-header button { line-height: 1.2; }
+html[lang="en"] .fk-tool-card-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  overflow: hidden;
+  min-height: 2.7em;
+  line-height: 1.35;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+html[lang="en"] .fk-tool-card-description { -webkit-line-clamp: 3; min-height: 4.5em; }
+html[lang="en"] main button[class*="px-"],
+html[lang="en"] .fk-settings-view button[class*="px-"],
+html[lang="en"] [role="tablist"] button {
+  white-space: normal;
+  height: auto;
+  min-height: 2rem;
+  padding-block: .5rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+html[lang="en"] main h1,
+html[lang="en"] main h2,
+html[lang="en"] main h3,
+html[lang="en"] .fk-settings-view h2,
+html[lang="en"] .fk-settings-view h3 { overflow-wrap: anywhere; }
+html[lang="en"] .fk-select-value {
+  min-width: 0;
+  white-space: normal;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+html[lang="en"] button:has(> .fk-select-value) { min-height: 44px; height: auto; }
+html[lang="en"] .fk-drop-panel button { height: auto; white-space: normal; text-align: left; line-height: 1.4; }
+html[lang="en"] [role="tablist"] { flex-wrap: wrap; }
+html[lang="en"] .fk-settings-view .fk-language-card select { min-width: 0; }
+html[lang="en"] .fk-settings-view [class*="text-[12px]"] { line-height: 1.5; }
+html[lang="en"] .fk-settings-view [class*="justify-between"][class*="gap-"] { min-width: 0; }
+html[lang="en"] .fb-tile-inner { gap: 4px; }
+html[lang="en"] .fb-tile-inner span { font-size: 10px; line-height: 1.15; -webkit-line-clamp: 3; max-width: 90px; }
+html[lang="en"] .fb-tabs button { white-space: nowrap; }
+html[lang="en"] .capture-toolbar button { white-space: normal; line-height: 1.25; }
+html[lang="en"] [data-toast-viewport] { max-width: min(28rem, calc(100vw - 2rem)); }
+html[lang="en"] [data-toast-viewport] p { overflow-wrap: anywhere; }
+@media (max-width: 1080px) {
+  html[lang="en"] .fk-app-header { gap: 6px; padding-inline: 12px; }
+  html[lang="en"] .fk-app-header button[class*="px-"] { padding-inline: 7px; font-size: 11px; }
+  html[lang="en"] .fk-top-search { min-width: 100px; }
+  html[lang="en"] .fk-settings-view header { gap: 8px; }
+}
+@media (max-width: 760px) {
+  html[lang="en"] .fk-language-card label { max-width: none; }
+  html[lang="en"] main [role="tablist"] { gap: .25rem; }
+  html[lang="en"] main th { white-space: normal; min-width: 4rem; overflow-wrap: anywhere; }
+}

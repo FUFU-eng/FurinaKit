@@ -1,0 +1,50 @@
+name: Publish verified v2.1.0
+on:
+  push:
+    branches: [release/2.1.0-20260926]
+    paths:
+      - release/publication-assets.json
+      - scripts/publish_verified.py
+      - .github/workflows/publish.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: furinakit-verified-v2.1.0
+  cancel-in-progress: false
+jobs:
+  frontend:
+    if: github.repository == 'FUFU-eng/FurinaKit' && github.ref_name == 'release/2.1.0-20260926'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install locked frontend dependencies
+        run: npm --prefix web ci
+      - name: Verify TypeScript and production frontend
+        run: |
+          node web/node_modules/typescript/bin/tsc --noEmit -p web/tsconfig.json
+          npm --prefix web run build
+  publish:
+    needs: frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Verify assets, verify clean resource assembly, publish owned draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/publish_verified.py

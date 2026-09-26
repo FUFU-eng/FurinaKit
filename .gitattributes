@@ -1,0 +1,2 @@
+# Preserve exact source/resource bytes; pinned SHA-256 resources must not be normalized.
+* -text

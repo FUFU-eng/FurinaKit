@@ -1,0 +1,17 @@
+
+import { createUiText as __createUiText, uiMessage as __msg, useLanguage as __useLanguage } from "@/lib/language";
+const __ui = __createUiText("components/tools/speed-gauge.tsx");
+import {useEffect,useState} from 'react';
+export function SpeedGauge({speed,download,upload,phase,testing}:{speed:number|null;download:number|null;upload:number|null;phase:string;testing:boolean}){
+  const __locale = __useLanguage();
+ const [down,setDown]=useState<number[]>([]),[up,setUp]=useState<number[]>([]);
+ useEffect(()=>{if(testing){setDown([]);setUp([]);}},[testing]);
+ useEffect(()=>{if(!testing||speed===null||!Number.isFinite(speed))return;if(phase.includes('上传'))setUp(a=>[...a,speed].slice(-120));else if(phase.includes('下载'))setDown(a=>[...a,speed].slice(-120));},[speed,phase,testing]);
+ const value=Math.max(0,speed??download??upload??0),max=value>1000?10000:1000,pct=Math.min(1,Math.sqrt(value/max));
+ const point=(t:number,r=125)=>{const a=(-225+270*t)*Math.PI/180;return [170+r*Math.cos(a),165+r*Math.sin(a)];};const start=point(0),end=point(1),needle=point(pct,95);
+ const line=(data:number[])=>{const ceiling=Math.max(1,...data);return data.map((n,i)=>`${i?'L':'M'}${(i/Math.max(1,data.length-1))*420},${70-n/ceiling*60}`).join(' ');};
+ return <section className="grid items-center gap-6 rounded-2xl border border-border bg-card p-5 lg:grid-cols-[minmax(260px,380px)_1fr]">
+  <div className="relative"><svg viewBox="0 0 340 290" role="img" aria-label={__msg("当前速度 {0} Mbps", value.toFixed(2))} className="w-full"><path d={`M${start} A125 125 0 1 1 ${end}`} fill="none" stroke="currentColor" className="text-border" strokeWidth="16" strokeLinecap="round"/><path d={`M${start} A125 125 0 1 1 ${end}`} fill="none" stroke="#10bfa5" strokeWidth="16" pathLength="100" strokeDasharray={`${pct*100} 100`} strokeLinecap="round"/>{[0,.1,.25,.5,1].map(t=>{const pos=point(Math.sqrt(t),100);return <text key={t} x={pos[0]} y={pos[1]} textAnchor="middle" fontSize="11" fill="currentColor" className="text-muted-foreground">{Math.round(t*max)}</text>;})}<line x1="170" y1="165" x2={needle[0]} y2={needle[1]} stroke="#10bfa5" strokeWidth="5" strokeLinecap="round" style={{transition:'all .25s'}}/><circle cx="170" cy="165" r="8" fill="#10bfa5"/><text x="170" y="220" textAnchor="middle" fontSize="35" fill="currentColor" className="font-mono text-foreground">{testing||download!==null||upload!==null?value.toFixed(2):'—'}</text><text x="170" y="247" textAnchor="middle" fontSize="14" fill="currentColor" className="text-muted-foreground">Mbps</text></svg><p role="status" className="text-center text-sm text-muted-foreground">{phase||__ui("点击开始测试")} {__ui("· 实时采样")}</p></div>
+  <div className="space-y-6">{[{name:'下载',data:down,value:download,color:'#10bfa5'},{name:'上传',data:up,value:upload,color:'#38bdf8'}].map(row=><div key={row.name}><div className="mb-2 flex justify-between text-sm"><span>{__msg(row.name)} / Mbps</span><strong className="font-mono">{row.value===null?'—':row.value.toFixed(2)}</strong></div><svg viewBox="0 0 420 80" className="w-full rounded-lg bg-secondary/40" role="img" aria-label={__msg("{0}实测速度曲线", row.name)}>{[20,40,60].map(y=><line key={y} x1="0" x2="420" y1={y} y2={y} stroke="currentColor" className="text-border"/>)}<path d={line(row.data)} fill="none" stroke={row.color} strokeWidth="2.5"/></svg></div>)}<p className="text-xs text-muted-foreground">{__ui("曲线只显示实际采样，不使用模拟进度。1 MB/s ≈ 8 Mbps。")}</p></div>
+ </section>;
+}

@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "repository": "FUFU-eng/FurinaKit",
+  "version": "2.1.0",
+  "tag": "v2.1.0",
+  "assets": [
+    {
+      "sha256": "3032d8d344277ea727fafa9cac266c539acfd5509cea60fb38371145801bcabb",
+      "name": "FurinaKit.Setup.2.1.0.exe",
+      "bytes": 121093522,
+      "url": "https://lamb-greetings-whale-freebsd.trycloudflare.com/assets/FurinaKit.Setup.2.1.0.exe"
+    },
+    {
+      "sha256": "cc9933fa4fb89c2b80f091f7f49969e5149cd717b20d29e119a98dc3aabfe4bc",
+      "name": "FurinaKit-v2.1.0-windows-x64.zip",
+      "bytes": 149819314,
+      "url": "https://lamb-greetings-whale-freebsd.trycloudflare.com/assets/FurinaKit-v2.1.0-windows-x64.zip"
+    },
+    {
+      "name": "FurinaKit.BuildResources.2.1.0.zip",
+      "sha256": "8b8e4d9bfa7f24dd3c33adc9383d4e0b063af14ca5b4bb32053c85a4eb66e800",
+      "bytes": 131268620,
+      "url": "https://lamb-greetings-whale-freebsd.trycloudflare.com/assets/FurinaKit.BuildResources.2.1.0.zip"
+    },
+    {
+      "name": "ffmpeg.exe",
+      "sha256": "72a489eccd008c2ec2c0a5856c5c75bc3d8bbfa90166c4566865c246445e6aa3",
+      "bytes": 102856192,
+      "url": "https://lamb-greetings-whale-freebsd.trycloudflare.com/assets/ffmpeg.exe"
+    },
+    {
+      "name": "ffprobe.exe",
+      "sha256": "19202b23c0043f15ad1b7bce2344f406fd52bd6efd8f995ce02e7392a1cec52f",
+      "bytes": 102652416,
+      "url": "https://lamb-greetings-whale-freebsd.trycloudflare.com/assets/ffprobe.exe"
+    },
+    {
+      "name": "MODEL-DOWNLOADS.json",
+      "sha256": "f4b4ab3a294abd5673dc266909aee79f62026db2b9938994c362dec3fcd32024",
+      "bytes": 5445,
+      "url": "https://lamb-greetings-whale-freebsd.trycloudflare.com/assets/MODEL-DOWNLOADS.json"
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "sha256": "60438670d35237eec2afeec6e45417c1dfa65dc2788fff49ef5bb6a4f2fa2a00",
+      "bytes": 534,
+      "url": "https://lamb-greetings-whale-freebsd.trycloudflare.com/assets/SHA256SUMS.txt"
+    }
+  ]
+}

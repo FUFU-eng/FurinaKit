@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FurinaKit · 手机互传</title>
+<style>
+  :root{
+    --bg:#f6f3ec; --card:#fffdf8; --line:#e6ded0; --text:#3f362c; --muted:#8a7d6d;
+    --primary:#c67710; --primary-soft:rgba(198,119,16,.10); --ok:#2f9e6f; --err:#c0392b;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#16161a; --card:#1d1d21; --line:#2f2f35; --text:#f3f4f6; --muted:#9aa0a6;
+           --primary:#e0a33c; --primary-soft:rgba(224,163,60,.14); }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:16px 14px 32px;background:var(--bg);color:var(--text);
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+       -webkit-text-size-adjust:100%}
+  h1{font-size:18px;margin:0 0 2px}
+  .sub{color:var(--muted);font-size:12.5px;margin-bottom:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
+  .card h2{font-size:14px;margin:0 0 10px;display:flex;align-items:center;gap:6px}
+  .btn{appearance:none;border:0;border-radius:12px;padding:12px 16px;font-size:14.5px;font-weight:600;
+       background:var(--primary);color:#fff;width:100%;cursor:pointer}
+  .btn:disabled{opacity:.5}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text);font-weight:500}
+  .row{display:flex;gap:8px;align-items:center}
+  .file{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px dashed var(--line)}
+  .file:last-child{border-bottom:0}
+  .file .name{flex:1;min-width:0;font-size:13.5px;word-break:break-all}
+  .file .size{color:var(--muted);font-size:11.5px;white-space:nowrap}
+  .file a{color:var(--primary);font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap}
+  textarea{width:100%;min-height:76px;border-radius:12px;border:1px solid var(--line);background:transparent;
+           color:var(--text);padding:10px;font-size:14px;font-family:inherit;resize:vertical}
+  .pill{display:inline-block;background:var(--primary-soft);color:var(--primary);border-radius:999px;
+        padding:2px 9px;font-size:11.5px;font-weight:600}
+  .clip{background:var(--primary-soft);border-radius:12px;padding:10px;font-size:13.5px;word-break:break-all;
+        white-space:pre-wrap}
+  .muted{color:var(--muted);font-size:12.5px}
+  .toast{position:fixed;left:14px;right:14px;bottom:18px;background:#111;color:#fff;border-radius:12px;
+         padding:11px 14px;font-size:13.5px;opacity:0;transform:translateY(8px);transition:.25s;pointer-events:none}
+  .toast.show{opacity:.94;transform:none}
+  .toast.err{background:var(--err)}
+  input[type=file]{display:none}
+</style>
+</head>
+<body>
+  <h1>FurinaKit · 手机互传</h1>
+  <div class="sub">连同一个 Wi-Fi 或热点即可 · 数据只在局域网内走，不经过任何外网服务器</div>
+
+  <div class="card">
+    <h2>📤 传到电脑</h2>
+    <input id="picker" type="file" multiple>
+    <button class="btn" id="pick">选择照片 / 文件</button>
+    <div class="muted" id="pickInfo" style="margin-top:8px">支持多选，选完会自动开始传</div>
+    <div id="upProgress" class="muted" style="margin-top:6px"></div>
+  </div>
+
+  <div class="card">
+    <h2>💬 发文本 / 网址到电脑剪贴板</h2>
+    <textarea id="text" placeholder="粘贴一段文字或网址…"></textarea>
+    <button class="btn" id="sendText" style="margin-top:8px">发送到电脑</button>
+  </div>
+
+  <div class="card">
+    <h2>📥 电脑共享的文件 <span class="pill" id="sharedCount">0</span></h2>
+    <div id="shared"><div class="muted">正在读取…</div></div>
+  </div>
+
+  <div class="card">
+    <h2>📋 电脑剪贴板</h2>
+    <div id="clip" class="clip">（空）</div>
+    <button class="btn ghost" id="copyClip" style="margin-top:8px">复制这段文字</button>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+  const T = new URLSearchParams(location.search).get('t') || '';
+  const api = (q) => '/api/transfer?' + q + (T ? '&t=' + encodeURIComponent(T) : '');
+  const $ = (id) => document.getElementById(id);
+  let toastTimer = null;
+
+  function toast(msg, isErr) {
+    const el = $('toast');
+    el.textContent = msg;
+    el.className = 'toast show' + (isErr ? ' err' : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.className = 'toast'; }, 2600);
+  }
+  const fmt = (n) => {
+    if (!n && n !== 0) return '';
+    const u = ['B', 'KB', 'MB', 'GB']; let i = 0;
+    while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+    return (i === 0 ? n : n.toFixed(1)) + ' ' + u[i];
+  };
+
+  // 读取电脑侧状态（共享文件 + 剪贴板）
+  async function refresh() {
+    try {
+      const r = await fetch(api('action=state'), { cache: 'no-store' });
+      const d = await r.json();
+      if (!d.success) {
+        if (d.error === 'token') { toast('配对码无效，请重新扫二维码', true); }
+        return;
+      }
+      // 共享文件
+      const list = d.sharedFiles || [];
+      $('sharedCount').textContent = list.length;
+      $('shared').innerHTML = list.length
+        ? list.map((f) => `<div class="file"><div class="name">${escapeHtml(f.name)}</div>
+             <div class="size">${fmt(f.size)}</div>
+             <a href="${api('action=download&id=' + encodeURIComponent(f.id) + '&type=shared')}">下载</a></div>`).join('')
+        : '<div class="muted">电脑还没有共享文件</div>';
+      // 剪贴板
+      const c = (d.clipboardText || '').trim();
+      $('clip').textContent = c || '（空）';
+      $('clip').dataset.text = c;
+    } catch (e) {
+      // 静默：手机切后台时会有一次失败，不用打扰用户
+    }
+  }
+  const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  // 上传：一个一个传，能显示进度，也不会因为内存爆掉
+  $('pick').onclick = () => $('picker').click();
+  $('picker').onchange = async () => {
+    const files = [...$('picker').files];
+    if (!files.length) return;
+    $('pick').disabled = true;
+    let done = 0;
+    for (const f of files) {
+      $('upProgress').textContent = `正在传 ${done + 1}/${files.length}：${f.name}（${fmt(f.size)}）`;
+      try {
+        // 直接用原始字节当请求体，文件名放查询串 —— 服务端就不用解析 multipart 了
+        const r = await fetch(api('action=upload&name=' + encodeURIComponent(f.name)), {
+          method: 'POST',
+          headers: { 'Content-Type': f.type || 'application/octet-stream' },
+          body: f,
+        });
+        const d = await r.json();
+        if (!d.success) throw new Error(d.error || '上传失败');
+        done++;
+      } catch (e) {
+        toast('传失败：' + f.name + '（' + (e.message || e) + '）', true);
+      }
+    }
+    $('upProgress').textContent = done ? `已传完 ${done} 个文件 ✓` : '';
+    $('pick').disabled = false;
+    $('picker').value = '';
+    if (done) toast(`已传到电脑：${done} 个文件`);
+    refresh();
+  };
+
+  // 发文本到电脑剪贴板
+  let sendingText = false;
+  let textRevision = 0;
+  $('text').addEventListener('input', () => { textRevision++; });
+  $('sendText').onclick = async () => {
+    const text = $('text').value;
+    if (!text.trim() || sendingText) return;
+    const revision = textRevision;
+    sendingText = true;
+    $('sendText').disabled = true;
+    try {
+      const r = await fetch(api('action=clipboard'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: text,
+      });
+      const d = await r.json();
+      if (!d.success) throw new Error(d.error || '发送失败');
+      if (revision === textRevision) $('text').value = '';
+      toast('已发到电脑剪贴板 ✓');
+    } catch (e) { toast('发送失败：' + (e.message || e), true); }
+    finally { sendingText = false; $('sendText').disabled = false; }
+  };
+
+  // 复制电脑剪贴板内容到手机
+  $('copyClip').onclick = async () => {
+    const text = $('clip').dataset.text || '';
+    if (!text) return toast('电脑剪贴板是空的');
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('已复制 ✓');
+    } catch (e) {
+      // 手机浏览器可能不给剪贴板权限，退回到手动选中
+      const r = document.createRange(); r.selectNodeContents($('clip'));
+      const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      toast('请长按选中后复制');
+    }
+  };
+
+  refresh();
+  setInterval(refresh, 3000);
+</script>
+</body>
+</html>

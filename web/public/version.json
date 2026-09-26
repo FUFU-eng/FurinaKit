@@ -1,0 +1,36 @@
+{
+  "version": "2.1.0",
+  "releaseDate": "2026-09-19",
+  "changelog": [
+    "全新 Tauri 桌面版本，统一工作台、悬浮球、收藏与任务体验；与旧 Electron 版本使用完整安装包升级。",
+    "整理为 11 类、229 个工具入口，整合图片、PDF/Office、音视频、开发、安全、硬件与 AI 辅助任务。",
+    "增加独立 Python 与媒体处理运行环境；不再依赖开发目录，保留当前工具内核。",
+    "Whisper、精细抠图、LaMa、人声分离与扩展语音模型在设置中按需下载，不随安装包打包。",
+    "修正 BiRefNet 下载地址；增强镜像回退、文件完整性校验和更新包校验。",
+    "安装、启动、工具使用计数及意见反馈保持与原监控面板兼容。"
+  ],
+  "downloadUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe",
+  "fullDownloadUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe",
+  "minPatchVersion": "2.1.0",
+  "isMandatory": false,
+  "mirrors": [
+    {
+      "name": "GitHub 官方",
+      "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe"
+    },
+    {
+      "name": "备用镜像",
+      "url": "https://ghfast.top/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe"
+    }
+  ],
+  "fullMirrors": [
+    {
+      "name": "GitHub 官方",
+      "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe"
+    },
+    {
+      "name": "备用镜像",
+      "url": "https://ghfast.top/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe"
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+<!doctype html>
+<!--
+  这个文件对应原版的 app/layout.tsx：
+    <html lang="zh-CN" data-theme="dark" className={inter.variable + jetbrainsMono.variable}>
+      <body className="antialiased">
+  字体变量改由 src/fonts.css 提供（内容就是 Next 构建产物里那份），效果一致。
+  下面那段脚本与原版 layout.tsx 里的 themeInitScript 逐字一致 —— 它保证"首屏之前"
+  就把主题定下来，浅色用户不会先闪一下深色。
+-->
+<html lang="zh-CN" data-theme="eye-care">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FurinaKit 芙宁娜工具箱</title>
+    <style>
+      html, body { margin: 0; background: #f4efe6; }
+      html[data-theme="light"], html[data-theme="light"] body { background: #f1f5f9; }
+      html[data-theme="dark"], html[data-theme="dark"] body { background: #151517; }
+      html[data-window]:not([data-window="main"]), html[data-window]:not([data-window="main"]) body { background: transparent; }
+    </style>
+    <script>
+      (function(){
+        var t='eye-care';
+        try{
+          var m=localStorage.getItem('furina-theme-mode');
+          var saved=localStorage.getItem('furina-theme');
+          if(m==='system') t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';
+          else if(m==='light'||m==='dark'||m==='eye-care') t=m;
+          else if(saved==='light'||saved==='dark'||saved==='eye-care') t=saved;
+        }catch(e){}
+        document.documentElement.setAttribute('data-theme',t);
+        var auxiliary=new URLSearchParams(location.search).get('window');
+        if(auxiliary) document.documentElement.setAttribute('data-window',auxiliary);
+      })();
+    </script>
+  </head>
+  <body class="antialiased">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

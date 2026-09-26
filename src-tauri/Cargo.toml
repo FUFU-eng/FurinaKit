@@ -1,0 +1,88 @@
+[package]
+name = "furinakit"
+version = "2.1.0"
+description = "FurinaKit 芙宁娜工具箱"
+edition = "2021"
+rust-version = "1.77"
+default-run = "furinakit"
+
+# A separate output avoids overwriting a development executable currently in use.
+[features]
+desktop-gui = []
+# Only the dedicated bin can activate this capability; never a production default.
+upscale-validation = ["desktop-gui"]
+capture-save-validation = ["upscale-validation"]
+
+[[bin]]
+name = "furinakit"
+path = "src/main.rs"
+
+[[bin]]
+name = "furinakit-desktop"
+path = "src/main.rs"
+required-features = ["desktop-gui"]
+test = false
+bench = false
+
+[[bin]]
+name = "furinakit-upscale-validation"
+path = "src/main.rs"
+required-features = ["upscale-validation"]
+test = false
+bench = false
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png", "unstable"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+clipboard-rs = "0.3"
+rusqlite = { version = "0.32", features = ["bundled"] }
+blake3 = "1"
+sha2 = "0.10"
+uuid = { version = "1", features = ["v4"] }
+native-tls = "0.2"
+url = "2"
+lopdf = "0.34"
+# ZIP（xlsx 读写 / 批量结果打包）用的 Deflate；lopdf 本来就依赖它，不增加体积
+flate2 = "1"
+# Already a locked transitive image dependency; indexed GIF frame editing needs its direct API.
+gif = { version = "=0.14.2", default-features = false, features = ["std", "raii_no_panic"] }
+# Windows inbox PDF rasterizer; no redistributed PDF engine. Version already in Cargo.lock.
+windows = { version = "=0.61.3", features = ["Data_Pdf", "Storage", "Storage_Streams", "Foundation", "UI", "Win32_System_WinRT", "Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_System_LibraryLoader", "Win32_Storage_FileSystem"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "bmp", "gif", "tiff", "ico"] }
+parking_lot = "0.12"
+# 编码检测与乱码修复（GBK/Big5/Shift_JIS…）。这个 crate 本来就在 Tauri 的依赖树里，加进来不增加体积。
+encoding_rs = "0.8"
+# ONNX 推理（抠图 / 去水印 / 扩图 / 超分 / 上色）。
+# 注意：ort 目前只有预发布版，写 "2" 解析不到，必须写全版本号。
+ort = { version = "2.0.0-rc.13", features = ["download-binaries", "directml"] }
+# 音频降噪 / 人声分离的 STFT（纯 Rust，任意长度 FFT）
+realfft = "3"
+
+[profile.release]
+opt-level = "s"          # 浣撶Н浼樺厛
+# 娉ㄦ剰锛歭to = true锛坒at LTO锛夊湪鎺ヤ笂 ONNX Runtime 涔嬪悗宄板€煎唴瀛樻槑鏄句笂鍗囥€?# 鍚屼竴浠芥簮鐮佸疄娴嬶細fat LTO 鈫?exe 26.57MB / 125 绉掞紱thin LTO 鈫?26.91MB / 144 绉掞紝
+# 鎵€浠ヨ繖閲屼繚鐣?fat LTO锛堟洿灏忎篃鏇村揩锛夈€?# 浣嗗唴瀛樼揣寮犳椂 fat LTO 浼氱洿鎺ョ偢锛氳繖鍙版満鍣紙16G锛屽悓鏃跺紑鐫€娓告垙绛夌▼搴忋€佸彧鍓?0.5G 鍙敤锛?# 涓婂嚭鐜拌繃 `rustc-LLVM ERROR: out of memory` 缂栬瘧澶辫触 鈥斺€?閭ｇ鎯呭喌涓嬭涔堝厛鍏虫帀鍗犲唴瀛樼殑绋嬪簭锛?# 瑕佷箞涓存椂鎶婅繖閲屾敼鎴?lto = "thin"锛堜綋绉彧澶氱害 0.34MB锛夈€?lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+# Screenshot encode/decode is latency-sensitive even in user acceptance builds.
+# Optimize only the image codec crates; do not rebuild every dependency as a release profile.
+[profile.dev.package.image]
+opt-level = 3
+[profile.dev.package.png]
+opt-level = 3
+[profile.dev.package.zune-jpeg]
+opt-level = 3
+[profile.dev.package.miniz_oxide]
+opt-level = 3

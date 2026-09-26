@@ -15,6 +15,26 @@ from typing import Any
 # Redirect the cache to a writable temp dir BEFORE any import chain pulls numba in.
 os.environ.setdefault("NUMBA_CACHE_DIR", os.path.join(tempfile.gettempdir(), "furinakit-numba"))
 
+# V66 isolated control/inference modes must exit before queue/config imports.
+if __name__ == "__main__" and len(sys.argv) > 1:
+    if sys.argv[1] == "--vocal-render":
+        from app.tools.vocal_runner import render_cli as _vocal_render_cli
+        _vocal_render_cli(sys.argv[2])
+        raise SystemExit(0)
+    if sys.argv[1] == "--tts-components":
+        from app.tools.tts_components import cli as _tts_components_cli
+        _tts_components_cli(sys.argv[2:])
+        raise SystemExit(0)
+    if sys.argv[1] == "--tts-render":
+        from app.tools.tts import render_cli as _tts_render_cli
+        _tts_render_cli(sys.argv[2])
+        raise SystemExit(0)
+
+# Isolated CLI modes above remain separate. A configured queue worker must guard
+# subprocess creation before imports/readiness, not lazily after its first task.
+from app.task_processes import install_configured as _install_task_process_custody
+_install_task_process_custody()
+
 from app.config import (
     MAX_CONCURRENT_JOBS_CAP,
     MAX_CONCURRENT_JOBS_ENV,
@@ -178,6 +198,12 @@ class WorkerEngine:
             max_workers=self.max_concurrent_jobs, thread_name_prefix="furinakit-job"
         )
         try:
+            if self._should_stop():
+                return
+            # Imports and executor setup succeeded; confirm the actual selected store.
+            from app.worker_ready import publish_ready
+            from app.file_job_store import _storage_root as native_storage_root
+            publish_ready(file_queue=settings.use_file_queue, storage=native_storage_root())
             self._dispatch_loop()
         except KeyboardInterrupt:
             logger.info("KeyboardInterrupt received.")
@@ -332,7 +358,69 @@ class WorkerEngine:
             )
 
 
+def _watch_parent() -> None:
+    """Watch the original parent process handle, never a repeatedly looked-up PID.
+
+    Native Tauri also supplies atomic Job ownership. This watcher is retained for
+    source/Electron callers; it terminates only this worker, never another PID.
+    """
+    pid_raw = os.environ.get("FURINAKIT_PARENT_PID", "").strip()
+    if not pid_raw.isdigit():
+        return
+    pid = int(pid_raw)
+    if not 0 < pid <= 0xFFFFFFFF:
+        raise ValueError("Invalid worker parent PID")
+
+    kernel = None
+    handle = None
+    if sys.platform == "win32":
+        import ctypes
+        from ctypes import wintypes
+
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel.OpenProcess.restype = wintypes.HANDLE
+        kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        kernel.WaitForSingleObject.restype = wintypes.DWORD
+        kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel.CloseHandle.restype = wintypes.BOOL
+        handle = kernel.OpenProcess(0x00100000, False, pid)  # SYNCHRONIZE only
+        if not handle:
+            logger.error("Cannot establish worker parent liveness; worker will exit")
+            os._exit(1)
+
+    def loop() -> None:
+        try:
+            while True:
+                if kernel is not None:
+                    result = kernel.WaitForSingleObject(handle, 5000)
+                    if result == 258:  # WAIT_TIMEOUT: original process still running
+                        continue
+                    if result != 0:
+                        logger.error("Worker parent wait failed; worker will exit")
+                        os._exit(1)
+                    break
+                time.sleep(5)
+                try:
+                    os.kill(pid, 0)  # POSIX compatibility only; no termination signal
+                except OSError:
+                    break
+            logger.info("Original parent exited; worker will exit")
+            os._exit(0)
+        finally:
+            if kernel is not None:
+                kernel.CloseHandle(handle)
+
+    try:
+        threading.Thread(target=loop, daemon=True, name="parent-watch").start()
+    except BaseException:
+        if kernel is not None:
+            kernel.CloseHandle(handle)
+        raise
+
+
 def main() -> None:
+    _watch_parent()
     global _redis_status, _last_redis_probe_time
     _redis_status, _ = check_redis_connection()
     _last_redis_probe_time = time.time()

@@ -1,0 +1,7 @@
+{
+  "package": "Microsoft.AI.DirectML 1.15.4",
+  "url": "https://api.nuget.org/v3-flatcontainer/microsoft.ai.directml/1.15.4/microsoft.ai.directml.1.15.4.nupkg",
+  "file": "bin/x64-win/DirectML.dll",
+  "sha256": "9c9e6d822561c6c41b90e6994b3e8857cf1d66dbfb1e0c4c799c7c89b4e92da1",
+  "package_sha256": "4e7cb7ddce8cf837a7a75dc029209b520ca0101470fcdf275c1f49736a3615b9"
+}

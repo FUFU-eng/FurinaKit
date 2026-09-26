@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "engine": "ARCHPR 4.54 build 45",
+  "engineSha256": "cc9bb9cf34f607ba0d3a08595aef2f312deb61a89b99d9e02ed13dde519491bc",
+  "files": [
+    {
+      "name": "elcom_reg.dll",
+      "bytes": 123560,
+      "sha256": "3b53c5b47b1324516d9b2e414d247b6fdfd68986fd01be5ceb67af736e3ab192"
+    },
+    {
+      "name": "elcom_xml.dll",
+      "bytes": 155648,
+      "sha256": "3b77310b77559d22bed55ee7f538b79cb94c6ea84c681da03687c39249c743b1"
+    },
+    {
+      "name": "elcom_lang.xml",
+      "bytes": 147575,
+      "sha256": "01c70c0727deaa31a45624fd107f8c23bf07585dab6d056b8004720931ab2431"
+    },
+    {
+      "name": "elcom_partners.exml",
+      "bytes": 19182,
+      "sha256": "482c445db2943ab3cd697f8241d06f3fa5993103175ffd5825894d7aeee1044f"
+    }
+  ],
+  "source": "Existing ElcomSoft Common Files installation; no activation data copied",
+  "license": "Proprietary ElcomSoft; clean machines run Trial. Redistribution rights require publisher confirmation.",
+  "cleanWindowsAcceptance": "pending"
+}

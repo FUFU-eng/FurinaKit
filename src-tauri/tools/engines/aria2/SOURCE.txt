@@ -1,0 +1,8 @@
+aria2 1.37.0, official Windows x64 build1. GPL-2.0-or-later; see COPYING.
+Release: https://github.com/aria2/aria2/releases/tag/release-1.37.0
+Corresponding source: https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0.tar.xz
+Build recipes and dependency versions: README.mingw and https://github.com/aria2/aria2/tree/release-1.37.0
+Original archive SHA256: 67d015301eef0b612191212d564c5bb0a14b5b9c4796b76454276a4d28d9b288
+Executable SHA256: be2099c214f63a3cb4954b09a0becd6e2e34660b886d4c898d260febfe9d70c2
+This is a separate owned process, not a copied commercial downloader implementation.
+Redistributors must preserve notices and provide corresponding source as required by the license.

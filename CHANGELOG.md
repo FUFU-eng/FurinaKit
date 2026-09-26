@@ -1,3 +1,9 @@
+# v2.1.0 · 2026-09-26
+
+- Tauri + Rust desktop, bundled base engines and optional verified model downloads.
+- Repair ARCHPR shared dependencies and file-import feedback.
+- Full-installer upgrade path from 2.0.6; preserve supported legacy preferences and prevent duplicate install counting.
+
 # 更新日志 (Changelog)
 
 所有关于 FurinaKit (芙宁娜工具箱) 的重要版本迭代与技术改进均记录于此。

@@ -15,6 +15,12 @@ from typing import Optional
 def _candidate_paths() -> list[str]:
     import sys
     candidates: list[str] = []
+    components = os.environ.get("FURINAKIT_COMPONENTS_DIR", "")
+    if components:
+        candidates += [os.path.join(components, "ffmpeg.exe"), os.path.join(components, "ffmpeg", "ffmpeg.exe")]
+    for key in ("FURINAKIT_FFMPEG_PATH", "FFMPEG_PATH"):
+        if os.environ.get(key):
+            candidates.append(os.environ[key])
 
     # 优先检查打包内置环境（furinakit-worker.exe 同级目录或 resources 目录）
     exe_dir = os.path.dirname(os.path.abspath(sys.executable))

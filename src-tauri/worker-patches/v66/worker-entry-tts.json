@@ -1,0 +1,5 @@
+{
+  "expected_sha256": "814e11a519d89570c483fdbccb6e5617fe23781bf61758a39706760a90ec425a",
+  "old": "from app.config import (",
+  "new": "# V66 isolated control/inference modes must exit before queue/config imports.\nif __name__ == \"__main__\" and len(sys.argv) > 1:\n    if sys.argv[1] == \"--tts-components\":\n        from app.tools.tts_components import cli as _tts_components_cli\n        _tts_components_cli(sys.argv[2:])\n        raise SystemExit(0)\n    if sys.argv[1] == \"--tts-render\":\n        from app.tools.tts import render_cli as _tts_render_cli\n        _tts_render_cli(sys.argv[2])\n        raise SystemExit(0)\n\nfrom app.config import ("
+}

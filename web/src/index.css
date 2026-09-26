@@ -1,0 +1,607 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ────────────────────────────────────────────────────────────────────────
+   Furina Tools — 芙宁娜风格设计系统
+   深色：深海蓝底 + 水蓝/鎏金点缀；浅色：干净的浅灰蓝 + 白色卡片。
+   所有表面/文字/边框一律走语义 HSL 变量，切换 data-theme 即整体换肤。
+   ──────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* 深色主题：照搬 DSH 设计系统（neutral-bluish 中性色阶 + deepseek 强调蓝）。
+     以前是深蓝底（231 64% 11%），整体泛蓝；现在改成中性深灰，界面更沉、更耐看。
+       页面 #151517 / 卡片 #1b1b1c / 浮层 #2c2c2e
+       主文字 #f9fafb / 次要 #cfd3d6 / 弱化 #adb2b8
+       边框 白色 6%~12%   主按钮 = 白底深字（DSH 深色下就是这样） */
+  --background: 240 5% 9%;
+  --foreground: 210 20% 98%;
+  --card: 240 2% 11%;
+  --card-foreground: 210 20% 98%;
+  /* 媒体预览的"舞台"底色：视频/图片/音频摆在它上面展示。
+     刻意做成三套主题都一样接近黑 —— 视频的黑边就是这个颜色，任何主题下
+     都不该变成浅灰（那会让画面看起来像浮在一块脏纸上）。 */
+  --stage: 0 0% 7%;
+  --popover: 240 2% 14%;
+  --popover-foreground: 210 20% 98%;
+  --primary: 210 20% 98%;
+  --primary-foreground: 240 5% 9%;
+  --secondary: 240 2% 14%;
+  --secondary-foreground: 210 20% 98%;
+  --muted: 240 2% 14%;
+  --muted-foreground: 210 7% 70%;
+  --accent: 240 2% 18%;
+  --accent-foreground: 210 20% 98%;
+  --destructive: 0 85% 65%;
+  --success: 153 60% 53%;
+  --border: 240 2% 18%;
+  --input: 240 2% 19%;
+  --ring: 213 98% 70%;
+  --radius: 0.7rem;
+
+  /* 原生控件（下拉选项、滚动条、日期选择器）跟随深色，避免先闪白底 */
+  color-scheme: dark;
+
+  /* 品牌渐变（DSH 强调蓝一族，比原来的水蓝+淡紫克制很多） */
+  --brand-1: 213 98% 70%;
+  --brand-2: 221 99% 67%;
+  --brand-3: 222 96% 86%;
+
+  /* 环境光强度。深色下原来 1 会在整个页面上铺一层蓝光，和中性的底色打架，降到 0.4 */
+  --aurora-opacity: 0.4;
+}
+
+[data-theme="light"] {
+  --background: 210 40% 96%;
+  --foreground: 217 33% 17%;
+  --card: 0 0% 100%;
+  --card-foreground: 217 33% 17%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 217 33% 17%;
+  --primary: 200 98% 39%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 217 33% 17%;
+  --muted: 210 40% 94%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 204 94% 94%;
+  --accent-foreground: 200 98% 30%;
+  --destructive: 0 72% 51%;
+  --success: 161 94% 30%;
+  --border: 214 32% 91%;
+  --input: 214 32% 88%;
+  --ring: 200 98% 39%;
+
+  color-scheme: light;
+
+  --brand-1: 200 98% 39%;
+  --brand-2: 198 93% 50%;
+  --brand-3: 199 95% 62%;
+
+  --aurora-opacity: 0.35;
+}
+
+[data-theme="eye-care"] {
+  --background: 40 33% 93%;
+  --foreground: 30 18% 22%;
+  --card: 40 38% 97%;
+  --card-foreground: 30 18% 22%;
+  --popover: 40 38% 97%;
+  --popover-foreground: 30 18% 22%;
+  --primary: 34 85% 42%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 40 24% 88%;
+  --secondary-foreground: 30 18% 22%;
+  --muted: 40 20% 86%;
+  --muted-foreground: 30 10% 46%;
+  --accent: 38 40% 90%;
+  --accent-foreground: 34 85% 30%;
+  --destructive: 0 65% 50%;
+  --success: 152 50% 36%;
+  --border: 38 20% 83%;
+  --input: 38 20% 80%;
+  --ring: 34 85% 42%;
+
+  color-scheme: light;
+
+  --brand-1: 34 85% 44%;
+  --brand-2: 24 80% 50%;
+  --brand-3: 42 80% 55%;
+
+  --aurora-opacity: 0.25;
+}
+
+[data-theme="eye-care"] body::after {
+  opacity: 0;
+}
+
+/* 护眼模式高对比度增强：暖燕麦底色上将黄色/琥珀色小字自动转为深琥珀暖褐，保证清晰易读 */
+[data-theme="eye-care"] .text-amber-300,
+[data-theme="eye-care"] .text-amber-400,
+[data-theme="eye-care"] .text-amber-500,
+[data-theme="eye-care"] .text-amber-600,
+[data-theme="eye-care"] .text-amber-700,
+[data-theme="eye-care"] .text-yellow-300,
+[data-theme="eye-care"] .text-yellow-400,
+[data-theme="eye-care"] .text-yellow-500,
+[data-theme="eye-care"] [class*="text-amber-"],
+[data-theme="eye-care"] [class*="text-yellow-"] {
+  color: #78350f !important;
+}
+
+[data-theme="eye-care"] .border-amber-500\/20,
+[data-theme="eye-care"] .border-amber-500\/30,
+[data-theme="eye-care"] [class*="border-amber-"] {
+  border-color: rgba(180, 83, 9, 0.35) !important;
+}
+
+[data-theme="eye-care"] .bg-amber-500\/5,
+[data-theme="eye-care"] .bg-amber-500\/10,
+[data-theme="eye-care"] .bg-amber-500\/15,
+[data-theme="eye-care"] .bg-amber-500\/20,
+[data-theme="eye-care"] .bg-amber-600\/10,
+[data-theme="eye-care"] .bg-amber-600\/15,
+[data-theme="eye-care"] .bg-amber-600\/20 {
+  background-color: rgba(217, 119, 6, 0.12) !important;
+}
+
+/* 原生 <select> 下拉列表显式跟随主题，杜绝展开瞬间闪白 */
+select option,
+select optgroup {
+  background-color: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+}
+select {
+  color-scheme: inherit;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  min-height: 100vh;
+  font-family: var(--font-sans), "Inter", "Microsoft YaHei", "PingFang SC",
+    system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-feature-settings: "ss01", "cv01", "cv02";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* 桌面悬浮球窗口：强制完全透明，严禁任何实体底色、暗盒、外框与极光光晕 */
+html[data-window="float-ball"],
+html[data-window="float-ball"] body,
+html[data-window="float-ball"] #root {
+  background: transparent !important;
+  background-color: transparent !important;
+  min-height: 100% !important;
+  height: 100% !important;
+  overflow: hidden !important;
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+}
+
+html[data-window="float-ball"] *:focus,
+html[data-window="float-ball"] *:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+html[data-window="float-ball"] body::before,
+html[data-window="float-ball"] body::after {
+  display: none !important;
+  content: none !important;
+}
+
+/* 环境极光：缓慢漂移的品牌色光晕，只做 transform，浅色下自动减弱 */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -25%;
+  z-index: -2;
+  pointer-events: none;
+  will-change: transform;
+  opacity: var(--aurora-opacity);
+  background:
+    radial-gradient(38rem 38rem at 12% -8%, hsl(var(--brand-1) / 0.16), transparent 62%),
+    radial-gradient(34rem 34rem at 90% 0%, hsl(var(--brand-2) / 0.12), transparent 62%),
+    radial-gradient(40rem 40rem at 78% 108%, hsl(var(--brand-3) / 0.10), transparent 62%);
+  animation: aurora-drift 30s ease-in-out infinite alternate;
+  transition: opacity 0.3s ease;
+}
+
+/* 细腻噪点，增加层次（非常淡，浅色下隐藏） */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+[data-theme="light"] body::after {
+  opacity: 0;
+}
+
+/* ── Typography helpers ─────────────────────────────────────────────────── */
+.font-mono-accent {
+  font-family: var(--font-mono), ui-monospace, "JetBrains Mono", "Cascadia Code",
+    "Consolas", monospace;
+  letter-spacing: -0.01em;
+  font-feature-settings: "ss01";
+}
+
+/* 品牌渐变文字 */
+.text-gradient {
+  background: linear-gradient(
+    100deg,
+    hsl(var(--brand-1)),
+    hsl(var(--brand-2)),
+    hsl(var(--brand-3)),
+    hsl(var(--brand-1))
+  );
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: gradient-pan 8s linear infinite;
+}
+
+/* ── Category accent variables ──────────────────────────────────────────── */
+.cat-image    { --cat: 198 92% 56%; }
+.cat-pdf      { --cat: 347 80% 62%; }
+.cat-download { --cat: 153 60% 50%; }
+.cat-audio    { --cat: 268 76% 66%; }
+.cat-utility  { --cat: 205 90% 56%; }
+.cat-favorite { --cat: 38 95% 60%; }
+
+/* 分类区块标题条 */
+.cat-section-strip {
+  position: relative;
+  border-radius: calc(var(--radius) - 0.15rem);
+  background: linear-gradient(100deg, hsl(var(--cat) / 0.10) 0%, transparent 62%);
+  border: 1px solid hsl(var(--cat) / 0.18);
+  border-left: 3px solid hsl(var(--cat) / 0.8);
+}
+
+/* ── Gradient hairline border utility (1px, masked) ─────────────────────── */
+.gradient-border {
+  position: relative;
+}
+.gradient-border::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, hsl(var(--border) / 0.9), hsl(var(--border) / 0.2) 40%, hsl(var(--primary) / 0.35));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ── Spotlight card: cursor-following glow + gradient ring ───────────────── */
+.spotlight-card {
+  position: relative;
+  isolation: isolate;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.28s ease,
+    background-color 0.28s ease, box-shadow 0.28s ease;
+  will-change: transform;
+}
+.spotlight-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  background: radial-gradient(
+    420px circle at var(--mx, 50%) var(--my, 50%),
+    hsl(var(--cat, var(--primary)) / 0.14),
+    transparent 60%
+  );
+  pointer-events: none;
+}
+.spotlight-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  background: radial-gradient(
+    320px circle at var(--mx, 50%) var(--my, 50%),
+    hsl(var(--cat, var(--primary)) / 0.75),
+    transparent 62%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.spotlight-card:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 1px 0 0 hsl(var(--foreground) / 0.04) inset,
+    0 18px 40px -20px hsl(var(--cat, var(--primary)) / 0.45);
+}
+.spotlight-card:hover::before,
+.spotlight-card:hover::after {
+  opacity: 1;
+}
+
+.tool-card-hover {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease,
+    background-color 0.2s ease;
+}
+.tool-card-hover:hover {
+  border-color: hsl(var(--cat, var(--primary)) / 0.5);
+  transform: translateY(-3px);
+  box-shadow: 0 16px 36px -18px hsl(var(--cat, var(--primary)) / 0.4);
+}
+
+/* ── 工具卡片：长按拖拽的触感反馈 ──────────────────────────────────────────
+   手机上的长按拖动是「摁住先变小 → 蓄力到时间弹一下变大 → 跟着手走」，这里照做。
+   必须写在这里、而不是用 Tailwind 的 .scale-*：上面 .tool-card-hover:hover 的
+   translateY(-3px) 和它优先级相同(0,2,0)但来源更早，普通工具类(0,1,0)根本盖不住，
+   实测缩放会被整个顶掉、一点反应都没有。所以这里用 (0,2,0)/(0,3,0) 的选择器。 */
+.tool-card-hover.fk-card-pressed,
+.tool-card-hover.fk-card-pressed:hover {
+  transform: scale(0.965);
+  transition: transform 0.1s cubic-bezier(0.2, 0, 0, 1);
+}
+.tool-card-hover.fk-card-dragging,
+.tool-card-hover.fk-card-dragging:hover {
+  /* 0.34/1.56 是带过冲的缓动：先冲过 1.06 再回落，也就是「弹一下」 */
+  transform: scale(1.06) rotate(-1.2deg);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ── Glass surface ──────────────────────────────────────────────────────── */
+.glass {
+  background: hsl(var(--card) / 0.7);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+
+/* ── Shimmer (loading) ──────────────────────────────────────────────────── */
+.shimmer {
+  background: linear-gradient(
+    100deg,
+    hsl(var(--secondary)) 30%,
+    hsl(var(--primary) / 0.22) 50%,
+    hsl(var(--secondary)) 70%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+/* 主按钮扫光 */
+.sheen {
+  position: relative;
+  overflow: hidden;
+}
+.sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    hsl(0 0% 100% / 0.18) 50%,
+    transparent 80%
+  );
+  transform: translateX(-120%);
+  transition: transform 0.6s ease;
+}
+.sheen:hover::after {
+  transform: translateX(120%);
+}
+
+/* ── Animated dot grid ──────────────────────────────────────────────────── */
+.dot-grid {
+  background-image: radial-gradient(hsl(var(--foreground) / 0.18) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(60% 60% at 50% 40%, #000 30%, transparent 100%);
+  -webkit-mask-image: radial-gradient(60% 60% at 50% 40%, #000 30%, transparent 100%);
+}
+
+.grid-pan {
+  background-image:
+    linear-gradient(hsl(var(--primary) / 0.5) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--primary) / 0.5) 1px, transparent 1px);
+  background-size: 28px 28px;
+  animation: grid-pan 22s linear infinite;
+}
+
+/* ── Custom scrollbar ───────────────────────────────────────────────────── */
+.thin-scroll::-webkit-scrollbar { width: 9px; height: 9px; }
+.thin-scroll::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 999px;
+  border: 2px solid hsl(var(--background));
+}
+.thin-scroll::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary) / 0.6); }
+.thin-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* 版本胶囊条：一条**常显**的细滚动条。
+   版本会一版一版往上加，若只在悬停时才出现滚动条，用户根本不知道右边/左边还有版本可选。
+   滚动条做得极细且贴着胶囊底部，不抢视线。 */
+.version-strip {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+.version-strip::-webkit-scrollbar { height: 6px; }
+.version-strip::-webkit-scrollbar-track { background: transparent; }
+.version-strip::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 999px;
+}
+.version-strip::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary) / 0.55); }
+
+/* ── Keyframes ──────────────────────────────────────────────────────────── */
+@keyframes aurora-drift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(2%, 1.5%, 0) scale(1.06); }
+  100% { transform: translate3d(-1.5%, -1%, 0) scale(1.02); }
+}
+@keyframes gradient-pan {
+  to { background-position: 220% center; }
+}
+@keyframes grid-pan {
+  from { background-position: 0 0; }
+  to { background-position: 28px 28px; }
+}
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes float-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.45); }
+  50% { box-shadow: 0 0 0 7px hsl(var(--primary) / 0); }
+}
+@keyframes spin-slow {
+  to { transform: rotate(360deg); }
+}
+@keyframes pop-in {
+  0% { opacity: 0; transform: scale(0.92); }
+  60% { transform: scale(1.02); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in-up { animation: fade-in-up 0.5s ease both; }
+.animate-float-in { animation: float-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-count-up { animation: count-up 0.5s ease both; }
+.animate-pulse-glow { animation: pulse-glow 1.8s ease-in-out infinite; }
+.animate-pop-in { animation: pop-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-spin-slow { animation: spin-slow 8s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  body::before,
+  .grid-pan, .shimmer, .text-gradient,
+  .animate-fade-in-up, .animate-float-in, .animate-count-up,
+  .animate-pulse-glow, .animate-pop-in, .animate-spin-slow {
+    animation: none !important;
+  }
+  .spotlight-card:hover,
+  .tool-card-hover:hover { transform: none; }
+}
+
+/* 拖拽时全局禁用链接点击，防止拖拽结束后误触发打开工具 */
+body.furinakit-dragging a {
+  pointer-events: none !important;
+  cursor: grabbing !important;
+}
+
+body.furinakit-dragging {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   Tauri 版新增（作者要求）：**侧边栏不显示滚动条**。
+   侧栏工具分类很多，滚动条一直在右边显得乱；这里只把它藏起来，
+   滚动本身照常（滚轮/键盘/拖动都还能滚）。
+   注意：这一段是本项目对原版样式表的**唯一改动**，其余部分与原版逐字节一致。
+   ──────────────────────────────────────────────────────────────────────── */
+aside .thin-scroll {
+  scrollbar-width: none;          /* Firefox / 新版标准 */
+  -ms-overflow-style: none;       /* 老 Edge */
+}
+aside .thin-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;                  /* WebView2（Chromium）*/
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   Tauri 版新增（作者要求）：**长栏自己带滚动条**。
+   工具页里常有"左边一长条参数、右边一块预览"的布局：内容比一屏高的时候，
+   滚整页会把两边一起带走，右边的预览就跟着跑掉了。
+   给某一栏加上 .tool-col-scroll 之后，这一栏自己滚动、另一栏保持不动。
+   只在大屏（≥1024px）生效；窄屏还是正常整页滚动，不然手机上会很难用。
+   ──────────────────────────────────────────────────────────────────────── */
+@media (min-width: 1024px) {
+  .tool-col-scroll {
+    max-height: calc(100vh - 12rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;   /* 滚到头别把整页带走 */
+    padding-right: 0.25rem;         /* 给滚动条留一点位置，免得压住卡片边框 */
+  }
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   下拉面板的入场动画（Tauri 版新增）。
+   为什么不用 framer-motion 的 AnimatePresence：面板现在渲染在 body 上（portal），
+   退出动画还没播完、React 就把 portal 节点摘掉了，framer-motion 再去操作它就会抛
+   `NotFoundError: NOT_FOUND`（实测每次关闭都报，整个工具页错误边界都会触发）。
+   换成纯 CSS 就没这个竞态：面板由 React 直接挂载/卸载，只是加了个淡入效果。
+   ──────────────────────────────────────────────────────────────────────── */
+@keyframes fk-drop-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+.fk-drop-panel {
+  animation: fk-drop-in 0.12s ease-out;
+}
+
+/* Window chrome: soft tint for minimize/restore, a distinct red action for close.
+   !important is intentional here: resting colors are provided by inline theme styles. */
+.fk-window-control {
+  -webkit-app-region: no-drag;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease !important;
+}
+.fk-window-control:not(:disabled):is(:hover, :focus-visible) {
+  border-color: rgba(56, 189, 248, .48) !important;
+  box-shadow: inset 0 0 0 100px rgba(56, 189, 248, .12), 0 1px 3px rgba(0, 0, 0, .06);
+}
+.fk-window-control:not(:disabled):active {
+  box-shadow: inset 0 0 0 100px rgba(56, 189, 248, .20);
+}
+.fk-window-control:focus-visible {
+  outline: 2px solid rgba(56, 189, 248, .6);
+  outline-offset: 2px;
+}
+.fk-window-control--close:not(:disabled):is(:hover, :focus-visible) {
+  background: #ef4444 !important;
+  border-color: #ef4444 !important;
+  color: #fff !important;
+  box-shadow: none;
+}
+.fk-window-control--close:not(:disabled):active { background: #dc2626 !important; }
+@media (prefers-reduced-motion: reduce) {
+  .fk-window-control { transition: none !important; }
+}
+
+/* The native utility surface is transparent; only one rounded UI surface owns the corners. */
+html[data-utility-window], html[data-utility-window] body, html[data-utility-window] #root { background: transparent !important; }
+html[data-utility-window] body::after { display: none !important; }

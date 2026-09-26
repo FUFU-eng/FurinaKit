@@ -1,0 +1,5 @@
+{
+  "expected_sha256": "ff4192b86bdac065fe41c0d545f59cd5adc64cc9398526b9011744f0a6f8dccc",
+  "old": "        src = Path(input_path) if input_path else Path(\".\")\n        # ★ 这里必须用 Path(...) 包一层：_tmp_dir() 返回的是**字符串**，\n        #   直接写 \"str\" / \"语音.mp3\" 会抛 unsupported operand type(s) for /: 'str' and 'str'（踩过）\n        out = src.with_name(\"语音.mp3\") if input_path else Path(_tmp_dir()) / \"语音.mp3\"\n        res = tts.synthesize(text, engine, voice, rate, pitch, volume, str(out))\n        _finish_file(\n            job_id, use_file, res[\"output\"], \"语音.mp3\", \"audio/mpeg\",\n            f\"合成完成（{'离线系统语音' if res['engine'] == 'sapi' else '在线神经音色'} · {res['voice']} · {res['chars']} 字）\",\n        )\n",
+  "new": "        # Always stage inside the managed job temp area, never beside an input file.\n        out = Path(_tmp_dir()) / \"语音.mp3\"\n        res = tts.synthesize(text, engine, voice, rate, pitch, volume, str(out))\n        actual = Path(res[\"output\"])\n        _finish_file(job_id, use_file, str(actual), \"语音\" + actual.suffix,\n                     res[\"mime\"], \"合成完成，可先试听再保存 / Speech ready; preview before saving\")\n"
+}

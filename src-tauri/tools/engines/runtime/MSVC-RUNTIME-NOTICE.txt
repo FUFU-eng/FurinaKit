@@ -1,0 +1,6 @@
+Microsoft Visual C++ 2022 x64 Redistributable Runtime
+Copyright Microsoft Corporation. Microsoft license terms apply, not the application or whisper MIT license.
+Files: msvcp140.dll, msvcp140_1.dll, vcruntime140.dll, vcruntime140_1.dll, vcomp140.dll.
+Source: official Visual Studio Build Tools 2022 REDIST 14.44.35112, copied without modification.
+https://learn.microsoft.com/en-us/visualstudio/releases/2022/redistribution
+https://visualstudio.microsoft.com/license-terms/

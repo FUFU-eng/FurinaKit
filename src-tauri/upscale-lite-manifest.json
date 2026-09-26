@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "id": "bundled-upscale-lite-v1",
+  "models": [
+    "anime-x2",
+    "anime-x3"
+  ],
+  "files": [
+    {
+      "path": "models/realesr-animevideov3-x2.bin",
+      "bytes": 1247368,
+      "sha256": "548a36f9c3f4ab8da56cd3b13badf23968bee207b396dad14d04b830e5f2ab2d"
+    },
+    {
+      "path": "models/realesr-animevideov3-x2.param",
+      "bytes": 3173,
+      "sha256": "b88ff4f00ebf019a7fdac17fdd45a7fd3665d37509efc5baf2e4da2e24420a04"
+    },
+    {
+      "path": "models/realesr-animevideov3-x3.bin",
+      "bytes": 1247368,
+      "sha256": "548a36f9c3f4ab8da56cd3b13badf23968bee207b396dad14d04b830e5f2ab2d"
+    },
+    {
+      "path": "models/realesr-animevideov3-x3.param",
+      "bytes": 3173,
+      "sha256": "d1a5755008791d09b57e3425fc9dd0bd26b00fdf79c606210bc0e693f8230881"
+    },
+    {
+      "path": "realesrgan-ncnn-vulkan.exe",
+      "bytes": 6161408,
+      "sha256": "07e49f7cbb4ede01ae4dd4c399d3a7e5846e3d2085c3128eff881e55cb7b1a0c"
+    }
+  ]
+}

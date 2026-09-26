@@ -1,0 +1,288 @@
+/* User's uTools phone reference: image first, no document panel or permanent title bar. */
+html[data-window="shot-pin"],
+html[data-window="shot-pin"] body,
+html[data-window="shot-pin"] #root {
+  background: transparent !important;
+  background-color: transparent !important;
+  overflow: hidden !important;
+  min-height: 100%;
+}
+html[data-window="shot-pin"] body::before,
+html[data-window="shot-pin"] body::after {
+  display: none !important;
+}
+.shot-float {
+  --pin-ink: #333b45;
+  --pin-muted: #939ba4;
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  width: 100vw;
+  height: 100dvh;
+  box-sizing: border-box;
+  background: transparent;
+  color: var(--pin-ink);
+  font:
+    12px/1.4 "Segoe UI",
+    "Microsoft YaHei UI",
+    sans-serif;
+  isolation: isolate;
+  user-select: none;
+}
+.shot-float * {
+  box-sizing: border-box;
+}
+.shot-float.dock-left {
+  flex-direction: row-reverse;
+}
+.shot-image {
+  position: relative;
+  flex: none;
+  margin: 0;
+  line-height: 0;
+  cursor: move;
+  touch-action: none;
+  box-shadow:
+    0 0 0 1px #ffffff6b,
+    0 2px 5px #141a2020,
+    0 7px 15px #141a2015;
+  animation: shot-lift 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.shot-image img {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+}
+.shot-rail {
+  flex: 0 0 96px;
+  width: 96px;
+  height: 324px;
+  border: 1px solid #ffffffd9;
+  border-radius: 13px;
+  padding: 7px;
+  background: linear-gradient(145deg, #fffffff7, #f8fafcf0);
+  box-shadow:
+    0 0 0 1px #25324313,
+    0 3px 8px #1421360d,
+    0 9px 16px #14213613;
+  animation: shot-rail-in 220ms 80ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.shot-rail-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 25px;
+  padding: 2px 0 7px;
+  color: #77828d;
+  cursor: move;
+  touch-action: none;
+  border-bottom: 1px solid #65788c16;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+.shot-rail-head svg {
+  flex: none;
+  color: #9fa8b1;
+}
+.shot-rail-head span {
+  min-width: 0;
+  white-space: nowrap;
+}
+.shot-rail-head small {
+  display: block;
+  margin-top: 2px;
+  color: #a1a8b0;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+.shot-rail nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 0;
+}
+.shot-rail button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  width: 100%;
+  height: 34px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 130ms ease,
+    color 130ms ease,
+    transform 100ms ease;
+}
+.shot-rail button span {
+  font-size: 11px;
+  letter-spacing: 0.01em;
+}
+.shot-rail button svg {
+  flex: none;
+}
+.shot-rail button:hover:not(:disabled) {
+  background: #e9eef4;
+  color: #24354b;
+}
+.shot-rail button:active:not(:disabled) {
+  background: #dee7f0;
+  transform: scale(0.97);
+}
+.shot-rail button:focus-visible {
+  outline: 2px solid #829ab8;
+  outline-offset: 1px;
+}
+.shot-rail button:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+.shot-rail footer {
+  height: 35px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid #65788c16;
+  padding-top: 5px;
+}
+.shot-rail footer button {
+  justify-content: center;
+  width: 34px;
+  height: 28px;
+  padding: 0;
+}
+.shot-rail footer i {
+  height: 10px;
+  width: 1px;
+  background: #77849324;
+}
+.shot-toast {
+  position: absolute;
+  z-index: 5;
+  left: 16px;
+  right: 124px; /* Leave the entire action rail, including save/close, unobscured. */
+  bottom: 16px;
+  max-height: calc(100% - 32px);
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 11px;
+  background: #25313ded;
+  color: #fff;
+  border: 1px solid #ffffff29;
+  border-radius: 8px;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+  box-shadow: 0 3px 10px #0002;
+  animation: shot-rail-in 150ms ease both;
+}
+.shot-float.dock-left .shot-toast {
+  left: 124px;
+  right: 16px;
+}
+.shot-float.is-dragging .shot-rail,.shot-float.is-dragging .shot-toast {visibility:hidden;opacity:0;pointer-events:none;animation:none;}
+.shot-rail {transition:opacity 180ms ease;}
+.shot-text {position:absolute;display:block;line-height:1.1;white-space:pre-wrap;overflow:hidden;color:transparent;cursor:text;user-select:text;-webkit-user-select:text;touch-action:auto;}
+.shot-text:hover {background:#67a7df20;}
+.shot-text:not(.translated) {color:transparent;-webkit-text-fill-color:transparent;text-shadow:none;}
+.shot-text::selection {background:#468fd660;color:transparent;-webkit-text-fill-color:transparent;text-shadow:none;}
+.shot-text.translated::selection {background:#468fd680;color:#142638;-webkit-text-fill-color:#142638;}
+.shot-text.translated {color:#172a37;background:#fffef2f5;overflow:auto;line-height:1.15;}
+.shot-language {width:100%;height:24px;margin-top:3px;border:1px solid #71809625;border-radius:5px;background:#f3f6fa;color:#556574;font-size:10px;padding:1px 3px;}
+/* Tiny images have no readable message column: use only the rail's header area. */
+.shot-float.compact-toast .shot-toast {
+  left: auto;
+  right: 24px;
+  top: 24px;
+  bottom: auto;
+  width: 80px;
+  max-height: 44px;
+  padding: 4px;
+  font-size: 9px;
+  align-items: flex-start;
+  gap: 3px;
+}
+.shot-float.compact-toast.dock-left .shot-toast {
+  left: 24px;
+  right: auto;
+}
+.shot-toast span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.shot-toast.is-error {
+  background: #652f39f5;
+}
+.shot-toast button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 2px;
+  cursor: pointer;
+  flex: none;
+}
+@keyframes shot-lift {
+  from {
+    opacity: 0.82;
+    box-shadow:
+      0 0 0 1px #ffffffb3,
+      0 0 0 #0000;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes shot-rail-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shot-image,
+  .shot-rail,
+  .shot-toast {
+    animation: none;
+  }
+  .shot-rail button {
+    transition: none;
+  }
+}
+
+/* Quiet, content-sized feedback; never stretch a banner across the screenshot. */
+.shot-toast {right:auto;max-width:min(280px,calc(100vw - 148px));width:max-content;justify-content:flex-start;background:#fffffff2;color:#34434e;border:1px solid #d8e1e8;border-radius:10px;padding:7px 10px;font-size:11px;box-shadow:0 3px 14px #17263814;max-height:90px;}
+.shot-float.dock-left .shot-toast {left:124px;right:auto;}
+.shot-toast.is-error {background:#fff6f4;color:#963e39;border-color:#ebcbc7;}
+/* Inline editing and comparison stay attached to the same native pin. */
+.shot-rail{width:210px;flex-basis:210px;height:min(560px,calc(100dvh - 32px));overflow-y:auto;background:var(--editor-card,#faf9f6)}
+.shot-rail nav{display:grid;grid-template-columns:1fr 1fr}.shot-rail-head{height:35px}.shot-editor-slot{margin:6px 0;border-bottom:1px solid #8883}
+.pin-inline-editor{position:absolute;inset:0;height:100%;background:transparent;overflow:visible}.pin-inline-editor .capture-stage{padding:0;overflow:hidden;background:transparent;display:block;width:100%;height:100%;flex:none}.pin-inline-editor .capture-canvas-wrap{width:100%!important;height:100%;max-width:none;box-shadow:none}.pin-inline-editor .capture-canvas-wrap>canvas{width:100%;height:100%;max-width:none}.pin-inline-editor .capture-draft{height:100%}.pin-editor-tools.capture-window{height:auto;background:transparent;font-size:11px;overflow:visible}.pin-editor-tools .capture-toolbar{padding:4px;gap:3px;border:0;background:transparent}.pin-editor-tools .capture-toolbar .editor-icon{width:34px;height:34px;padding:5px}.pin-editor-tools .capture-options{min-height:0;gap:8px;padding-bottom:9px}.pin-editor-tools .editor-presets{gap:3px}.pin-editor-tools .editor-presets button{min-width:30px;padding:4px;font-size:10px}.pin-editor-tools .editor-colors{gap:6px}.pin-editor-tools .editor-colors button{width:17px;height:17px;padding:0}.pin-editor-tools button{height:auto;font-size:11px;justify-content:center;width:auto}.pin-editor-tools .editor-divider{display:none}.pin-editor-tools label{flex-wrap:wrap;gap:4px}.pin-editor-tools .capture-options input[type=range]{width:95px}.pin-editor-tools .mosaic-swatch{width:22px;height:20px}
+.shot-image .shot-before{position:absolute;inset:0;object-fit:fill}.shot-image>img{object-fit:fill}.shot-split{position:absolute;top:0;bottom:0;width:2px;background:#fff;box-shadow:0 0 0 1px #3336;pointer-events:none}.shot-compare{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:ew-resize;touch-action:none}.shot-compare-label{position:absolute;top:8px;left:8px;line-height:1.5;background:#222a;color:white;padding:4px 8px;border-radius:5px;pointer-events:none}
+.shot-resize{position:absolute;z-index:15;width:10px;height:10px;border:1px solid #fff;background:#22a67b;box-shadow:0 0 0 1px #22a67b;touch-action:none;line-height:1}.resize-n{top:-5px;left:50%;cursor:ns-resize}.resize-s{bottom:-5px;left:50%;cursor:ns-resize}.resize-e{right:-5px;top:50%;cursor:ew-resize}.resize-w{left:-5px;top:50%;cursor:ew-resize}.resize-ne{right:-5px;top:-5px;cursor:nesw-resize}.resize-nw{left:-5px;top:-5px;cursor:nwse-resize}.resize-se{right:-5px;bottom:-5px;cursor:nwse-resize}.resize-sw{left:-5px;bottom:-5px;cursor:nesw-resize}
+.shot-float.dock-left .shot-toast{left:238px}.shot-toast{max-width:min(280px,calc(100vw - 262px))}
+
+/* V61: content-sized rail, no fixed-height blank panel. */
+.shot-rail{height:auto;max-height:calc(100dvh - 32px);align-self:flex-start;flex-grow:0;padding-bottom:6px}.shot-rail footer{margin-top:6px}.shot-rail nav{gap:2px}.shot-rail nav button{min-height:30px}
+.shot-rail button[aria-pressed="true"]{background:#e0edf8;color:#2868a0;}
+.shot-language{height:auto;padding:0;border:0;background:transparent;}
+.shot-language > button{height:30px;border:1px solid #8e9bab40;padding:4px 8px;background:var(--editor-card,#faf9f6);}

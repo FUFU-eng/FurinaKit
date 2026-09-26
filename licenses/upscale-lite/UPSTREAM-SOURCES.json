@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "retrievedOn": "2026-09-21",
+  "scope": "Upstream license texts only; not a verified binary build/dependency closure",
+  "binaryProvenanceVerified": false,
+  "modelArtifactProvenanceVerified": false,
+  "releaseApproved": false,
+  "sources": [
+    {
+      "repo": "xinntao/Real-ESRGAN-ncnn-vulkan",
+      "path": "LICENSE",
+      "commit": "cfb9d62f8e404ae8a554a1c81a8c79a4ddf70132",
+      "url": "https://raw.githubusercontent.com/xinntao/Real-ESRGAN-ncnn-vulkan/cfb9d62f8e404ae8a554a1c81a8c79a4ddf70132/LICENSE",
+      "sha256": "5abb941454de437b0e90d78dcb72e3688f74e14bcd4e24393273cb5cd0e9c937",
+      "bytes": 2228,
+      "stagedPath": "licenses/upscale-lite/Real-ESRGAN-ncnn-vulkan-LICENSE.txt",
+      "stagedSha256": "5abb941454de437b0e90d78dcb72e3688f74e14bcd4e24393273cb5cd0e9c937"
+    },
+    {
+      "repo": "xinntao/Real-ESRGAN",
+      "path": "LICENSE",
+      "commit": "0573f32dd04a6ff9dbafff67df23f808dffc8811",
+      "url": "https://raw.githubusercontent.com/xinntao/Real-ESRGAN/0573f32dd04a6ff9dbafff67df23f808dffc8811/LICENSE",
+      "sha256": "4a699ec4863d96a91fc265948a0c90033f7e8735d515524dcf3444736406e0c2",
+      "bytes": 1519,
+      "stagedPath": "licenses/upscale-lite/Real-ESRGAN-LICENSE.txt",
+      "stagedSha256": "4a699ec4863d96a91fc265948a0c90033f7e8735d515524dcf3444736406e0c2"
+    },
+    {
+      "repo": "Tencent/ncnn",
+      "path": "LICENSE.txt",
+      "commit": "171b9d1bba971f5866c9c8677d4b7076457f834a",
+      "url": "https://raw.githubusercontent.com/Tencent/ncnn/171b9d1bba971f5866c9c8677d4b7076457f834a/LICENSE.txt",
+      "sha256": "7c974bac98848df46be1af5bdaa3c3c9c01f6082a90f55caeb7f60c6208aa255",
+      "bytes": 6427,
+      "stagedPath": "licenses/upscale-lite/ncnn-LICENSE.txt",
+      "stagedSha256": "7c974bac98848df46be1af5bdaa3c3c9c01f6082a90f55caeb7f60c6208aa255"
+    }
+  ]
+}

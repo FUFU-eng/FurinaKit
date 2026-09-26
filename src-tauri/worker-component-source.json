@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "channel": "worker-components-v1",
+  "component": "python-worker-shared",
+  "publication": "unpublished",
+  "manifestUrls": [],
+  "archiveUrls": []
+}

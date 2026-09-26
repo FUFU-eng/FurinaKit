@@ -1,0 +1,19 @@
+{
+  "identifier": "local-ui-events",
+  "description": "Local application webviews may subscribe to UI events; remote embedded sites are excluded.",
+  "local": true,
+  "webviews": [
+    "main",
+    "float-ball",
+    "shot-pin-*",
+    "shot-edit-*",
+    "utility-*",
+    "region-capture",
+    "recorder-panel"
+  ],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-is-maximized"
+  ]
+}

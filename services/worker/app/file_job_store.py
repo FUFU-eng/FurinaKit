@@ -120,6 +120,8 @@ def update_job(job_id: str, **updates: Any) -> dict[str, Any] | None:
     if not job:
         return None
 
+    if job.get("status") in {"completed", "failed", "cancelled", "canceled"}:
+        return job
     job.update(updates)
     job["updatedAt"] = _now()
     job_path = jobs_dir() / f"{job_id}.json"

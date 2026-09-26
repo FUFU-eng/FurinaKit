@@ -1,0 +1,64 @@
+{
+  "tts-sherpa-runtime": {
+    "name": "sherpa-onnx 1.13.8 · Windows x64",
+    "kind": "runtime",
+    "family": "runtime",
+    "size": 24805859,
+    "sha256": "6dffdc715a4465b989446a6105265d2cb345e7101591a17d35534b6758f6e8df",
+    "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MT-Release.tar.bz2",
+    "licenseNoteZh": "sherpa-onnx 为 Apache-2.0；依赖组件各自许可另计。",
+    "licenseNoteEn": "sherpa-onnx is Apache-2.0; bundled dependencies retain their own terms.",
+    "licenseUrl": "https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.8/LICENSE",
+    "speakers": 0,
+    "languages": []
+  },
+  "tts-kokoro-zh-en": {
+    "name": "Kokoro 1.1 · INT8",
+    "kind": "model",
+    "family": "kokoro",
+    "size": 147031220,
+    "sha256": "a1e94694776049035c4f2c6529f003aaece993c76aae9a78995831c3c4dcafc6",
+    "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_1.tar.bz2",
+    "licenseNoteZh": "上游模型卡标注 Apache-2.0；eSpeak 数据等依赖仍适用各自条款。",
+    "licenseNoteEn": "The upstream model card states Apache-2.0; dependencies such as eSpeak data retain their own terms.",
+    "licenseUrl": "https://huggingface.co/hexgrad/Kokoro-82M-v1.1-zh",
+    "speakers": 103,
+    "languages": [
+      "zh-CN",
+      "en-US"
+    ],
+    "defaultSpeaker": 3
+  },
+  "tts-piper-ljspeech": {
+    "name": "Piper LJSpeech · INT8",
+    "kind": "model",
+    "family": "vits",
+    "size": 21090429,
+    "sha256": "24dc3bd77dd48c291e52c297878d3437c9492f245d823d7f6a06c4bbb67f4b6b",
+    "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-en_US-ljspeech-medium-int8.tar.bz2",
+    "licenseNoteZh": "模型卡注明 LJSpeech 数据集为公有领域；模型及依赖请查阅原始条款。",
+    "licenseNoteEn": "The model card identifies LJSpeech data as public domain; consult the original model and dependency terms.",
+    "licenseUrl": "https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/ljspeech/medium/MODEL_CARD",
+    "speakers": 1,
+    "languages": [
+      "en-US"
+    ],
+    "defaultSpeaker": 0
+  },
+  "tts-piper-ryan": {
+    "name": "Piper Ryan · INT8",
+    "kind": "model",
+    "family": "vits",
+    "size": 21083446,
+    "sha256": "376eb489d42e98cb49f0e13a633e8d88580bd247ed8aacc298a733210404f771",
+    "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-en_US-ryan-medium-int8.tar.bz2",
+    "licenseNoteZh": "注意：Ryan 数据集标注 CC BY-NC-SA 4.0（非商业）；不要默认可商用。",
+    "licenseNoteEn": "Warning: Ryan data is CC BY-NC-SA 4.0 (non-commercial). Do not assume commercial use is permitted.",
+    "licenseUrl": "https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/ryan/medium/MODEL_CARD",
+    "speakers": 1,
+    "languages": [
+      "en-US"
+    ],
+    "defaultSpeaker": 0
+  }
+}

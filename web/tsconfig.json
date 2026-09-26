@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "next/link": [
+        "./src/shims/next-link.tsx"
+      ],
+      "next/navigation": [
+        "./src/shims/next-navigation.ts"
+      ],
+      "@furinakit/shared": [
+        "./src/shared/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "src"
+  ]
+}

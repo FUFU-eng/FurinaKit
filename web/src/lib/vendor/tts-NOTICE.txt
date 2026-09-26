@@ -1,0 +1,47 @@
+FurinaKit V66 — optional offline speech components
+
+The Python ctypes declarations in tts_sherpa.py are adapted from the public C API
+header of k2-fsa/sherpa-onnx v1.13.8 (Xiaomi Corporation and contributors), under
+Apache License 2.0. The complete Apache license is distributed alongside this
+notice and is available in About. FurinaKit's binding is a modified, minimal
+subset for the pinned ABI; it is not an upstream Python package.
+Source: https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.8/sherpa-onnx/c-api/c-api.h
+Runtime: https://github.com/k2-fsa/sherpa-onnx/releases/tag/v1.13.8
+
+The runtime and models are NOT included in the application and are NOT downloaded
+on startup. They are fetched only after an explicit user download request. All
+files in the verified upstream archive, including LICENSE, COPYING, NOTICE and
+attribution files, are retained. A runtime license does not override the licenses
+of its dependencies, models, datasets or voice recordings. In particular, eSpeak
+NG uses GPL terms; consult the exact distributed archive and upstream sources:
+https://github.com/espeak-ng/espeak-ng
+https://github.com/microsoft/onnxruntime
+
+Optional model provenance:
+1. Kokoro 82M v1.1 Chinese/English, INT8 sherpa conversion. The upstream model card
+   states Apache-2.0 and credits LongMaoData for the Chinese training data.
+   https://huggingface.co/hexgrad/Kokoro-82M-v1.1-zh
+   Conversion and speaker mapping:
+   https://github.com/k2-fsa/sherpa-onnx/pull/1942
+2. Piper en_US LJSpeech medium, INT8 sherpa conversion. Its model card describes
+   LJSpeech data as public domain and attributes training to Bryce Beattie.
+   Dataset status is not a blanket license for every dependency in the package.
+   https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/ljspeech/medium/MODEL_CARD
+   https://keithito.com/LJ-Speech-Dataset/
+   https://brycebeattie.com/files/tts/
+3. Piper en_US Ryan medium, INT8 sherpa conversion. IMPORTANT: the model card lists
+   RyanSpeech data under CC BY-NC-SA 4.0 (NON-COMMERCIAL), and says the model was
+   fine-tuned from Lessac medium. Do not assume commercial use is permitted.
+   https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/ryan/medium/MODEL_CARD
+   https://www.kaggle.com/datasets/roholazandie/ryanspeech
+   https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+Model archives and pinned SHA-256/byte sizes are listed in tts_components.py.
+Model cards were consulted on 2026-09-19. No runtime/model binary was downloaded
+while preparing this source-only modification. Deployment must retain this notice
+and the full sherpa-onnx Apache license, as well as all original archive notices.
+
+Online Edge speech is an independent, unofficial client of Microsoft's Read Aloud
+endpoint. No Microsoft service availability or affiliation is promised. Text is
+sent to Microsoft only when the user requests online synthesis. Windows SAPI and
+installed offline models do not send synthesis text to an online speech service.

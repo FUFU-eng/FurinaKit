@@ -1,0 +1,5 @@
+{
+  "expected_sha256": "cfc8c38ac3ab7d8b3d8f090ba582c0f802574f53efcd63be08b1224c2e9f6f69",
+  "old": "def update_job(job_id: str, **updates: Any) -> dict[str, Any] | None:\n    job = get_job(job_id)\n    if not job:\n        return None\n\n    job.update(updates)\n    job[\"updatedAt\"] = _now()\n    job_path = jobs_dir() / f\"{job_id}.json\"\n    _atomic_write_text(job_path, json.dumps(job))\n    return job\n\n",
+  "new": "def update_job(job_id: str, **updates: Any) -> dict[str, Any] | None:\n    job = get_job(job_id)\n    if not job:\n        return None\n\n    if job.get(\"status\") in {\"completed\", \"failed\", \"cancelled\", \"canceled\"}:\n        return job\n    job.update(updates)\n    job[\"updatedAt\"] = _now()\n    job_path = jobs_dir() / f\"{job_id}.json\"\n    _atomic_write_text(job_path, json.dumps(job))\n    return job\n\n"
+}

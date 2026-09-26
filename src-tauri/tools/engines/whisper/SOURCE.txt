@@ -1,0 +1,7 @@
+whisper.cpp 1.8.3 CPU x64, MIT license.
+Release: https://github.com/ggml-org/whisper.cpp/releases/tag/v1.8.3
+Source: https://github.com/ggml-org/whisper.cpp/tree/v1.8.3
+Original archive SHA256: d824b1e37599f882b396e73f1ee0bfd5d0529f700314c48311dcbd00b803321d
+Only whisper-cli.exe and required ggml/whisper libraries are shipped; no speech models are included.
+Models are downloaded only after an explicit user action, from ggerganov/whisper.cpp, with pinned SHA-256 verification.
+See MSVC-RUNTIME-NOTICE.txt for app-local runtime licensing.

@@ -440,3 +440,179 @@ def pdf_extract_images(file_path: str, output_dir: str) -> Dict[str, Any]:
     
     doc.close()
     return {"success": True, "outputs": outputs, "count": image_count}
+
+
+# ────────────────────────────── 页面裁剪 ──────────────────────────────
+
+def pdf_crop(
+    file_path: str,
+    output_path: str,
+    top: float = 0,
+    bottom: float = 0,
+    left: float = 0,
+    right: float = 0,
+    pages: Optional[str] = None,
+    unit: str = "percent",
+) -> Dict[str, Any]:
+    """裁剪 PDF 页面边距。
+
+    通过修改页面边界（CropBox）实现，**不重新渲染、不损失清晰度**，文字仍可选中搜索。
+    unit 为 percent 时四个参数按页面宽高的百分比理解（0~45）；
+    为 mm 时按毫米理解。pages 为空表示全部页面，支持 "1-3,5" 这种写法。
+    """
+    doc = fitz.open(file_path)
+    total = len(doc)
+
+    if pages and pages != "all":
+        target = []
+        for part in pages.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            if "-" in part:
+                start, end = part.split("-")
+                target.extend(range(int(start.strip()) - 1, int(end.strip())))
+            else:
+                target.append(int(part) - 1)
+        target = [i for i in target if 0 <= i < total]
+    else:
+        target = list(range(total))
+
+    if not target:
+        doc.close()
+        raise RuntimeError("没有指定要裁剪的页面")
+
+    # 百分比模式收紧到 0~45，避免裁成空页
+    if unit == "percent":
+        top = max(0.0, min(45.0, float(top))) / 100.0
+        bottom = max(0.0, min(45.0, float(bottom))) / 100.0
+        left = max(0.0, min(45.0, float(left))) / 100.0
+        right = max(0.0, min(45.0, float(right))) / 100.0
+    else:
+        mm = 72.0 / 25.4
+        top = max(0.0, float(top)) * mm
+        bottom = max(0.0, float(bottom)) * mm
+        left = max(0.0, float(left)) * mm
+        right = max(0.0, float(right)) * mm
+
+    if top == 0 and bottom == 0 and left == 0 and right == 0:
+        doc.close()
+        raise RuntimeError("四个边距都为 0，没有需要裁剪的部分")
+
+    cropped = 0
+    for index in target:
+        page = doc[index]
+        rect = page.rect
+        if unit == "percent":
+            dx = rect.width * left
+            dx2 = rect.width * right
+            dy = rect.height * top
+            dy2 = rect.height * bottom
+        else:
+            dx, dy, dx2, dy2 = left, top, right, bottom
+
+        new_rect = fitz.Rect(
+            rect.x0 + dx,
+            rect.y0 + dy,
+            rect.x1 - dx2,
+            rect.y1 - dy2,
+        )
+        # 至少保留 10x10 点的可视区域，否则跳过这一页
+        if new_rect.width < 10 or new_rect.height < 10:
+            continue
+        page.set_cropbox(new_rect)
+        cropped += 1
+
+    if cropped == 0:
+        doc.close()
+        raise RuntimeError("裁剪范围过大，页面没有剩余可见区域")
+
+    doc.save(output_path, garbage=3, deflate=True)
+    doc.close()
+    return {"success": True, "output": output_path, "cropped_pages": cropped, "total_pages": total}
+
+
+def pdf_crop_pages(
+    file_path: str,
+    output_path: str,
+    per_page: Optional[Dict[str, Dict[str, float]]] = None,
+    default: Optional[Dict[str, float]] = None,
+    unit: str = "mm",
+) -> Dict[str, Any]:
+    """按页裁剪页面边距（可视化裁剪的后端）。
+
+    per_page 形如 {"1": {"top": 20, "bottom": 10, "left": 5, "right": 5}, ...}（页号从 1 开始），
+    没有单独指定的页面用 default。unit 为 mm 时按毫米，为 percent 时按页面宽高的百分比。
+    通过修改 CropBox 实现，不重新渲染、不损失清晰度，文字仍可选中搜索。
+    """
+    doc = fitz.open(file_path)
+    total = len(doc)
+    mm = 72.0 / 25.4
+    applied = 0
+    details: List[Dict[str, Any]] = []
+
+    for index in range(total):
+        page = doc[index]
+        rect = page.rect
+        margins = None
+        if per_page:
+            margins = per_page.get(str(index + 1))
+        if margins is None:
+            margins = default
+        if not margins:
+            continue
+
+        top = float(margins.get("top", 0) or 0)
+        bottom = float(margins.get("bottom", 0) or 0)
+        left = float(margins.get("left", 0) or 0)
+        right = float(margins.get("right", 0) or 0)
+        if top == 0 and bottom == 0 and left == 0 and right == 0:
+            continue
+
+        if unit == "percent":
+            dx = rect.width * max(0.0, min(45.0, left)) / 100.0
+            dx2 = rect.width * max(0.0, min(45.0, right)) / 100.0
+            dy = rect.height * max(0.0, min(45.0, top)) / 100.0
+            dy2 = rect.height * max(0.0, min(45.0, bottom)) / 100.0
+        else:
+            dx, dy, dx2, dy2 = left * mm, top * mm, right * mm, bottom * mm
+
+        new_rect = fitz.Rect(rect.x0 + dx, rect.y0 + dy, rect.x1 - dx2, rect.y1 - dy2)
+        if new_rect.width < 10 or new_rect.height < 10:
+            continue
+        page.set_cropbox(new_rect)
+        applied += 1
+        details.append({
+            "page": index + 1,
+            "width_mm": round(new_rect.width / mm, 1),
+            "height_mm": round(new_rect.height / mm, 1),
+            "source_width_mm": round(rect.width / mm, 1),
+            "source_height_mm": round(rect.height / mm, 1),
+        })
+
+    if applied == 0:
+        doc.close()
+        raise RuntimeError("没有需要裁剪的页面（四个边距都是 0，或者裁剪范围过大）")
+
+    doc.save(output_path, garbage=3, deflate=True)
+    doc.close()
+    return {"success": True, "output": output_path, "cropped_pages": applied, "total_pages": total, "details": details}
+
+
+def pdf_page_sizes(file_path: str) -> Dict[str, Any]:
+    """读取每页尺寸（毫米），供界面初始化裁剪框与显示原始尺寸。"""
+    doc = fitz.open(file_path)
+    mm = 72.0 / 25.4
+    pages = [
+        {
+            "page": i + 1,
+            "width_mm": round(page.rect.width / mm, 1),
+            "height_mm": round(page.rect.height / mm, 1),
+            "width_pt": round(page.rect.width, 1),
+            "height_pt": round(page.rect.height, 1),
+            "rotation": page.rotation,
+        }
+        for i, page in enumerate(doc)
+    ]
+    doc.close()
+    return {"success": True, "pages": pages, "count": len(pages)}

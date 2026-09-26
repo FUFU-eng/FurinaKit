@@ -1,0 +1,5 @@
+{
+  "expected_sha256": "a979afe9fd5379c909492c3b56c4cfd9d8a6563f7ee2755e7b01a010426ef70c",
+  "old": "if __name__ == \"__main__\" and len(sys.argv) > 1:\n",
+  "new": "if __name__ == \"__main__\" and len(sys.argv) > 1:\n    if sys.argv[1] == \"--vocal-render\":\n        from app.tools.vocal_runner import render_cli as _vocal_render_cli\n        _vocal_render_cli(sys.argv[2])\n        raise SystemExit(0)\n"
+}

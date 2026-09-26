@@ -40,7 +40,7 @@ def _auth_args() -> list[str]:
     return []
 
 
-def _build_format_args(format_type: str, quality: str) -> list[str]:
+def _build_format_args(format_type: str, quality: str, codec: str = "h264") -> list[str]:
     if format_type == "mp3":
         # quality: "best" → VBR 0, "320"/"192"/"128" → CBR in kbps
         audio_q = "0" if quality == "best" else f"{quality}K"
@@ -52,7 +52,19 @@ def _build_format_args(format_type: str, quality: str) -> list[str]:
         selector = f"bestvideo[height<={height}]+bestaudio/best[height<={height}]/best"
     else:
         selector = "bestvideo+bestaudio/best"
-    return ["-f", selector, "--merge-output-format", "mp4"]
+    args = ["-f", selector]
+
+    # 编码偏好：yt-dlp 默认把 av01 排在 h264 前面，于是 B站/YouTube 会下到 AV1。
+    # AV1 体积小得多（实测 B站 720p：9.2MB vs 22.7MB），但 Win10 自带播放器等老播放器
+    # 打不开。这里让用户自己选：默认 h264（哪都能播），想要小体积就选 av1。
+    # -S 里 res 放在 vcodec 前面，保证优先满足清晰度，再在同样清晰度里挑编码。
+    if codec == "av1":
+        args += ["-S", "res,fps,vcodec:av01:vp9.2:vp9:h265:h264,br"]
+    else:
+        args += ["-S", "res,fps,vcodec:h264:h265,br"]
+
+    args += ["--merge-output-format", "mp4"]
+    return args
 
 
 def _friendly_error(output: str) -> str:
@@ -70,7 +82,9 @@ def _friendly_error(output: str) -> str:
     if "unsupported url" in text:
         return "不支持该链接格式，请确认输入正确的视频或推文链接"
     if "timeout" in text or "timed out" in text:
-        return "请求超时，请检查网络连接或科学上网代理是否正常开启"
+        return "下载请求超时。B站/抖音等国内站点请尽量不要走代理（代理软件建议切「规则模式」让国内直连），稍等片刻后重试"
+    if "eof occurred in violation of protocol" in text or "sslerror" in text:
+        return "连接被平台中断（通常是短时间请求过于频繁触发了风控）。请等 1~2 分钟再试；若开着代理，建议先把国内站点设为直连"
     if "10061" in text or "connection refused" in text or "proxyerror" in text:
         return "代理连接失败，请确认系统代理/梯子软件已正常开启并在运行"
     if "404" in text or "not found" in text:
@@ -127,10 +141,13 @@ def download_video(
     url: str,
     format_type: str = "mp4",
     quality: str = "best",
+    codec: str = "h264",
     on_progress: ProgressCb = None,
 ) -> tuple[str, str, str]:
     output_dir = results_dir()
-    output_template = str(output_dir / "%(title).200s-%(id)s.%(ext)s")
+    # 文件名带编码标签：同一视频下 H.264 与 AV1 两版时不会互相覆盖
+    codec_tag = f"-{codec}" if format_type == "mp4" else ""
+    output_template = str(output_dir / f"%(title).200s-%(id)s{codec_tag}.%(ext)s")
 
     cmd = [
         *_find_ytdlp_cmd(),
@@ -138,13 +155,16 @@ def download_video(
         "-o",
         output_template,
         "--no-playlist",
-        "--restrict-filenames",
+        # --windows-filenames 只处理 Windows 非法字符，中文标题能保留；
+        # --restrict-filenames 会把中文整段替换成下划线，下载下来文件名全是 _-BVxxxx
+        "--windows-filenames",
+        "--force-overwrites",
         "--newline",
         "--no-color",
         "--print",
         "after_move:filepath",
         *_auth_args(),
-        *_build_format_args(format_type, quality),
+        *_build_format_args(format_type, quality, codec),
     ]
     ffmpeg_dir = _find_ffmpeg_dir()
     if ffmpeg_dir:

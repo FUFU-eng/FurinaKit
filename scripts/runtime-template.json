@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "version": "2.1.0",
+  "runtime": "native-rust",
+  "profile": "native-base",
+  "migrationComplete": true,
+  "releaseReady": false,
+  "packageChannel": "development",
+  "buildTarget": "furinakit-desktop",
+  "buildFeatures": [
+    "desktop-gui",
+    "tauri/custom-protocol"
+  ],
+  "workerBundled": false,
+  "optionalModelsBundled": false,
+  "onnxLinkage": "static",
+  "optionalMediaEnginesBundled": true,
+  "bundledUpscale": {
+    "models": [
+      "anime-x2",
+      "anime-x3"
+    ],
+    "resourceBytes": 8662490,
+    "requiresPython": false,
+    "guiAccepted": true
+  },
+  "componentDelivery": {
+    "mode": "settings-on-demand",
+    "offlineArchivesBundled": false,
+    "installerSelectablePayloads": false
+  },
+  "nativeOcr": {
+    "image": true,
+    "searchablePdf": true,
+    "pdfRenderer": "windows-inbox",
+    "pdfQualityAccepted": true,
+    "baseline": "ppocr-v3-v2",
+    "modelBytes": 13709164,
+    "qualityAccepted": true
+  },
+  "nativeImages": {
+    "tools": [
+      "image-format-convert",
+      "image-compress",
+      "image-to-jpg",
+      "image-to-png",
+      "image-to-ico",
+      "gif-compress",
+      "gif-crop"
+    ],
+    "batchZip": true,
+    "formatConverterComplete": true,
+    "formatConverterImplemented": true,
+    "isolatedWorker": true,
+    "lossyWebp": true,
+    "avifEncodeDecode": true,
+    "qualityAccepted": true,
+    "cmykIccSourceAware": true
+  },
+  "nativeMedia": {
+    "tools": [
+      "audio-format-convert",
+      "video-to-audio",
+      "audio-volume",
+      "audio-reverse",
+      "audio-merge",
+      "audio-trim",
+      "video-frame-extract",
+      "video-trim"
+    ],
+    "batchZip": true,
+    "partialBatchFailureReport": true,
+    "engine": "optional-ffmpeg",
+    "engineBundled": true,
+    "jobCommittedMemoryLimitBytes": 4294967296,
+    "defaultJobCommittedMemoryLimitBytes": 536870912,
+    "adaptiveVideoCommittedMemory": true,
+    "memoryPolicy": "pixel-commit-budget-v1",
+    "memoryIsReservation": false,
+    "jobActiveProcessLimit": 1,
+    "reversePcmFileLimitBytes": 2000000000,
+    "reversePcmScratchFileCount": 2,
+    "reverseUserSpaceBufferBytes": 131072,
+    "effectDefaultFormat": "mp3",
+    "mergeSequentialNormalization": true,
+    "mergeNormalizedPcmLimitBytes": 2000000000,
+    "mergeOutput": "single-mp3",
+    "videoFrame": {
+      "jpegHuffman": "standard-tables",
+      "formats": [
+        "png",
+        "jpg"
+      ],
+      "nearEndFallback": true,
+      "guiAccepted": true
+    },
+    "videoTrim": {
+      "sameContainer": true,
+      "forcedMp4": true,
+      "allAudioTracks": true,
+      "boundedFallback": true,
+      "qualityAccepted": true,
+      "guiAccepted": true
+    },
+    "audioTrim": {
+      "sourceContainer": true,
+      "streamCopyWithValidatedFallback": true,
+      "guiAccepted": true
+    },
+    "qualityAccepted": true,
+    "guiAccepted": true
+  },
+  "runtimeDiagnostics": {
+    "readOnly": true,
+    "verification": "file-presence-only",
+    "uiAccepted": true
+  },
+  "archprRepair": {
+    "bundledDependencies": true,
+    "sharedPath": "current-user-if-no-valid-vendor-installation",
+    "launchVerification": "main-window-and-startup-error-dialog",
+    "activationDataBundled": false,
+    "unlicensedEdition": "Trial",
+    "cleanWindowsAcceptance": false,
+    "redistributionRightsConfirmed": true
+  },
+  "repairBuild": {
+    "id": "20260926-publication",
+    "cleanWindowsAcceptance": false,
+    "publicRedistributionApproval": "user-confirmed-2026-09-26",
+    "sourceChecks": "See the release verification record; clean-Windows acceptance remains separate."
+  }
+}

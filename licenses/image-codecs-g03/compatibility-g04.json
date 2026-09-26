@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "reason": "G04 source-space CMYK adds only three direct root dependencies already resolved transitively in G03. Registry package versions and resolved x86_64-pc-windows-msvc features are identical.",
+  "previousLockSha256": "1c56fa771b898aa191f6d6ee0ec6e34436cc9820728ac2c6d5aa73f700b4f7ed",
+  "currentLockSha256": "fc30cd5082d88381fa8a62e88862c15dfc06503d561e0cd756a673a651058ea5",
+  "registryPackages": 133,
+  "registryFeatureChanges": [],
+  "originalLicenseManifestSha256": "689d5f2c380f670ad48dd026c11da1eb3bb87dc9e41030d75b7a3228a8091f37",
+  "noThirdPartySourceModified": true
+}

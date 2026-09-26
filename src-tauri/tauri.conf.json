@@ -1,0 +1,87 @@
+{
+  "productName": "FurinaKit",
+  "version": "2.1.0",
+  "identifier": "com.furinakit.desktop",
+  "build": {
+    "frontendDist": "../web/dist",
+    "devUrl": null,
+    "beforeDevCommand": null,
+    "beforeBuildCommand": null
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "FurinaKit 芙宁娜工具箱",
+        "width": 1280,
+        "height": 750,
+        "minWidth": 1000,
+        "minHeight": 620,
+        "resizable": true,
+        "center": true,
+        "decorations": false,
+        "visible": false,
+        "backgroundColor": "#f4efe6",
+        "dragDropEnabled": false
+      },
+      {
+        "label": "float-ball",
+        "title": "FurinaKit 悬浮球",
+        "url": "index.html?window=float-ball",
+        "width": 64,
+        "height": 64,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "shadow": false,
+        "skipTaskbar": true,
+        "visible": true,
+        "dragDropEnabled": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/icon.png",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "languages": [
+          "SimpChinese"
+        ],
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico"
+      },
+      "webviewInstallMode": {
+        "type": "embedBootstrapper"
+      }
+    },
+    "resources": {
+      "tools/archpr/**/*": "tools/archpr/",
+      "tools/engines/aria2/*": "tools/engines/aria2/",
+      "tools/engines/whisper/*": "tools/engines/whisper/",
+      "tools/engines/runtime/*": ".",
+      "../services/worker/upscale/models/realesr-animevideov3-x2.bin": "tools/engines/upscale-lite/models/realesr-animevideov3-x2.bin",
+      "../services/worker/upscale/models/realesr-animevideov3-x2.param": "tools/engines/upscale-lite/models/realesr-animevideov3-x2.param",
+      "../services/worker/upscale/models/realesr-animevideov3-x3.bin": "tools/engines/upscale-lite/models/realesr-animevideov3-x3.bin",
+      "../services/worker/upscale/models/realesr-animevideov3-x3.param": "tools/engines/upscale-lite/models/realesr-animevideov3-x3.param",
+      "../services/worker/upscale/realesrgan-ncnn-vulkan.exe": "tools/engines/upscale-lite/realesrgan-ncnn-vulkan.exe",
+      "../licenses/upscale-lite/NOTICE.md": "licenses/project-dependencies/upscale-lite/NOTICE.md",
+      "../licenses/upscale-lite/Real-ESRGAN-LICENSE.txt": "licenses/project-dependencies/upscale-lite/Real-ESRGAN-LICENSE.txt",
+      "../licenses/upscale-lite/Real-ESRGAN-ncnn-vulkan-LICENSE.txt": "licenses/project-dependencies/upscale-lite/Real-ESRGAN-ncnn-vulkan-LICENSE.txt",
+      "../licenses/upscale-lite/ncnn-LICENSE.txt": "licenses/project-dependencies/upscale-lite/ncnn-LICENSE.txt",
+      "../licenses/upscale-lite/UPSTREAM-SOURCES.json": "licenses/project-dependencies/upscale-lite/UPSTREAM-SOURCES.json",
+      "../LICENSE": "LICENSE",
+      "../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md"
+    }
+  }
+}

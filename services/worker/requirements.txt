@@ -1,7 +1,8 @@
 uvicorn[standard]
 redis
-rembg
+# Matting uses the existing direct ONNX implementation; do not reinstall rembg/numba.
 onnxruntime
+rapidocr-onnxruntime
 Pillow
 PyMuPDF
 yt-dlp
@@ -9,3 +10,6 @@ spotdl>=4.2.0
 python-multipart
 pydantic
 pydantic-settings
+
+# 无界面版 OpenCV：worker 本来就没有图形界面，用 headless 省下约 40MB（含 GUI 的版本体积大得多）
+opencv-python-headless
