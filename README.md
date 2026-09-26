@@ -58,7 +58,7 @@ v2.1.0 从 Electron 换成了 **Tauri v2 + Rust**，常用工具已改为原生�
 ### 首页（浅色 / 深色 / 护眼）
 
 <p align="center">
-  <img src="./docs/image/home-light.png" alt="首页 - 浅色" width="850">
+  <img src="./docs/image/home-light.png" alt="首页 - 浅色" width="420">
 </p>
 
 <p align="center">
