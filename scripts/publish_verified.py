@@ -1,6 +1,6 @@
 """CI publisher for this owner-approved, hash-pinned release. Never reads credential stores."""
 from pathlib import Path, PurePosixPath
-import hashlib,json,os,re,subprocess,sys,tempfile,time,urllib.request,zipfile
+import hashlib,json,os,re,subprocess,sys,tempfile,time,urllib.request,zipfile,concurrent.futures
 ROOT=Path(__file__).resolve().parents[1]
 REPO='FUFU-eng/FurinaKit'; TAG='v2.1.0'
 def digest(p):
@@ -29,10 +29,28 @@ def main():
     tmp=Path(tempfile.mkdtemp(prefix='furinakit-publish-'))
     for a in assets:
         if not re.fullmatch(r'[A-Za-z0-9._-]{1,150}',a['name']) or not re.fullmatch(r'[a-f0-9]{64}',a['sha256']) or not 0<a['bytes']<2_000_000_000 or not a['url'].startswith('https://'):raise ValueError('Invalid asset entry')
-        p=tmp/a['name']
-        print('DOWNLOADING',a['name'],flush=True)
-        transfer=subprocess.run(['curl','--fail','--location','--silent','--show-error','--proto','=https','--proto-redir','=https','--retry','3','--retry-all-errors','--connect-timeout','15','--max-time','600','--max-filesize',str(a['bytes']),'--output',str(p),a['url']],text=True,capture_output=True)
-        if transfer.returncode:raise RuntimeError('Read-only asset transfer failed for '+a['name']+': '+transfer.stderr[-1200:])
+        p=tmp/a['name'];parts=tmp/(a['name']+'.parts');parts.mkdir()
+        print('DOWNLOADING_IN_CHUNKS',a['name'],flush=True)
+        block=4*1024*1024
+        offsets=list(range(0,a['bytes'],block))
+        def transfer_part(start):
+            end=min(a['bytes']-1,start+block-1);segment=parts/str(start);headers=parts/(str(start)+'.headers')
+            url=a['url']+('&' if '?' in a['url'] else '?')+'verifiedPart='+str(start)+'&digest='+a['sha256'][:16]
+            result=subprocess.run(['curl','--http1.1','--fail','--location','--silent','--show-error','--proto','=https','--proto-redir','=https','--retry','5','--retry-all-errors','--retry-max-time','240','--connect-timeout','15','--max-time','120','--range',str(start)+'-'+str(end),'--max-filesize',str(end-start+1),'--dump-header',str(headers),'--output',str(segment),url],text=True,capture_output=True)
+            if result.returncode:raise RuntimeError('Asset chunk transfer failed: '+a['name']+' offset '+str(start)+': '+result.stderr[-800:])
+            if segment.stat().st_size!=end-start+1:raise ValueError('Chunk size differs')
+            ranges=re.findall(r'(?im)^content-range:\s*bytes (\d+)-(\d+)/(\d+)',headers.read_text(errors='replace'))
+            if not ranges or tuple(map(int,ranges[-1]))!=(start,end,a['bytes']):raise ValueError('Server did not confirm the requested byte range')
+            return start
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+            for _ in pool.map(transfer_part,offsets):pass
+        with p.open('xb') as output:
+            for start in offsets:
+                with (parts/str(start)).open('rb') as source:
+                    while True:
+                        data=source.read(1024*1024)
+                        if not data:break
+                        output.write(data)
         if p.stat().st_size!=a['bytes'] or digest(p)!=a['sha256']:raise ValueError('Asset integrity failed: '+a['name'])
         print('VERIFIED',a['name'],p.stat().st_size,flush=True)
     models=json.loads((tmp/'MODEL-DOWNLOADS.json').read_text())
