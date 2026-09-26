@@ -4,7 +4,7 @@ on:
     branches: [release/2.1.0-20260926]
     paths: [.github/workflows/release-diagnostics.yml]
 permissions:
-  contents: read
+  contents: write # GitHub requires push access to inspect unpublished drafts; steps remain read-only.
   actions: read
 jobs:
   diagnose:
