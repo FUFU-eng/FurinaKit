@@ -7,38 +7,38 @@
     "按需模型不捆绑，16 个下载文件完整校验",
     "从 2.0.6 使用完整安装包升级，兼容旧数据导入及匿名统计去重"
   ],
-  "downloadUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe",
-  "fullDownloadUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe",
+  "downloadUrl": "https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe",
+  "fullDownloadUrl": "https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe",
   "fullSize": "约 115.5 MiB",
   "fullSetupSize": "约 115.5 MiB",
   "sha256": "3032d8d344277ea727fafa9cac266c539acfd5509cea60fb38371145801bcabb",
   "fullSha256": "3032d8d344277ea727fafa9cac266c539acfd5509cea60fb38371145801bcabb",
   "mirrors": [
     {
+      "name": "国内加速线路（gh-proxy，推荐）",
+      "url": "https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe"
+    },
+    {
       "name": "GitHub 官方直链",
       "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe"
     },
     {
       "name": "备用 HTTPS 镜像（ghfast）",
       "url": "https://ghfast.top/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe"
-    },
-    {
-      "name": "备用 HTTPS 镜像（gh-proxy）",
-      "url": "https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe"
     }
   ],
   "fullMirrors": [
     {
+      "name": "国内加速线路（gh-proxy，推荐）",
+      "url": "https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe"
+    },
+    {
       "name": "GitHub 官方直链",
       "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe"
     },
     {
       "name": "备用 HTTPS 镜像（ghfast）",
       "url": "https://ghfast.top/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe"
-    },
-    {
-      "name": "备用 HTTPS 镜像（gh-proxy）",
-      "url": "https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe"
     }
   ]
 }
