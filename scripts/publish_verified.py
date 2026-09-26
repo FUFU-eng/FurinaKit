@@ -29,17 +29,12 @@ def main():
     tmp=Path(tempfile.mkdtemp(prefix='furinakit-publish-'))
     for a in assets:
         if not re.fullmatch(r'[A-Za-z0-9._-]{1,150}',a['name']) or not re.fullmatch(r'[a-f0-9]{64}',a['sha256']) or not 0<a['bytes']<2_000_000_000 or not a['url'].startswith('https://'):raise ValueError('Invalid asset entry')
-        p=tmp/a['name'];h=hashlib.sha256();n=0
-        req=urllib.request.Request(a['url'],headers={'User-Agent':'FurinaKit-release-verification/2.1.0'})
-        with urllib.request.urlopen(req,timeout=90) as r,p.open('xb') as f:
-            while True:
-                b=r.read(1024*1024)
-                if not b:break
-                n+=len(b)
-                if n>a['bytes']:raise ValueError('Oversized response')
-                h.update(b);f.write(b)
-        if n!=a['bytes'] or h.hexdigest()!=a['sha256']:raise ValueError('Asset integrity failed: '+a['name'])
-        print('VERIFIED',a['name'],n,flush=True)
+        p=tmp/a['name']
+        print('DOWNLOADING',a['name'],flush=True)
+        transfer=subprocess.run(['curl','--fail','--location','--silent','--show-error','--proto','=https','--proto-redir','=https','--retry','3','--retry-all-errors','--connect-timeout','15','--max-time','600','--max-filesize',str(a['bytes']),'--output',str(p),a['url']],text=True,capture_output=True)
+        if transfer.returncode:raise RuntimeError('Read-only asset transfer failed for '+a['name']+': '+transfer.stderr[-1200:])
+        if p.stat().st_size!=a['bytes'] or digest(p)!=a['sha256']:raise ValueError('Asset integrity failed: '+a['name'])
+        print('VERIFIED',a['name'],p.stat().st_size,flush=True)
     models=json.loads((tmp/'MODEL-DOWNLOADS.json').read_text())
     if models['status']!='completed' or models['files']!=16 or models['optionalModelsBundled'] is not False:raise ValueError('Model verification incomplete')
     unpack=tmp/'portable';unpack.mkdir()
@@ -86,4 +81,9 @@ def main():
         with open(summary,'a',encoding='utf-8') as f:
             f.write('## Verified release\n\n'+release['html_url']+'\n\nCommit: `'+commit+'`\n\n')
             for a in assets:f.write('- `'+a['name']+'`: `'+a['sha256']+'`\n')
-if __name__=='__main__':main()
+if __name__=='__main__':
+    try:main()
+    except Exception as error:
+        message=str(error).replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+        print('::error title=Release verification failed::'+message,flush=True)
+        raise

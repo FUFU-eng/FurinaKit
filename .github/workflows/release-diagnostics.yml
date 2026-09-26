@@ -17,16 +17,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           python - <<'PY'
-          import subprocess,json
+          import subprocess,json,re
           def emit(text):
               text=text.replace('%','%25').replace('\r','%0D').replace('\n','%0A')
               print('::notice::'+text)
-          p=subprocess.run(['gh','api','repos/FUFU-eng/FurinaKit/actions/jobs/108371530599/logs'],capture_output=True,text=True)
+          p=subprocess.run(['gh','api','repos/FUFU-eng/FurinaKit/actions/jobs/108371530599/logs','--allow-escape-sequences'],capture_output=True,text=True)
           if p.returncode:
               emit('LOG_READ_FAILED '+p.stderr[-1500:])
           else:
               # The previous workflow never prints tokens or private user data.
-              emit('PRIOR_PUBLISH_LOG_TAIL\n'+'\n'.join(p.stdout.splitlines()[-80:])[-14000:])
+              clean=re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]','',p.stdout)
+              clean=''.join(c for c in clean if c in '\n\t' or 32<=ord(c)!=127)
+              emit('PRIOR_PUBLISH_LOG_TAIL\n'+'\n'.join(clean.splitlines()[-80:])[-14000:])
           p=subprocess.run(['gh','api','repos/FUFU-eng/FurinaKit/releases/tags/v2.1.0'],capture_output=True,text=True)
           if p.returncode:
               emit('RELEASE_LOOKUP '+p.stderr[-1200:])

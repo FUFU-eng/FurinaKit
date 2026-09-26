@@ -1,10 +1,13 @@
 {
   "release": "9.0.1",
   "archive_sha256": "fec81ae03971d9dd4be3ebe02e263bd2ec1d789483f931bdba5f5715e65da2e9",
+  "archive_url": "https://github.com/GyanD/codexffmpeg/releases/download/9.0.1/ffmpeg-9.0.1-essentials_build.zip",
   "ffmpeg_sha256": "72a489eccd008c2ec2c0a5856c5c75bc3d8bbfa90166c4566865c246445e6aa3",
   "ffmpeg_bytes": 102856192,
-  "archive_url": "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip",
+  "ffprobe_sha256": "19202b23c0043f15ad1b7bce2344f406fd52bd6efd8f995ce02e7392a1cec52f",
+  "ffprobe_bytes": 102652416,
+  "install_path": "tools/engines/ffmpeg",
   "source": "https://github.com/FFmpeg/FFmpeg/commit/bf1b838f2a",
-  "verification": "Existing binary matches executable extracted from the official archive, whose published SHA256 was verified. Packaging metadata only; no executable was run.",
+  "verification": "Both executables extracted from the official gyan.dev 9.0.1 essentials archive; archive SHA-256 matches the published value.",
   "redistribution": "GPLv3, preserve notices and provide corresponding source under its terms."
 }
