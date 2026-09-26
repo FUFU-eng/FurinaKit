@@ -1,0 +1,37 @@
+name: Diagnose release verification
+on:
+  push:
+    branches: [release/2.1.0-20260926]
+    paths: [.github/workflows/release-diagnostics.yml]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  diagnose:
+    if: github.repository == 'FUFU-eng/FurinaKit'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Report owned prior job failure without exposing credentials
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import subprocess,json
+          def emit(text):
+              text=text.replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+              print('::notice::'+text)
+          p=subprocess.run(['gh','api','repos/FUFU-eng/FurinaKit/actions/jobs/108371530599/logs'],capture_output=True,text=True)
+          if p.returncode:
+              emit('LOG_READ_FAILED '+p.stderr[-1500:])
+          else:
+              # The previous workflow never prints tokens or private user data.
+              emit('PRIOR_PUBLISH_LOG_TAIL\n'+'\n'.join(p.stdout.splitlines()[-80:])[-14000:])
+          p=subprocess.run(['gh','api','repos/FUFU-eng/FurinaKit/releases/tags/v2.1.0'],capture_output=True,text=True)
+          if p.returncode:
+              emit('RELEASE_LOOKUP '+p.stderr[-1200:])
+          else:
+              d=json.loads(p.stdout)
+              emit('RELEASE_STATE '+json.dumps({k:d.get(k) for k in ['id','tag_name','draft','target_commitish','html_url']}))
+              emit('ASSET_STATE '+json.dumps([{'name':a['name'],'size':a['size'],'digest':a.get('digest')} for a in d['assets']]))
+          PY
