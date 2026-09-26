@@ -58,12 +58,15 @@ v2.1.0 从 Electron 换成了 **Tauri v2 + Rust**，常用工具已改为原生�
 ### 首页（浅色 / 深色 / 护眼）
 
 <p align="center">
-  <img src="./docs/image/home-light.png" alt="首页 - 浅色" width="420">
+  <img src="./docs/image/home-light.png" alt="首页 - 浅色" width="850">
 </p>
 
 <p align="center">
-  <img src="./docs/image/home-dark.png" alt="首页 - 深色" width="420">
-  <img src="./docs/image/home-eye.png" alt="首页 - 护眼" width="420">
+  <img src="./docs/image/home-dark.png" alt="首页 - 深色" width="850">
+</p>
+
+<p align="center">
+  <img src="./docs/image/home-eye.png" alt="首页 - 护眼" width="850">
 </p>
 
 ### 函数图像（三维曲面）
@@ -103,12 +106,19 @@ v2.1.0 从 Electron 换成了 **Tauri v2 + Rust**，常用工具已改为原生�
 ### 分类页
 
 <p align="center">
-  <img src="./docs/image/cat-image.png" alt="图片工具" width="420">
-  <img src="./docs/image/cat-document.png" alt="文档工具" width="420">
+  <img src="./docs/image/cat-image.png" alt="图片工具" width="850">
 </p>
+
 <p align="center">
-  <img src="./docs/image/cat-dev.png" alt="开发工具" width="420">
-  <img src="./docs/image/cat-system.png" alt="系统工具" width="420">
+  <img src="./docs/image/cat-document.png" alt="文档工具" width="850">
+</p>
+
+<p align="center">
+  <img src="./docs/image/cat-dev.png" alt="开发工具" width="850">
+</p>
+
+<p align="center">
+  <img src="./docs/image/cat-system.png" alt="系统工具" width="850">
 </p>
 
 ---
