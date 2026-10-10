@@ -1,46 +1,44 @@
 {
-  "version": "2.1.1",
-  "releaseDate": "2026-10-10",
+  "version": "2.1.2",
+  "releaseDate": "2026-10-11",
   "changelog": [
-    "新增四款游戏抽卡记录分析：多账号存档、卡池对比与长图分享",
-    "重整抽卡页面、账号授权界面与圆角下拉菜单，修复输出目录定位",
-    "新增 HTML 转 PDF / 图片工具，全箱共 231 款工具",
-    "应用内更新后台安装并自动重启，兼容旧更新入口，修复镜像回退",
-    "下载支持暂停 / 继续，修复艺术签名、图片混淆还原与 B 站解析",
-    "修复带 zh-Hans / zh-Hant 语言前缀的 B站视频链接下载失败"
+    "升级须知：从旧版本升级时，点更新后窗口可能一两分钟没有反应、进度显示 0，这是旧版本的问题，请耐心等待、不要关闭，下载完成后会自动安装",
+    "修复点「更新」后窗口卡住、进度一直为 0 的问题：下载改为后台进行，实时显示进度和当前线路",
+    "下载前自动测速选择最快线路，线路断开或太慢时自动换线并断点续传",
+    "安装包校验失败时自动重新获取更新信息并重试，失败提示更清楚"
   ],
-  "downloadUrl": "https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.1/FurinaKit.Setup.2.1.1.exe?updated=20261010-bili",
-  "fullDownloadUrl": "https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.1/FurinaKit.Setup.2.1.1.exe?updated=20261010-bili",
+  "downloadUrl": "https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.2/FurinaKit.Setup.2.1.2.exe",
+  "fullDownloadUrl": "https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.2/FurinaKit.Setup.2.1.2.exe",
   "fullSize": "约 120.5 MiB",
   "fullSetupSize": "约 120.5 MiB",
-  "sha256": "1f5aa17993d2586c59f951c416637393009842977d80a96ef7c239bfd008144c",
-  "fullSha256": "1f5aa17993d2586c59f951c416637393009842977d80a96ef7c239bfd008144c",
+  "sha256": "3d390a23f9024a8015b6cb1a9c91f7a3128e441f0b2f502c6cb423ca016366dc",
+  "fullSha256": "3d390a23f9024a8015b6cb1a9c91f7a3128e441f0b2f502c6cb423ca016366dc",
   "mirrors": [
     {
       "name": "国内加速线路（gh-proxy，推荐）",
-      "url": "https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.1/FurinaKit.Setup.2.1.1.exe?updated=20261010-bili"
+      "url": "https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.2/FurinaKit.Setup.2.1.2.exe"
     },
     {
       "name": "备用 HTTPS 镜像（ghfast）",
-      "url": "https://ghfast.top/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.1/FurinaKit.Setup.2.1.1.exe?updated=20261010-bili"
+      "url": "https://ghfast.top/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.2/FurinaKit.Setup.2.1.2.exe"
     },
     {
       "name": "GitHub 官方直链",
-      "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.1/FurinaKit.Setup.2.1.1.exe?updated=20261010-bili"
+      "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.2/FurinaKit.Setup.2.1.2.exe"
     }
   ],
   "fullMirrors": [
     {
       "name": "国内加速线路（gh-proxy，推荐）",
-      "url": "https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.1/FurinaKit.Setup.2.1.1.exe?updated=20261010-bili"
+      "url": "https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.2/FurinaKit.Setup.2.1.2.exe"
     },
     {
       "name": "备用 HTTPS 镜像（ghfast）",
-      "url": "https://ghfast.top/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.1/FurinaKit.Setup.2.1.1.exe?updated=20261010-bili"
+      "url": "https://ghfast.top/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.2/FurinaKit.Setup.2.1.2.exe"
     },
     {
       "name": "GitHub 官方直链",
-      "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.1/FurinaKit.Setup.2.1.1.exe?updated=20261010-bili"
+      "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.2/FurinaKit.Setup.2.1.2.exe"
     }
   ]
 }
