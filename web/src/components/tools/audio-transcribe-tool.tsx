@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
   AlertCircle, CheckCircle2, Download, FileAudio, FileText, Loader2, Mic,
-  Sparkles, Subtitles, Trash2, Upload, Copy, HardDriveDownload,
+  Sparkles, Subtitles, Trash2, Upload, Copy, HardDriveDownload, Pause,
 } from "lucide-react";
 import { Button, ProgressBar, Select } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
@@ -24,7 +24,7 @@ interface ModelRow {
   note: string;
   recommended?: boolean;
   downloaded: boolean;
-  download: { status: "downloading" | "done" | "error"; received: number; total: number; error: string | null; mirror?: string | null } | null;
+  download: { status: "downloading" | "done" | "error" | "paused"; received: number; total: number; error: string | null; mirror?: string | null } | null;
 }
 
 interface JobRow {
@@ -68,6 +68,8 @@ export function AudioTranscribeTool() {
   useEffect(()=>{mounted.current=true;void loadModels();const timer=setInterval(()=>void loadModels(),1500);return()=>{mounted.current=false;clearInterval(timer);};},[loadModels]);
   useEffect(()=>{let current=true;const epoch=jobEpoch.current;let id:string|null=null;try{id=new URLSearchParams(window.location.search).get("jobId")||localStorage.getItem("furina:last-whisper-job");}catch{}if(id&&/^[a-f0-9-]{1,64}$/i.test(id)){void fetch(`/api/jobs/${id}`).then(r=>r.json()).then(data=>{if(current&&jobEpoch.current===epoch&&data.job?.nativeEngine==="whisper")setJob(data.job);}).catch(()=>{});}return()=>{current=false;};},[]);
   const startDownload=async(id:string)=>{try{const response=await fetch("/api/whisper/download",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:id})});const data=await response.json();if(!response.ok||data.ok!==true)throw new Error(data.error||"无法下载模型");if(mounted.current){await loadModels();toast({title:"模型下载已开始",description:"需要联网；支持断点续传，下载后会校验SHA-256。",variant:"info"});}}catch(e){if(mounted.current)toast({title:"下载失败",description:e instanceof Error?e.message:"",variant:"error"});}};
+  // 暂停模型下载：停止当前下载进程，已下载部分保留，再点「继续下载」从断点接着下
+  const pauseDownload=async(id:string)=>{try{const response=await fetch("/api/components",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:`whisper-${id}`,action:"pause"})});const data=await response.json();if(!response.ok||data.ok!==true)throw new Error(data.error||data.message||"暂停失败");if(mounted.current){toast({title:"正在暂停下载",description:"已下载的部分会保留，之后点「继续下载」即可接着下。",variant:"info"});await loadModels();}}catch(e){if(mounted.current)toast({title:"暂停失败",description:e instanceof Error?e.message:"",variant:"error"});}};
   const startTranscribe=async()=>{
     if(submitLock.current)return;
     if(!file){setError("请先选择音频或视频文件");return;}
@@ -160,6 +162,9 @@ export function AudioTranscribeTool() {
                       <span className="shrink-0 text-[11px]" style={{ color: colors.muted }}>{pct}%</span>
                     </div>
                   )}
+                  {!m.downloaded && dl?.status === "paused" && (
+                    <p className="mt-1.5 text-[11.5px]" style={{ color: colors.muted }}>{__ui("下载已暂停，已下载部分已保留")}</p>
+                  )}
                   {!m.downloaded && dl?.status === "error" && (
                     <p className="mt-1.5 text-[11.5px] text-destructive">{__msg(dl.error)}</p>
                   )}
@@ -174,9 +179,15 @@ export function AudioTranscribeTool() {
                       void startDownload(m.id);
                     }}
                   >
-                    <HardDriveDownload size={13} /> {__ui("下载")}</Button>
+                    <HardDriveDownload size={13} /> {dl?.status === "paused" ? __ui("继续下载") : __ui("下载")}</Button>
                 )}
-                {!m.downloaded && dl?.status === "downloading" && <Loader2 size={15} className="shrink-0 animate-spin" style={{ color: colors.muted }} />}
+                {!m.downloaded && dl?.status === "downloading" && (
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <Loader2 size={15} className="animate-spin" style={{ color: colors.muted }} />
+                    <Button size="sm" variant="outline" className="gap-1" onClick={(e) => { e.stopPropagation(); void pauseDownload(m.id); }}>
+                      <Pause size={12} /> {__ui("暂停")}</Button>
+                  </div>
+                )}
               </div>
             );
           })}

@@ -1,35 +1,43 @@
 {
   "version": "2.1.0",
-  "releaseDate": "2026-09-19",
+  "releaseDate": "2026-09-26",
   "changelog": [
-    "全新 Tauri 桌面版本，统一工作台、悬浮球、收藏与任务体验；与旧 Electron 版本使用完整安装包升级。",
-    "整理为 11 类、229 个工具入口，整合图片、PDF/Office、音视频、开发、安全、硬件与 AI 辅助任务。",
-    "增加独立 Python 与媒体处理运行环境；不再依赖开发目录，保留当前工具内核。",
-    "Whisper、精细抠图、LaMa、人声分离与扩展语音模型在设置中按需下载，不随安装包打包。",
-    "修正 BiRefNet 下载地址；增强镜像回退、文件完整性校验和更新包校验。",
-    "安装、启动、工具使用计数及意见反馈保持与原监控面板兼容。"
+    "Tauri + Rust 原生桌面架构，229 款工具；基础音视频引擎随包提供",
+    "修复 ARCHPR 共享组件缺失和视频导入错误提示残留",
+    "按需模型不捆绑，16 个下载文件完整校验",
+    "从 2.0.6 使用完整安装包升级，兼容旧数据导入及匿名统计去重"
   ],
-  "downloadUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe",
-  "fullDownloadUrl": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe",
-  "minPatchVersion": "2.1.0",
-  "isMandatory": false,
+  "downloadUrl": "https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe",
+  "fullDownloadUrl": "https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe",
+  "fullSize": "约 115.5 MiB",
+  "fullSetupSize": "约 115.5 MiB",
+  "sha256": "3032d8d344277ea727fafa9cac266c539acfd5509cea60fb38371145801bcabb",
+  "fullSha256": "3032d8d344277ea727fafa9cac266c539acfd5509cea60fb38371145801bcabb",
   "mirrors": [
     {
-      "name": "GitHub 官方",
+      "name": "国内加速线路（gh-proxy，推荐）",
+      "url": "https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe"
+    },
+    {
+      "name": "GitHub 官方直链",
       "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe"
     },
     {
-      "name": "备用镜像",
+      "name": "备用 HTTPS 镜像（ghfast）",
       "url": "https://ghfast.top/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe"
     }
   ],
   "fullMirrors": [
     {
-      "name": "GitHub 官方",
+      "name": "国内加速线路（gh-proxy，推荐）",
+      "url": "https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe"
+    },
+    {
+      "name": "GitHub 官方直链",
       "url": "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe"
     },
     {
-      "name": "备用镜像",
+      "name": "备用 HTTPS 镜像（ghfast）",
       "url": "https://ghfast.top/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.0/FurinaKit.Setup.2.1.0.exe"
     }
   ]

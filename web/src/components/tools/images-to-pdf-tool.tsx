@@ -5,7 +5,7 @@ const __ui = __createUiText("components/tools/images-to-pdf-tool.tsx");
 import { downloadJobResult } from "@/lib/job-download";
 import { PDFDocument } from "pdf-lib";
 import JSZip from "jszip";
-import { saveOutputBlob, reportOutputSaved } from "@/lib/output-directory";
+import { saveOutputBlob, reportOutputSaved, isDesktopOutput } from "@/lib/output-directory";
 
 
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
@@ -47,6 +47,8 @@ interface ImagesToPdfCache {
   pageSize: PageSizeOption;
   submitting: boolean;
   job: JobState | null;
+  /** Kept with the job so the result can still be saved after leaving and reopening the tool. */
+  resultBlob: Blob | null;
 }
 
 const imagesToPdfCache: ImagesToPdfCache = {
@@ -55,6 +57,7 @@ const imagesToPdfCache: ImagesToPdfCache = {
   pageSize: "a4_portrait",
   submitting: false,
   job: null,
+  resultBlob: null,
 };
 
 export function ImagesToPdfTool() {
@@ -64,7 +67,12 @@ export function ImagesToPdfTool() {
   const [pageSize, setPageSizeState] = useState<PageSizeOption>(imagesToPdfCache.pageSize);
   const [submitting, setSubmittingState] = useState(imagesToPdfCache.submitting);
   const [job, setJobState] = useState<JobState | null>(imagesToPdfCache.job);
-  const [resultBlob, setResultBlob] = useState<Blob | null>(null);
+  const [resultBlob, setResultBlobState] = useState<Blob | null>(imagesToPdfCache.resultBlob);
+  const [saving, setSaving] = useState(false);
+  const setResultBlob = (b: Blob | null) => {
+    imagesToPdfCache.resultBlob = b;
+    setResultBlobState(b);
+  };
   const { toast } = useToast();
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -150,6 +158,7 @@ export function ImagesToPdfTool() {
     });
     setItems([]);
     setJob(null);
+    setResultBlob(null);
   };
 
   const totalSize = useMemo(() => items.reduce((sum, item) => sum + item.file.size, 0), [items, __locale]);
@@ -171,33 +180,102 @@ export function ImagesToPdfTool() {
     });
 
     try {
-      // 辅助函数：通过 Canvas 将任意图片格式（PNG/JPG/WEBP/GIF/BMP）转为 PDF 标准字节
-      const processImage = async (file: File): Promise<{ bytes: Uint8Array; width: number; height: number; isPng: boolean }> => {
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
+      // JPG / PNG 直接嵌入原始字节，不重新编码：PDF 体积约等于原图之和，画质不变。
+      // 只有 PDF 不支持的格式（WebP / GIF / BMP 等）或带旋转标记的 JPG 才转码：先铺白底再编码成 JPG
+      //（透明部分放在白色页面上看起来一样）。以前一律转成 PNG，WebP 相册会膨胀十几倍。
+      const jpegOrientation = (b: Uint8Array): number => {
+        let i = 2;
+        while (i + 9 < b.length && b[i] === 0xff) {
+          const marker = b[i + 1];
+          const len = (b[i + 2] << 8) | b[i + 3];
+          if (marker === 0xe1 && b[i + 4] === 0x45 && b[i + 5] === 0x78 && b[i + 6] === 0x69 && b[i + 7] === 0x66) {
+            const t = i + 10;
+            const le = b[t] === 0x49;
+            const u16 = (q: number) => (le ? b[q] | (b[q + 1] << 8) : (b[q] << 8) | b[q + 1]);
+            const u32 = (q: number) => (le ? (b[q] | (b[q + 1] << 8) | (b[q + 2] << 16)) + b[q + 3] * 16777216 : b[q] * 16777216 + ((b[q + 1] << 16) | (b[q + 2] << 8) | b[q + 3]));
+            const ifd = t + u32(t + 4);
+            if (ifd + 2 > b.length) return 1;
+            const n = u16(ifd);
+            for (let k = 0; k < n; k++) {
+              const e = ifd + 2 + k * 12;
+              if (e + 10 > b.length) break;
+              if (u16(e) === 0x0112) return u16(e + 8);
+            }
+            return 1;
+          }
+          if (marker === 0xda || len < 2) break;
+          i += 2 + len;
+        }
+        return 1;
+      };
+      const transcodeToJpeg = async (file: File): Promise<Uint8Array> => {
+        let source: ImageBitmap | HTMLImageElement;
+        let w: number;
+        let h: number;
+        try {
+          const bmp = await createImageBitmap(file);
+          source = bmp; w = bmp.width; h = bmp.height;
+        } catch {
+          const url = URL.createObjectURL(file);
+          try {
             const img = new Image();
-            img.onload = () => {
-              const canvas = document.createElement("canvas");
-              canvas.width = img.naturalWidth;
-              canvas.height = img.naturalHeight;
-              const ctx = canvas.getContext("2d");
-              if (!ctx) { reject(new Error("Canvas 上下文初始化失败")); return; }
-              ctx.drawImage(img, 0, 0);
-              const isJpeg = file.type === "image/jpeg" || /\.jpe?g$/i.test(file.name);
-              const mime = isJpeg ? "image/jpeg" : "image/png";
-              canvas.toBlob(async (blob) => {
-                if (!blob) { reject(new Error("图片转码失败")); return; }
-                const ab = await blob.arrayBuffer();
-                resolve({ bytes: new Uint8Array(ab), width: img.naturalWidth, height: img.naturalHeight, isPng: !isJpeg });
-              }, mime, 0.95);
-            };
-            img.onerror = () => reject(new Error(`无法解码图片：${file.name}`));
-            img.src = reader.result as string;
-          };
-          reader.onerror = () => reject(new Error(`读取文件失败：${file.name}`));
-          reader.readAsDataURL(file);
-        });
+            await new Promise<void>((resolve, reject) => {
+              img.onload = () => resolve();
+              img.onerror = () => reject(new Error(`无法解码图片：${file.name}`));
+              img.src = url;
+            });
+            source = img; w = img.naturalWidth; h = img.naturalHeight;
+          } finally { URL.revokeObjectURL(url); }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) throw new Error("Canvas 上下文初始化失败");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(source, 0, 0);
+        if ("close" in source) source.close();
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+        canvas.width = 0;
+        canvas.height = 0;
+        if (!blob) throw new Error("图片转码失败");
+        return new Uint8Array(await blob.arrayBuffer());
+      };
+      const embedImage = async (pdfDoc: PDFDocument, file: File) => {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+        const isPng = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+        if (isJpeg && jpegOrientation(bytes) <= 1) {
+          try { return await pdfDoc.embedJpg(bytes); } catch { /* 少见的 JPG 变体：改走转码 */ }
+        }
+        if (isPng) {
+          try { return await pdfDoc.embedPng(bytes); } catch { /* 少见的 PNG 变体：改走转码 */ }
+        }
+        return pdfDoc.embedJpg(await transcodeToJpeg(file));
+      };
+      const addImagePage = async (pdfDoc: PDFDocument, file: File) => {
+        const embedded = await embedImage(pdfDoc, file);
+        const iw = embedded.width;
+        const ih = embedded.height;
+        let pageWidth = iw;
+        let pageHeight = ih;
+        let imgW = iw;
+        let imgH = ih;
+        let imgX = 0;
+        let imgY = 0;
+        if (pageSize === "a4_portrait" || pageSize === "a4_landscape") {
+          pageWidth = pageSize === "a4_portrait" ? 595.28 : 841.89;
+          pageHeight = pageSize === "a4_portrait" ? 841.89 : 595.28;
+          const margin = 20;
+          const scale = Math.min((pageWidth - margin * 2) / iw, (pageHeight - margin * 2) / ih, 1);
+          imgW = iw * scale;
+          imgH = ih * scale;
+          imgX = (pageWidth - imgW) / 2;
+          imgY = (pageHeight - imgH) / 2;
+        }
+        const page = pdfDoc.addPage([pageWidth, pageHeight]);
+        page.drawImage(embedded, { x: imgX, y: imgY, width: imgW, height: imgH });
       };
 
       if (mergeMode === "merge") {
@@ -212,40 +290,7 @@ export function ImagesToPdfTool() {
             message: `正在合成第 ${i + 1}/${items.length} 张图片：${item.file.name}...`,
           });
 
-          const imgData = await processImage(item.file);
-          const embedded = imgData.isPng
-            ? await pdfDoc.embedPng(imgData.bytes)
-            : await pdfDoc.embedJpg(imgData.bytes);
-
-          let pageWidth = imgData.width;
-          let pageHeight = imgData.height;
-          let imgW = imgData.width;
-          let imgH = imgData.height;
-          let imgX = 0;
-          let imgY = 0;
-
-          if (pageSize === "a4_portrait") {
-            pageWidth = 595.28;
-            pageHeight = 841.89;
-            const margin = 20;
-            const scale = Math.min((pageWidth - margin * 2) / imgData.width, (pageHeight - margin * 2) / imgData.height, 1);
-            imgW = imgData.width * scale;
-            imgH = imgData.height * scale;
-            imgX = (pageWidth - imgW) / 2;
-            imgY = (pageHeight - imgH) / 2;
-          } else if (pageSize === "a4_landscape") {
-            pageWidth = 841.89;
-            pageHeight = 595.28;
-            const margin = 20;
-            const scale = Math.min((pageWidth - margin * 2) / imgData.width, (pageHeight - margin * 2) / imgData.height, 1);
-            imgW = imgData.width * scale;
-            imgH = imgData.height * scale;
-            imgX = (pageWidth - imgW) / 2;
-            imgY = (pageHeight - imgH) / 2;
-          }
-
-          const page = pdfDoc.addPage([pageWidth, pageHeight]);
-          page.drawImage(embedded, { x: imgX, y: imgY, width: imgW, height: imgH });
+          await addImagePage(pdfDoc, item.file);
         }
 
         setJob({
@@ -274,40 +319,7 @@ export function ImagesToPdfTool() {
         if (items.length === 1) {
           const item = items[0];
           const pdfDoc = await PDFDocument.create();
-          const imgData = await processImage(item.file);
-          const embedded = imgData.isPng
-            ? await pdfDoc.embedPng(imgData.bytes)
-            : await pdfDoc.embedJpg(imgData.bytes);
-
-          let pageWidth = imgData.width;
-          let pageHeight = imgData.height;
-          let imgW = imgData.width;
-          let imgH = imgData.height;
-          let imgX = 0;
-          let imgY = 0;
-
-          if (pageSize === "a4_portrait") {
-            pageWidth = 595.28;
-            pageHeight = 841.89;
-            const margin = 20;
-            const scale = Math.min((pageWidth - margin * 2) / imgData.width, (pageHeight - margin * 2) / imgData.height, 1);
-            imgW = imgData.width * scale;
-            imgH = imgData.height * scale;
-            imgX = (pageWidth - imgW) / 2;
-            imgY = (pageHeight - imgH) / 2;
-          } else if (pageSize === "a4_landscape") {
-            pageWidth = 841.89;
-            pageHeight = 595.28;
-            const margin = 20;
-            const scale = Math.min((pageWidth - margin * 2) / imgData.width, (pageHeight - margin * 2) / imgData.height, 1);
-            imgW = imgData.width * scale;
-            imgH = imgData.height * scale;
-            imgX = (pageWidth - imgW) / 2;
-            imgY = (pageHeight - imgH) / 2;
-          }
-
-          const page = pdfDoc.addPage([pageWidth, pageHeight]);
-          page.drawImage(embedded, { x: imgX, y: imgY, width: imgW, height: imgH });
+          await addImagePage(pdfDoc, item.file);
 
           const pdfBytes = await pdfDoc.save();
           const blob = new Blob([new Uint8Array(pdfBytes).buffer], { type: "application/pdf" });
@@ -335,40 +347,7 @@ export function ImagesToPdfTool() {
               message: `正在分别转换第 ${i + 1}/${items.length} 个 PDF...`,
             });
             const pdfDoc = await PDFDocument.create();
-            const imgData = await processImage(item.file);
-            const embedded = imgData.isPng
-              ? await pdfDoc.embedPng(imgData.bytes)
-              : await pdfDoc.embedJpg(imgData.bytes);
-
-            let pageWidth = imgData.width;
-            let pageHeight = imgData.height;
-            let imgW = imgData.width;
-            let imgH = imgData.height;
-            let imgX = 0;
-            let imgY = 0;
-
-            if (pageSize === "a4_portrait") {
-              pageWidth = 595.28;
-              pageHeight = 841.89;
-              const margin = 20;
-              const scale = Math.min((pageWidth - margin * 2) / imgData.width, (pageHeight - margin * 2) / imgData.height, 1);
-              imgW = imgData.width * scale;
-              imgH = imgData.height * scale;
-              imgX = (pageWidth - imgW) / 2;
-              imgY = (pageHeight - imgH) / 2;
-            } else if (pageSize === "a4_landscape") {
-              pageWidth = 841.89;
-              pageHeight = 595.28;
-              const margin = 20;
-              const scale = Math.min((pageWidth - margin * 2) / imgData.width, (pageHeight - margin * 2) / imgData.height, 1);
-              imgW = imgData.width * scale;
-              imgH = imgData.height * scale;
-              imgX = (pageWidth - imgW) / 2;
-              imgY = (pageHeight - imgH) / 2;
-            }
-
-            const page = pdfDoc.addPage([pageWidth, pageHeight]);
-            page.drawImage(embedded, { x: imgX, y: imgY, width: imgW, height: imgH });
+            await addImagePage(pdfDoc, item.file);
 
             const pdfBytes = await pdfDoc.save();
             const baseName = item.file.name.replace(/\.[^.]+$/, "");
@@ -499,29 +478,41 @@ export function ImagesToPdfTool() {
   }, [pollJobStatus]);
 
   const handleDownload = async () => {
-    if (resultBlob && job?.resultFilename) {
-      try {
-        const path = await saveOutputBlob(resultBlob, job.resultFilename);
-        reportOutputSaved(path);
-        toast({ title: "保存成功", description: path, variant: "success" });
-        return;
-      } catch {
-        // Fallback: browser <a> download
-        const url = URL.createObjectURL(resultBlob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = job.resultFilename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 10000);
-        toast({ title: "已开始下载", description: job.resultFilename, variant: "success" });
+    if (saving) return;
+    setSaving(true);
+    try {
+      if (resultBlob && job?.resultFilename) {
+        try {
+          const path = await saveOutputBlob(resultBlob, job.resultFilename);
+          reportOutputSaved(path);
+          toast({ title: "保存成功", description: path, variant: "success" });
+        } catch (error) {
+          // 桌面版直接报错，不再走浏览器下载（那条路同样会转回本机保存，只会重复失败、看起来像没反应）。
+          if (isDesktopOutput()) {
+            toast({ title: "保存失败", description: error instanceof Error ? error.message : String(error || "请重试"), variant: "error" });
+            return;
+          }
+          const url = URL.createObjectURL(resultBlob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = job.resultFilename;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 10000);
+          toast({ title: "已开始下载", description: job.resultFilename, variant: "success" });
+        }
         return;
       }
+      if (!job?.id || job.id.startsWith("native-pdf")) {
+        toast({ title: "保存失败", description: "生成的文件已失效，请重新点「开始转换」", variant: "error" });
+        return;
+      }
+      try { await downloadJobResult(job.id, job.resultFilename || "合并结果.pdf"); }
+      catch (error) { toast({ title: "保存失败", description: error instanceof Error ? error.message : "请重试", variant: "error" }); }
+    } finally {
+      setSaving(false);
     }
-    if (!job?.id) return;
-    try { await downloadJobResult(job.id, job.resultFilename || "合并结果.pdf"); }
-    catch (error) { toast({ title: "保存失败", description: error instanceof Error ? error.message : "请重试", variant: "error" }); }
   };
 
   const isSmallBatch = items.length <= 30;
@@ -848,9 +839,9 @@ export function ImagesToPdfTool() {
               <span className="text-xs font-medium text-foreground">
                 {__ui("生成文件：")}{job.resultFilename}
               </span>
-              <Button onClick={handleDownload} size="default" className="gap-2 px-6">
-                <Download className="h-4 w-4" />
-                <span>{__ui("立即下载")}</span>
+              <Button onClick={handleDownload} size="default" className="gap-2 px-6" disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                <span>{saving ? __ui("正在保存…") : __ui("立即下载")}</span>
               </Button>
             </div>
           )}

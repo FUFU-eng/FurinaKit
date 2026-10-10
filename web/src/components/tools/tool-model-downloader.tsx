@@ -3,7 +3,7 @@ import { createUiText as __createUiText, uiMessage as __msg, useLanguage as __us
 const __ui = __createUiText("components/tools/tool-model-downloader.tsx");
 
 import { useCallback, useEffect, useState, useRef } from "react";
-import { AlertCircle, Check, Settings2, RefreshCw, Download, Loader2, HardDrive } from "lucide-react";
+import { AlertCircle, Check, Settings2, RefreshCw, Download, Loader2, HardDrive, Pause } from "lucide-react";
 import { Button } from "@/components/ui/primitives";
 import { openModelSettings } from "@/lib/model-settings-navigation";
 
@@ -28,6 +28,7 @@ export function ToolModelDownloader({ ids }: { ids: string[] }) {
   const [error, setError] = useState("");
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadMsg, setDownloadMsg] = useState<string>("");
+  const [notice, setNotice] = useState<string>("");
 
   const reload = useCallback(async () => {
     const request = ++epoch.current;
@@ -78,9 +79,17 @@ export function ToolModelDownloader({ ids }: { ids: string[] }) {
         body: JSON.stringify({ id, action: "download" }),
       });
       const data = await res.json();
-      if (!data.ok) {
-        throw new Error(data.message || __ui("下载失败，请检查网络"));
+      if (data.paused) {
+        // 用户主动暂停：不是错误，断点已保留
+        setError("");
+        setNotice(data.message || __ui("下载已暂停，已下载部分已保留"));
+        await reload();
+        return;
       }
+      if (!data.ok) {
+        throw new Error(data.message || data.error || __ui("下载失败，请检查网络"));
+      }
+      setNotice("");
       await reload();
       window.dispatchEvent(new CustomEvent("furina:components-changed"));
     } catch (err) {
@@ -89,6 +98,22 @@ export function ToolModelDownloader({ ids }: { ids: string[] }) {
     } finally {
       setDownloadingId(null);
       setDownloadMsg("");
+    }
+  };
+
+  // 暂停：停止当前下载进程，已下载部分保留；再点「继续下载」会从断点接着下
+  const handlePause = async (id: string) => {
+    try {
+      const res = await fetch("/api/components", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, action: "pause" }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || data.message || __ui("暂停失败"));
+      setDownloadMsg(__ui("正在暂停，已下载部分会保留…"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : __ui("暂停失败"));
     }
   };
 
@@ -128,11 +153,15 @@ export function ToolModelDownloader({ ids }: { ids: string[] }) {
           {__msg(error)}
         </p>
       ) : null}
+      {notice && !error ? (
+        <p className="text-xs text-muted-foreground py-1">{__msg(notice)}</p>
+      ) : null}
 
       <div className="space-y-2">
         {activeItems.map((item) => {
           const ready = item.downloaded && !!item.filePath;
-          const isDownloading = downloadingId === item.id;
+          const isDownloading = downloadingId === item.id || (!!item.busy && !ready);
+          const canResume = !ready && !isDownloading && (item.downloaded_bytes ?? 0) > 0;
 
           return (
             <div
@@ -161,7 +190,7 @@ export function ToolModelDownloader({ ids }: { ids: string[] }) {
                   <Button
                     size="sm"
                     className="h-7.5 px-3 text-[11.5px] font-medium bg-sky-500 hover:bg-sky-400 text-white rounded-lg gap-1 shadow-xs"
-                    disabled={isDownloading}
+                    disabled={isDownloading || (downloadingId !== null && downloadingId !== item.id)}
                     onClick={() => void handleDownload(item.id)}
                   >
                     {isDownloading ? (
@@ -172,11 +201,23 @@ export function ToolModelDownloader({ ids }: { ids: string[] }) {
                     ) : (
                       <>
                         <Download size={12} />
-                        {__ui("下载引擎")}
+                        {canResume ? __ui("继续下载") : __ui("下载引擎")}
                       </>
                     )}
                   </Button>
                 )}
+                {isDownloading && !ready ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7.5 px-2.5 text-[11.5px] gap-1 rounded-lg"
+                    onClick={() => void handlePause(item.id)}
+                    title={__ui("暂停下载，已下载部分会保留")}
+                  >
+                    <Pause size={12} />
+                    {__ui("暂停")}
+                  </Button>
+                ) : null}
                 <Button
                   size="sm"
                   variant="ghost"

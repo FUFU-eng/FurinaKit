@@ -40,9 +40,20 @@ pub async fn sync_output_directory(app: tauri::AppHandle, preferred: Option<Stri
 }
 
 #[tauri::command]
-pub fn open_output_directory(app: tauri::AppHandle) -> Result<(), String> {
+pub fn open_output_directory(app: tauri::AppHandle, last_saved_path: Option<String>) -> Result<(), String> {
     let dir = directory(&app)?;
-    crate::commands::open_path(app, dir.to_string_lossy().into_owned())
+    let target = output_reveal_target(&dir, last_saved_path.as_deref());
+    crate::commands::open_path(app, target.to_string_lossy().into_owned())
+}
+
+// A stale save or a changed output setting must still open the configured folder.
+fn output_reveal_target(dir: &Path, saved: Option<&str>) -> PathBuf {
+    if let (Ok(folder), Some(file)) = (fs::canonicalize(dir), saved) {
+        if let Ok(file) = fs::canonicalize(file) {
+            if file.is_file() && file.parent() == Some(folder.as_path()) { return file; }
+        }
+    }
+    dir.to_owned()
 }
 
 fn safe_name(name: &str) -> String {
@@ -121,6 +132,19 @@ pub fn save_bytes(app: &tauri::AppHandle, bytes: &[u8], name: &str) -> Result<Pa
 mod tests {
     use super::*;
     fn root() -> PathBuf { let p=std::env::temp_dir().join(format!("fk-output-{}",crate::jobs::new_job_id_public()));fs::create_dir_all(&p).unwrap();p }
+    #[test]
+    fn reveal_selects_saved_file_but_respects_changed_folder_and_deleted_file() {
+        let dir=root(); let other=root();
+        let saved=write_to_directory(&dir,"长图.png",|f| f.write_all(b"result").map_err(|e|e.to_string())).unwrap();
+        let path=saved.to_string_lossy();
+        assert_eq!(output_reveal_target(&dir,Some(&path)),saved);
+        assert_eq!(output_reveal_target(&other,Some(&path)),other);
+        assert_eq!(output_reveal_target(&dir,None),dir);
+        assert_eq!(output_reveal_target(&dir,Some(dir.to_str().unwrap())),dir);
+        fs::remove_file(&saved).unwrap();
+        assert_eq!(output_reveal_target(&dir,Some(&path)),dir);
+        fs::remove_dir_all(dir).unwrap();fs::remove_dir_all(other).unwrap();
+    }
     #[test]
     fn same_names_preserve_originals_and_clean_parts() {
         let dir=root();let source=dir.join("source.txt");fs::write(&source,b"new result").unwrap();fs::write(dir.join("结果.txt"),b"existing").unwrap();

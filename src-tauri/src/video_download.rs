@@ -1,5 +1,5 @@
 //! Tauri-owned video jobs: real yt-dlp progress, bounded stalls, isolated outputs.
-use std::{fs::{self, File}, io::{BufRead, BufReader}, path::PathBuf, process::{Child, Command, Stdio}, time::{Duration, Instant}};
+use std::{fs::{self, File}, io::{BufRead, BufReader}, path::PathBuf, process::{Command, Stdio}, time::{Duration, Instant}};
 use serde_json::{json, Value};
 
 fn update(app: &tauri::AppHandle, id: &str, value: Value) {
@@ -7,7 +7,7 @@ fn update(app: &tauri::AppHandle, id: &str, value: Value) {
 }
 
 #[cfg(windows)] type DownloadChild=crate::worker_process::Child;
-#[cfg(not(windows))] type DownloadChild=Child;
+#[cfg(not(windows))] type DownloadChild=std::process::Child;
 fn terminate(child: &mut DownloadChild) -> Result<(),String> {
     // Owned Job termination on Windows; never a reusable PID/taskkill target.
     child.kill().map_err(|e|format!("Download tree stop unconfirmed: {e}"))?;
@@ -32,12 +32,62 @@ pub fn start(app: &tauri::AppHandle, tool: &str, args: &Value) -> Result<Value, 
     // No Python queue item: there must be exactly one owner of each job.
     let job = crate::jobs::create_local_job(app, tool, payload.clone())?;
     let id = job["id"].as_str().ok_or("任务缺少 id")?.to_string();
+    spawn_worker(app, id, payload, std::sync::Arc::new(component_lease));
+    Ok(json!({"ok":true,"job":job,"engine":"native-ytdlp"}))
+}
+
+/// 暂停后 run() 用这个错误退出；状态已经写成 paused，外层不会再改成「失败」。
+const PAUSED: &str = "__FURINAKIT_VIDEO_PAUSED__";
+/// yt-dlp 的 B站解析器失效：改用 B站公开接口生成的 info JSON 再下一次。
+const BILI_FALLBACK: &str = "__FURINAKIT_BILI_API_FALLBACK__";
+
+fn run_with_fallback(app: &tauri::AppHandle, id: &str, payload: &Value, component_resources: crate::resource_custody::SharedResource) -> Result<(), String> {
+    match run(app, id, payload, component_resources.clone(), None) {
+        Err(e) if e == BILI_FALLBACK => {
+            update(app, id, json!({"progress":6,"message":"B站网页解析失败，改用 B站接口获取视频…"}));
+            let url = payload["url"].as_str().ok_or("缺少网址")?;
+            let info = crate::bili_api::build_info(url)?;
+            let dir = crate::jobs::storage_dir_of(app).join("results").join(id);
+            let info_path = dir.join("bili-info.json");
+            fs::write(&info_path, serde_json::to_vec(&info).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+            let result = run(app, id, payload, component_resources, Some(&info_path));
+            let _ = fs::remove_file(&info_path);
+            result
+        }
+        other => other,
+    }
+}
+
+fn video_job(app: &tauri::AppHandle, id: &str) -> Result<Value, String> {
+    let job = crate::jobs::read_job_public(app, id).ok_or("任务不存在")?;
+    if job["payload"]["engine"] != "native-ytdlp" { return Err("此任务不支持暂停 / 继续".into()); }
+    Ok(job)
+}
+
+/// 暂停：标记 pausing，下载线程看到后结束 yt-dlp 进程，.part 断点文件留在任务目录里。
+pub fn pause(app: &tauri::AppHandle, id: &str) -> Result<Value, String> {
+    let job = video_job(app, id)?;
+    if !matches!(job["status"].as_str(), Some("processing" | "pending")) { return Err("只有正在下载的任务可以暂停".into()); }
+    let job = crate::jobs::update_job(app, id, json!({"status":"pausing","message":"正在暂停，已下载部分会保留…"}).as_object().cloned().unwrap_or_default()).ok_or("保存暂停状态失败")?;
+    Ok(json!({"ok":true,"job":job}))
+}
+
+/// 继续：用同一个任务目录重新启动 yt-dlp，它会自动接着 .part 文件下载。
+pub fn resume(app: &tauri::AppHandle, id: &str) -> Result<Value, String> {
+    let job = video_job(app, id)?;
+    if job["status"] != "paused" { return Err("只有已暂停的任务可以继续".into()); }
+    let component_lease = crate::api::component_use(app, &["ffmpeg.exe", "ffprobe.exe"])?;
+    let job = crate::jobs::update_job(app, id, json!({"status":"processing","message":"正在从断点继续下载…","error":null}).as_object().cloned().unwrap_or_default()).ok_or("保存任务状态失败")?;
+    spawn_worker(app, id.to_owned(), job["payload"].clone(), std::sync::Arc::new(component_lease));
+    Ok(json!({"ok":true,"job":job}))
+}
+
+fn spawn_worker(app: &tauri::AppHandle, id: String, payload: Value, component_resources: crate::resource_custody::SharedResource) {
     let handle = app.clone();
     std::thread::spawn(move || {
-        let component_resources:crate::resource_custody::SharedResource=std::sync::Arc::new(component_lease);
         update(&handle, &id, json!({"status":"processing","progress":5,"message":"正在连接视频平台…"}));
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(&handle, &id, &payload,component_resources.clone())));
-        let error = match result { Ok(Ok(())) => None, Ok(Err(e)) => Some(e), Err(_) => Some("下载进程异常，请重试".into()) };
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_with_fallback(&handle, &id, &payload,component_resources.clone())));
+        let error = match result { Ok(Ok(())) => None, Ok(Err(e)) if e == PAUSED => None, Ok(Err(e)) => Some(e), Err(_) => Some("下载进程异常，请重试".into()) };
         if let Some(error) = error {
             // Do not replace a cancellation with a misleading failure or completion.
             if crate::jobs::read_job_public(&handle, &id).map(|j| j["status"] == "processing").unwrap_or(false) {
@@ -45,7 +95,6 @@ pub fn start(app: &tauri::AppHandle, tool: &str, args: &Value) -> Result<Value, 
             }
         }
     });
-    Ok(json!({"ok":true,"job":job,"engine":"native-ytdlp"}))
 }
 
 pub(crate) fn format_args(format: &str, quality: &str, codec: &str) -> Vec<String> {
@@ -64,7 +113,7 @@ pub(crate) fn format_args(format: &str, quality: &str, codec: &str) -> Vec<Strin
     args
 }
 
-fn run(app: &tauri::AppHandle, id: &str, payload: &Value, component_resources:crate::resource_custody::SharedResource) -> Result<(), String> {
+fn run(app: &tauri::AppHandle, id: &str, payload: &Value, component_resources:crate::resource_custody::SharedResource, info_file: Option<&std::path::Path>) -> Result<(), String> {
     let root = crate::app_root_of(app);
     let dir = crate::jobs::storage_dir_of(app).join("results").join(id);
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -88,11 +137,11 @@ fn run(app: &tauri::AppHandle, id: &str, payload: &Value, component_resources:cr
         .args(format_args(format, quality, codec))
         // Explicit empty proxy overrides inherited proxy env vars for domestic sites.
         .arg("--proxy").arg(crate::video::system_proxy(url).unwrap_or_default())
-        .arg("--").arg(url)
         .env("PYTHONIOENCODING", "utf-8").env("PYTHONUTF8", "1")
         .stdin(Stdio::null()).stdout(Stdio::from(log.try_clone().map_err(|e| e.to_string())?))
         .stderr(Stdio::from(log));
     // Options have to precede the -- URL delimiter.
+    if let Some(f) = info_file { cmd.arg("--load-info-json").arg(f); } else { cmd.arg("--").arg(url); }
     if let Some(ffmpeg) = ffmpeg {
         cmd.env("PATH", format!("{};{}", ffmpeg.parent().unwrap_or(&root).display(), std::env::var("PATH").unwrap_or_default()));
     }
@@ -141,8 +190,14 @@ fn run(app: &tauri::AppHandle, id: &str, payload: &Value, component_resources:cr
                 if tail.len() > 30 { tail.remove(0); }
             }
         }
-        if crate::jobs::read_job_public(app,id).map(|j| j["status"] == "failed").unwrap_or(false) {
+        let status_now = crate::jobs::read_job_public(app,id).map(|j| j["status"].clone()).unwrap_or(Value::Null);
+        if status_now == "failed" {
             terminate(&mut child)?; return Err("已取消".into());
+        }
+        if status_now == "pausing" {
+            terminate(&mut child)?;
+            update(app,id,json!({"status":"paused","message":"已暂停，已下载部分已保留，点「继续」接着下载"}));
+            return Err(PAUSED.into());
         }
         match child.try_wait() {
             Ok(Some(status)) => {
@@ -154,7 +209,10 @@ fn run(app: &tauri::AppHandle, id: &str, payload: &Value, component_resources:cr
                         if let Ok(p) = serde_json::from_str::<String>(raw) { final_path = Some(PathBuf::from(p)); }
                     }
                 }
-                if !status.success() { return Err(crate::video::friendly_error(&all)); }
+                if !status.success() {
+                    if info_file.is_none() && crate::bili_api::is_bilibili(url) && crate::bili_api::ytdlp_extractor_broken(&all) { return Err(BILI_FALLBACK.into()); }
+                    return Err(crate::video::friendly_error(&all));
+                }
                 break;
             }
             Ok(None) => (),

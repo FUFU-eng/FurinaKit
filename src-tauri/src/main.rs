@@ -121,6 +121,8 @@ mod transfer;
 mod translate;
 mod webcap;
 mod video;
+mod bili_api;
+mod gacha;
 mod video_download;
 mod embedded_site;
 mod region_capture;
@@ -637,6 +639,8 @@ fn main() {
             region_capture::region_capture_finish,
             commands::download_update,
             commands::install_update,
+            commands::install_update_interactive,
+            commands::take_update_result,
             commands::select_directory,
             commands::get_default_output_dir,
             commands::read_file_data_url,

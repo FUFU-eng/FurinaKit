@@ -14,6 +14,8 @@ const aliases: Record<string,string> = {
   notes: "笔记 记事本 备忘录 便条", "clipboard-history": "剪贴板 剪切板 复制 粘贴 历史",
   "floating-screenshot": "截屏 截图 贴图 悬浮截图", "screenshot-ocr": "ocr 识字 文字识别 提取文字 截图取字",
   "image-upscale": "超分辨率 放大 清晰 增强 修复", "image-to-pdf": "图片转pdf 合并照片 pdf",
+  "html-to-pdf": "html转pdf 网页转pdf html转图片 提取网页图片 相册 html to pdf image",
+  "gacha-analysis": "抽卡 抽卡记录 抽卡分析 原神 星铁 崩铁 星穹铁道 绝区零 鸣潮 祈愿 跃迁 调频 唤取 保底 出金 uigf 米游社 抽卡记录分析 gacha wish warp pity genshin starrail zzz wutheringwaves",
 };
 const normalize=(s:string)=>s.normalize("NFKC").toLowerCase().replace(/[\s_\-\/]+/g,"");
 const categoryName=(t:OmniTool)=>CATEGORY_LABELS[t.category] || t.category;

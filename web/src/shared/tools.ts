@@ -5442,6 +5442,26 @@ const DEFINITIONS: OmniTool[] = [
       ]
     },
   {
+      "id": "html-to-pdf",
+      get "name"() { return __ui("HTML 转 PDF / 图片"); },
+      get "description"() { return __ui("把 HTML 网页文件转成 PDF 或图片：自动提取网页里内嵌的原图（跳过缩略图、去重），按顺序合成 PDF 或打包成图片 ZIP，画质不变；也能按网页原样导出成 PDF / 长截图"); },
+      "category": "pdf",
+      "mode": "sync",
+      "clientSide": true,
+      "icon": "FileImage",
+      "inputs": []
+    },
+  {
+      "id": "gacha-analysis",
+      get "name"() { return __ui("抽卡记录分析"); },
+      get "description"() { return __ui("原神 / 崩坏：星穹铁道 / 绝区零 / 鸣潮（国服）抽卡记录分析：原神、绝区零可米游社扫码登录一键获取，星穹铁道读取游戏缓存，鸣潮读取游戏日志，也可以粘贴抽卡链接；显示各卡池已垫抽数、每个五星用了几抽和是否歪了、平均出金、小保底不歪率、总抽数折合原石、欧非称号和图表，记录保存在本机可增量更新，支持 UIGF 导入导出"); },
+      "category": "utility",
+      "mode": "sync",
+      "clientSide": true,
+      "icon": "Sparkles",
+      "inputs": []
+    },
+  {
       "id": "meme-maker",
       get "name"() { return __ui("表情包制作"); },
       get "description"() { return __ui("给图片加白字黑边的上下两行大字，文字可拖动、可调字号颜色描边、内置常用表情；不选图片也能用纯色底做字图，一键导出 PNG"); },

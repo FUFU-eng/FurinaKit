@@ -4,7 +4,9 @@ const __ui = __createUiText("components/tools/embedded-video-downloader.tsx");
 
 
 import { useEffect, useState, useRef } from "react";
-import { AlertCircle, ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import { AlertCircle, ExternalLink, FolderOpen, Loader2, RefreshCw } from "lucide-react";
+import { listen } from "@tauri-apps/api/event";
+import { isDesktopOutput, openOutputDirectory, reportOutputError, reportOutputSaved } from "@/lib/output-directory";
 import { useTheme } from "@/components/theme-provider";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
@@ -32,6 +34,19 @@ export function EmbeddedVideoDownloader() {
     return () => window.clearTimeout(timer);
   }, [revision]);
 
+  // 网站里下载完成后（文件已存进输出目录）提示一下
+  useEffect(() => {
+    if (!isDesktopOutput()) return;
+    const off = listen<{ success: boolean; path?: string | null }>("download-site-finished", (e) => {
+      if (e.payload?.success) reportOutputSaved(e.payload.path || undefined);
+      else reportOutputError("下载没有完成，请重试");
+    });
+    return () => { void off.then((f) => f()).catch(() => {}); };
+  }, []);
+  const openOutput = () => {
+    void openOutputDirectory().catch(reportOutputError);
+  };
+
   const refresh = () => {
     setState("loading");
     setRevision(n => n + 1);
@@ -58,6 +73,11 @@ export function EmbeddedVideoDownloader() {
             <button type="button" onClick={() => setDarkFilter(v => !v)} aria-pressed={darkFilter}
               className={cn("rounded-lg border px-2.5 py-1 text-xs transition-colors", darkFilter ? "border-primary/40 bg-primary/10 text-primary" : "border-border text-muted-foreground")}
               title={__ui("切换网页深色滤镜适配")}>{darkFilter ? __ui("深色适配已开启") : __ui("深色适配已关闭")}</button>
+          )}
+          {isDesktopOutput() && (
+            <button type="button" onClick={openOutput} title={__ui("网站里下载的文件会保存到这里")}
+              className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs text-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary">
+              <FolderOpen className="h-3.5 w-3.5" />{__ui("打开输出文件夹")}</button>
           )}
           <button type="button" onClick={refresh} title={__ui("刷新网页")} aria-label={__ui("刷新网页")} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"><RefreshCw className="h-4 w-4" /></button>
           <button type="button" onClick={openExternal} title={__ui("在系统浏览器中打开")} aria-label={__ui("在系统浏览器中打开")} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"><ExternalLink className="h-4 w-4" /></button>

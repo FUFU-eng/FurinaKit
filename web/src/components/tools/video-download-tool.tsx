@@ -11,7 +11,7 @@ import {
   Download, AlertCircle,
   Play,
   Loader2, CheckCircle2, XCircle, Film, Music, Image as LucideImage,
-  ClipboardPaste, Trash2, FolderOpen, Sparkles,
+  ClipboardPaste, Trash2, FolderOpen, Sparkles, Pause, Square,
 } from "lucide-react";
 import { Button, Select } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
@@ -32,7 +32,7 @@ interface VideoInfo {
 // 任务状态类型
 interface JobState {
   id: string;
-  status: "pending" | "processing" | "completed" | "failed";
+  status: "pending" | "processing" | "completed" | "failed" | "pausing" | "paused";
   progress: number;
   message: string;
   resultFilename?: string;
@@ -270,7 +270,7 @@ function ParseThenDownload({ toolId }: { toolId: string }) {
         const error = next.error ? localizeVideoErrorMessage(next.error) : undefined;
         setJob({ id: next.id, status: next.status, progress: next.progress || 0,
           message: next.message || "处理中…", resultFilename: next.resultFilename, error });
-        if (next.status === "completed" || next.status === "failed") return;
+        if (next.status === "completed" || next.status === "failed" || next.status === "paused") return;
         pollTimer.current = setTimeout(poll, 1500);
       } catch {
         if (generation !== pollGeneration.current || controller.signal.aborted) return;
@@ -281,6 +281,24 @@ function ParseThenDownload({ toolId }: { toolId: string }) {
     };
     void poll();
   }, [toolId, toast, stopPolling]);
+
+  // 暂停 / 继续 / 取消：暂停时 yt-dlp 的 .part 断点文件保留在任务目录，继续时接着下
+  const controlJob = useCallback(async (action: "pause" | "resume" | "cancel") => {
+    if (!job) return;
+    const jobId = job.id;
+    try {
+      const res = await fetch(`/api/jobs/${jobId}/${action}`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok || data.ok === false) throw new Error(data.error || "操作失败");
+      if (data.job) {
+        setJob((prev) => (prev && prev.id === jobId ? { ...prev, status: data.job.status, message: data.job.message || prev.message } : prev));
+      }
+      window.dispatchEvent(new Event("furinakit:jobs-updated"));
+      pollJobStatus(jobId);
+    } catch (e) {
+      toast({ title: "操作失败", description: e instanceof Error ? e.message : "", variant: "error" });
+    }
+  }, [job, pollJobStatus, toast]);
 
   // 页面挂载时自动恢复进行中的下载任务
   useEffect(() => {
@@ -302,7 +320,7 @@ function ParseThenDownload({ toolId }: { toolId: string }) {
           const running = data?.jobs?.find(
             (j: { toolId?: string; status?: string; id?: string }) =>
               j.toolId === toolId &&
-              (j.status === "processing" || j.status === "pending" || j.status === "queued")
+              (j.status === "processing" || j.status === "pending" || j.status === "queued" || j.status === "pausing" || j.status === "paused")
           );
           if (running?.id) jId = running.id;
         } catch {}
@@ -624,11 +642,13 @@ function ParseThenDownload({ toolId }: { toolId: string }) {
                 <CheckCircle2 className="h-5 w-5 text-success" />
               ) : job.status === "failed" ? (
                 <XCircle className="h-5 w-5 text-destructive" />
+              ) : job.status === "paused" ? (
+                <Pause className="h-5 w-5 text-muted-foreground" />
               ) : (
                 <Loader2 className="h-5 w-5 animate-spin text-primary" />
               )}
               <span className="font-medium text-foreground">
-                {job.status === "completed" ? __ui("下载完成") : job.status === "failed" ? __ui("下载失败") : __ui("下载中")}
+                {job.status === "completed" ? __ui("下载完成") : job.status === "failed" ? __ui("下载失败") : job.status === "paused" ? __ui("已暂停") : job.status === "pausing" ? __ui("正在暂停") : __ui("下载中")}
               </span>
             </div>
             <span className="text-sm text-muted-foreground">{job.progress}%</span>
@@ -647,6 +667,26 @@ function ParseThenDownload({ toolId }: { toolId: string }) {
 
           {job.error && (
             <p className="text-sm text-destructive">{__msg(job.error)}</p>
+          )}
+
+          {(job.status === "processing" || job.status === "pending" || job.status === "paused") && (
+            <div className="flex flex-wrap items-center gap-2">
+              {job.status === "paused" ? (
+                <Button size="sm" onClick={() => void controlJob("resume")} className="gap-1.5">
+                  <Play className="h-3.5 w-3.5" />
+                  {__ui("继续下载")}
+                </Button>
+              ) : (
+                <Button size="sm" variant="outline" onClick={() => void controlJob("pause")} className="gap-1.5">
+                  <Pause className="h-3.5 w-3.5" />
+                  {__ui("暂停")}
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" onClick={() => void controlJob("cancel")} className="gap-1.5 text-muted-foreground">
+                <Square className="h-3.5 w-3.5" />
+                {__ui("取消")}
+              </Button>
+            </div>
           )}
 
           {job.status === "completed" && job.resultFilename && (

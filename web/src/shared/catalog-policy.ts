@@ -95,6 +95,7 @@ export const CATALOG:Record<ToolCategory,string[]> = {
     "pdf-to-ppt",
     "pdf-to-markdown",
     "pdf-to-html",
+    "html-to-pdf",
     "web-export",
     "ppt-extract-text",
     "ppt-extract-media",
@@ -102,6 +103,7 @@ export const CATALOG:Record<ToolCategory,string[]> = {
     "ppt-to-images"
   ],
   "utility": [
+    "gacha-analysis",
     "lan-transfer",
     "batch-rename",
     "archpr",

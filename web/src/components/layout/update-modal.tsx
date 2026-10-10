@@ -127,8 +127,8 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
           setDownloadedInstallerPath(res.filePath);
           setUpdateProgress(100);
           setUpdateFinished(true);
-          setUpdateStepText("安装包下载完成！点击立即自动安装并重启。");
-          toast({ title: "新版本下载成功", description: "点击按钮即可立即完成覆盖安装", variant: "success" });
+          setUpdateStepText("下载完成！点「立即更新」后软件会自动关闭、在后台安装，几秒后自动重新打开，全程不用操作。");
+          toast({ title: "新版本下载成功", description: "点「立即更新」即可后台自动安装，不弹安装窗口", variant: "success" });
         } else {
           throw new Error(res.error || "下载失败");
         }
@@ -500,7 +500,7 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
                             className="flex h-9 items-center gap-1.5 rounded-xl bg-emerald-600 px-5 text-xs font-semibold text-white shadow-sm hover:brightness-110 transition-all"
                           >
                             <CheckCircle2 size={14} />
-                            {__ui("立即重启并完成安装")}</button>
+                            {__ui("立即更新（自动重启）")}</button>
                         ) : (
                           <button
                             disabled

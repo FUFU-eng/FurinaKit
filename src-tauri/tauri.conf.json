@@ -1,6 +1,6 @@
 {
   "productName": "FurinaKit",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "identifier": "com.furinakit.desktop",
   "build": {
     "frontendDist": "../web/dist",

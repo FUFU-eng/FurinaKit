@@ -20,6 +20,42 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::Manager;
 
+/// 网页导出参数：前端可能发 JSON（布尔/数字），也可能发 FormData（全是字符串）。
+fn webcap_flag(args: &Value, key: &str, default: bool) -> bool {
+    match args.get(key) {
+        Some(Value::Bool(b)) => *b,
+        Some(Value::String(s)) => matches!(s.trim(), "true" | "1" | "on" | "yes"),
+        _ => default,
+    }
+}
+fn webcap_num(args: &Value, key: &str, default: u64) -> u64 {
+    match args.get(key) {
+        Some(Value::Number(n)) => n.as_u64().unwrap_or(default),
+        Some(Value::String(s)) => s.trim().parse().unwrap_or(default),
+        _ => default,
+    }
+}
+/// 网页导出的目标：上传来的本地 HTML（HTML 转 PDF 工具）优先，否则用 url / isFile。
+/// 上传的副本只在本次渲染里用，返回它的临时目录，渲染完由调用方删掉。
+fn webcap_target(app: &tauri::AppHandle, args: &Value) -> Result<(String, Option<PathBuf>), String> {
+    if let Some(files) = args.get("__files").and_then(|v| v.as_array()).cloned() {
+        let id = crate::jobs::new_job_id_public();
+        let dir = crate::jobs::storage_dir(app).join("uploads").join(&id);
+        let saved = crate::jobs::save_request_uploads(app, &id, &files)?;
+        let path = saved.first().and_then(|s| s.get("path")).and_then(|v| v.as_str()).map(|s| s.to_string());
+        let Some(path) = path else {
+            let _ = fs::remove_dir_all(&dir);
+            return Err("HTML 文件接收失败，请重试".into());
+        };
+        return match crate::webcap::normalize_target(&path, true) {
+            Ok(t) => Ok((t, Some(dir))),
+            Err(e) => { let _ = fs::remove_dir_all(&dir); Err(e) }
+        };
+    }
+    let url = args.get("url").and_then(|v| v.as_str()).unwrap_or("");
+    Ok((crate::webcap::normalize_target(url, webcap_flag(args, "isFile", false))?, None))
+}
+
 // Bound preview reads before base64/IPC allocation, including files growing mid-read.
 const MAX_PREVIEW_BYTES: u64 = 32 * 1024 * 1024;
 
@@ -198,7 +234,33 @@ fn component_downloads() -> &'static std::sync::Mutex<std::collections::HashSet<
 }
 pub(crate) fn component_busy(id:&str)->bool { component_downloads().lock().unwrap_or_else(|e|e.into_inner()).contains(id) }
 struct ComponentLease(String);
-impl Drop for ComponentLease { fn drop(&mut self) { component_downloads().lock().unwrap_or_else(|e|e.into_inner()).remove(&self.0); } }
+impl Drop for ComponentLease { fn drop(&mut self) { component_downloads().lock().unwrap_or_else(|e|e.into_inner()).remove(&self.0); component_controls().lock().unwrap_or_else(|e|e.into_inner()).remove(&self.0); } }
+
+// ── 组件下载的「暂停 / 继续」 ──
+// 暂停 = 停掉当前 curl 进程并保留 .part 断点文件；继续 = 再发一次 download，curl 用 -C - 从断点接着下。
+pub(crate) const COMPONENT_PAUSED: &str = "__FURINAKIT_COMPONENT_PAUSED__";
+type SharedControl = std::sync::Arc<crate::owned_tasks::Control>;
+fn component_controls() -> &'static std::sync::Mutex<std::collections::HashMap<String, SharedControl>> {
+    static MAP: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<String, SharedControl>>> = std::sync::OnceLock::new();
+    MAP.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
+}
+fn component_control(id: &str) -> SharedControl {
+    let control = std::sync::Arc::new(crate::owned_tasks::Control { request: std::sync::atomic::AtomicU8::new(0), engine: "component-download".into() });
+    component_controls().lock().unwrap_or_else(|e| e.into_inner()).insert(id.into(), control.clone());
+    control
+}
+pub(crate) fn component_pause_requested(control: &crate::owned_tasks::Control) -> bool {
+    control.request.load(std::sync::atomic::Ordering::SeqCst) != 0
+}
+fn pause_component(id: &str) -> Result<Value, String> {
+    let map = component_controls().lock().map_err(|_| "下载状态异常")?;
+    let control = map.get(id).ok_or("这个组件当前没有在下载")?;
+    control.request.store(1, std::sync::atomic::Ordering::SeqCst);
+    Ok(json!({ "ok": true, "message": "正在暂停，已下载的部分会保留" }))
+}
+pub(crate) fn paused_component_result(name: &str) -> Value {
+    json!({ "ok": false, "paused": true, "message": format!("{name} 已暂停，已下载部分已保留；点「继续下载」会从断点接着下") })
+}
 // SHA-256 from the upstream Hugging Face LFS metadata; filenames alone are not integrity.
 fn component_sha256(id: &str) -> Option<&'static str> {
     match id {
@@ -217,8 +279,9 @@ pub(crate) fn download_component(app: &tauri::AppHandle, id: &str) -> Result<Val
     let busy_guard=ComponentLease(id.into());
     let dir=components_dir(app)?;fs::create_dir_all(&dir).map_err(|e|e.to_string())?;let dir=fs::canonicalize(dir).map_err(|e|e.to_string())?;
     let resources: crate::resource_custody::SharedResource = std::sync::Arc::new((component_change(app,&dir,&spec)?, busy_guard));
-    if id == crate::mdx_components::ID { return crate::mdx_components::download(&dir, resources); }
-    if id == crate::ffmpeg_components::ID { return crate::ffmpeg_components::download(&dir, resources); }
+    let control=component_control(id);
+    if id == crate::mdx_components::ID { return crate::mdx_components::download(&dir, resources, &control); }
+    if id == crate::ffmpeg_components::ID { return crate::ffmpeg_components::download(&dir, resources, &control); }
     let target=dir.join(&spec.file);let part=dir.join(format!("{}.part",spec.file));
     let model=id.strip_prefix("whisper-").map(crate::speech::model).transpose()?;
     let valid=|path:&Path|->bool {
@@ -231,7 +294,6 @@ pub(crate) fn download_component(app: &tauri::AppHandle, id: &str) -> Result<Val
         fs::rename(&target,dir.join(format!("{}.invalid-{}",spec.file,crate::jobs::new_job_id_public()))).map_err(|e|format!("保留原模型失败：{e}"))?;
     }
     if valid(&part) { fs::rename(&part,&target).map_err(|e|e.to_string())?;return Ok(json!({"ok":true,"message":"已校验并恢复下载完成的模型"})); }
-    let control=crate::owned_tasks::Control{request:std::sync::atomic::AtomicU8::new(0),engine:"component-download".into()};
     let mut error=String::new();
     for url in &spec.mirrors {
         let mut args=vec!["-f".into(),"-sS".into(),"-L".into(),"--ssl-no-revoke".into(),"--proto".into(),"=https".into(),"--proto-redir".into(),"=https".into()];
@@ -248,6 +310,8 @@ pub(crate) fn download_component(app: &tauri::AppHandle, id: &str) -> Result<Val
             },
             Err(error) => Err(error),
         };
+        // 用户点了暂停：不换镜像、不动 .part，原样保留断点
+        if component_pause_requested(&control) { return Err(COMPONENT_PAUSED.into()); }
         if result.is_ok() && valid(&part) { fs::rename(&part,&target).map_err(|e|format!("模型落盘失败：{e}"))?;return Ok(json!({"ok":true,"message":format!("{} 下载完成{}",spec.name,if model.is_some()||component_sha256(id).is_some(){"，SHA-256校验通过"}else{""})})); }
         error=result.err().unwrap_or_else(||"模型文件大小或SHA-256校验不符".into());
         if fs::metadata(&part).map(|m|m.len()>=spec.size).unwrap_or(false) { let _=fs::rename(&part,dir.join(format!("{}.invalid-{}",spec.file,crate::jobs::new_job_id_public()))); }
@@ -554,14 +618,14 @@ pub async fn api_call(
         }
         // 网页 → PDF
         "/api/webcap/pdf" => {
-            let url = args.get("url").and_then(|v| v.as_str()).unwrap_or("");
-            let is_file = args.get("isFile").and_then(|v| v.as_bool()).unwrap_or(false);
-            let landscape = args.get("landscape").and_then(|v| v.as_bool()).unwrap_or(false);
-            let no_header = args.get("noHeader").and_then(|v| v.as_bool()).unwrap_or(true);
-            let wait = args.get("waitMs").and_then(|v| v.as_u64()).unwrap_or(6000) as u32;
-            let target = crate::webcap::normalize_target(url, is_file)?;
+            let landscape = webcap_flag(&args, "landscape", false);
+            let no_header = webcap_flag(&args, "noHeader", true);
+            let wait = webcap_num(&args, "waitMs", 6000) as u32;
+            let (target, upload_dir) = webcap_target(&app, &args)?;
             let out = crate::webcap::export_path("pdf");
-            crate::webcap::print_to_pdf(&target, &out, landscape, no_header, wait)?;
+            let rendered = crate::webcap::print_to_pdf(&target, &out, landscape, no_header, wait);
+            if let Some(dir) = upload_dir { let _ = std::fs::remove_dir_all(dir); }
+            rendered?;
             let size = std::fs::metadata(&out).map(|m| m.len()).unwrap_or(0);
             Ok(serde_json::json!({
                 "success": true,
@@ -572,14 +636,14 @@ pub async fn api_call(
         }
         // 网页 → 图片
         "/api/webcap/image" => {
-            let url = args.get("url").and_then(|v| v.as_str()).unwrap_or("");
-            let is_file = args.get("isFile").and_then(|v| v.as_bool()).unwrap_or(false);
-            let width = args.get("width").and_then(|v| v.as_u64()).unwrap_or(1280) as u32;
-            let height = args.get("height").and_then(|v| v.as_u64()).unwrap_or(900) as u32;
-            let wait = args.get("waitMs").and_then(|v| v.as_u64()).unwrap_or(6000) as u32;
-            let target = crate::webcap::normalize_target(url, is_file)?;
+            let width = webcap_num(&args, "width", 1280) as u32;
+            let height = webcap_num(&args, "height", 900) as u32;
+            let wait = webcap_num(&args, "waitMs", 6000) as u32;
+            let (target, upload_dir) = webcap_target(&app, &args)?;
             let out = crate::webcap::export_path("png");
-            crate::webcap::screenshot(&target, &out, width, height, wait)?;
+            let rendered = crate::webcap::screenshot(&target, &out, width, height, wait);
+            if let Some(dir) = upload_dir { let _ = std::fs::remove_dir_all(dir); }
+            rendered?;
             let size = std::fs::metadata(&out).map(|m| m.len()).unwrap_or(0);
             Ok(serde_json::json!({
                 "success": true,
@@ -690,6 +754,15 @@ pub async fn api_call(
         // ══ 视频信息解析（B站/推特/通用下载的"解析"这一步）══
         //  原版是 apps/web/src/app/api/video-info/route.ts（259 行，调 yt-dlp）。
         //  逻辑照搬，见 src/video.rs 里的注释。
+        // 抽卡记录分析：/api/gacha/*（扫码登录、获取、导入导出），网络请求放到阻塞线程里做
+        p if p.starts_with("/api/gacha/") => {
+            let sub = p["/api/gacha/".len()..].to_string();
+            let app2 = app.clone();
+            let a = args.clone();
+            tauri::async_runtime::spawn_blocking(move || crate::gacha::api(&app2, &sub, &a))
+                .await
+                .map_err(|e| e.to_string())?
+        }
         "/api/video-info" => {
             let url = args
                 .get("url")
@@ -789,9 +862,11 @@ pub async fn api_call(
                         return Ok(json!({ "ok": true, "message": format!("已删除 {}", spec.name) }));
                     }
                     "download" => {
-                        let id=id.to_owned();
-                        return tauri::async_runtime::spawn_blocking(move || download_component(&app,&id)).await.map_err(|_|"模型下载任务异常".to_string())?;
+                        let id=id.to_owned();let name=spec.name.clone();
+                        let result=tauri::async_runtime::spawn_blocking(move || download_component(&app,&id)).await.map_err(|_|"模型下载任务异常".to_string())?;
+                        return match result { Err(e) if e==COMPONENT_PAUSED => Ok(paused_component_result(&name)), other => other };
                     }
+                    "pause" => return pause_component(id),
                     _ => return Err(format!("不支持的操作：{action}")),
                 }
             }
@@ -972,6 +1047,9 @@ pub async fn api_call(
                     Ok(json!({ "job": job }))
                 }
                 "cancel" => crate::jobs::cancel_job(&app, id),
+                // 视频下载（yt-dlp）的暂停 / 继续：断点 .part 文件保留在任务目录里
+                "pause" if method == "POST" => crate::video_download::pause(&app, id),
+                "resume" if method == "POST" => crate::video_download::resume(&app, id),
                 "download" => {
                     let job = crate::jobs::read_job_public(&app, id)
                         .ok_or_else(|| format!("找不到任务 {id}"))?;

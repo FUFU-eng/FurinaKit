@@ -9,6 +9,19 @@ fn theme(view: &tauri::Webview) {
     let filter = if DARK.load(Ordering::Relaxed) { "invert(0.9) hue-rotate(180deg)" } else { "none" };
     let _ = view.eval(format!("if(document.documentElement)document.documentElement.style.filter={};", serde_json::to_string(filter).unwrap()));
 }
+/// 输出目录里不重名的文件路径：xxx.mp4 → xxx (1).mp4 …
+fn unique_path(dir:&std::path::Path,name:&str)->std::path::PathBuf {
+    let clean:String=name.chars().map(|c| if c.is_control()||"<>:\"/\\|?*".contains(c) {'_'} else {c}).collect();
+    let clean=clean.trim_matches([' ','.']).to_string();
+    let clean=if clean.is_empty() {"下载文件".to_string()} else {clean};
+    let (stem,ext)=match clean.rsplit_once('.') { Some((s,e)) if !s.is_empty() && e.chars().count()<=16 => (s.to_string(),format!(".{e}")), _ => (clean.clone(),String::new()) };
+    for i in 0..1000 {
+        let n=if i==0 {format!("{stem}{ext}")} else {format!("{stem} ({i}){ext}")};
+        let p=dir.join(&n);
+        if !p.exists() { return p; }
+    }
+    dir.join(format!("{stem}-{}{ext}",crate::jobs::new_job_id_public()))
+}
 #[tauri::command]
 pub async fn sync_download_site(app: tauri::AppHandle, webview: tauri::Webview, visible: bool, x: f64, y: f64, width: f64, height: f64, dark: bool, refresh: bool) -> Result<(), String> {
     if webview.label() != "main" { return Err("仅主窗口可管理下载网站".into()); }
@@ -36,6 +49,24 @@ pub async fn sync_download_site(app: tauri::AppHandle, webview: tauri::Webview, 
             .on_new_window(move |url,_| {
                 if matches!(url.scheme(),"https"|"http") { let _=crate::commands::open_external(handle.clone(),url.to_string()); }
                 tauri::webview::NewWindowResponse::Deny
+            })
+            // 网站里点下载：文件存进「输出目录」（和其他工具一致，界面上有「打开输出文件夹」），同名自动编号不覆盖
+            .on_download(|view,event| {
+                match event {
+                    tauri::webview::DownloadEvent::Requested { destination, .. } => {
+                        if let Ok(dir)=crate::default_output::directory(view.app_handle()) {
+                            let name=destination.file_name().map(|n|n.to_string_lossy().into_owned()).unwrap_or_default();
+                            *destination=unique_path(&dir,&name);
+                        }
+                        true
+                    }
+                    tauri::webview::DownloadEvent::Finished { path, success, .. } => {
+                        let _=view.app_handle().emit_to("main","download-site-finished",serde_json::json!({"success":success,"path":path.map(|p|p.to_string_lossy().into_owned())}));
+                        true
+                    }
+                    #[allow(unreachable_patterns)]
+                    _ => true,
+                }
             })
             .on_page_load(|view,payload| {
                 if payload.event()==tauri::webview::PageLoadEvent::Finished {

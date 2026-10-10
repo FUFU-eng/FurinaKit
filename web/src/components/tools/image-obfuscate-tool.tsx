@@ -25,6 +25,7 @@ import { Button, Select } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 import { cn, formatBytes } from "@/lib/utils";
 import { trackToolUsage } from "@/lib/analytics";
+import { encodeObfuscateOutput, extensionForMime, hasTransparency, readSourceMarker, type ObfuscateOutputFormat } from "@/lib/image-obfuscate-output";
 
 // ==========================================
 // 算法 1：广义空间填充曲线（Gilbert Space-Filling Curve）
@@ -408,6 +409,7 @@ interface ObfuscateCacheEntry {
   direction: "scramble" | "restore";
   ybzjType: "block" | "row_pixel" | "pixel" | "row_mode" | "row_col";
   chaosKey: string;
+  outputFormat?: ObfuscateOutputFormat;
   selectedIndex: number;
   sliderPos: number;
 }
@@ -519,6 +521,10 @@ export function ImageObfuscateTool() {
   const [chaosKey, setChaosKey] = useState<string>(
     () => obfuscateCache.get(OBFUSCATE_CACHE_KEY)?.chaosKey ?? OBFUSCATE_CACHE_DEFAULTS.chaosKey
   );
+  // 输出格式：默认「自动」——混淆出无损 PNG，还原时按原图格式输出，避免文件越处理越大
+  const [outputFormat, setOutputFormat] = useState<ObfuscateOutputFormat>(
+    () => obfuscateCache.get(OBFUSCATE_CACHE_KEY)?.outputFormat ?? "auto"
+  );
 
   // 批量图片列表与当前选中项（挂载时从模块级缓存恢复）
   const [items, setItems] = useState<ImageItem[]>(() => readObfuscateItems());
@@ -545,10 +551,11 @@ export function ImageObfuscateTool() {
       direction,
       ybzjType,
       chaosKey,
+      outputFormat,
       selectedIndex,
       sliderPos,
     });
-  }, [items, algoMode, gilbertProfile, direction, ybzjType, chaosKey, selectedIndex, sliderPos]);
+  }, [items, algoMode, gilbertProfile, direction, ybzjType, chaosKey, outputFormat, selectedIndex, sliderPos]);
 
   const updateSlider = useCallback((clientX: number) => {
     if (!compareRef.current) return;
@@ -621,6 +628,8 @@ export function ImageObfuscateTool() {
   const processImageFile = async (
     file: File
   ): Promise<{ blob: Blob; url: string }> => {
+    // 先读出原图标记（若这张图是本工具混淆出来的），还原时据此恢复原格式
+    const marker = await readSourceMarker(file);
     return new Promise((resolve, reject) => {
       const img = new Image();
       const tempUrl = URL.createObjectURL(file);
@@ -650,14 +659,15 @@ export function ImageObfuscateTool() {
 
         ctx.putImageData(processed, 0, 0);
 
-        canvas.toBlob((blob) => {
-          if (!blob) {
-            reject(new Error("Canvas 输出 Blob 失败"));
-            return;
-          }
-          const outUrl = URL.createObjectURL(blob);
-          resolve({ blob, url: outUrl });
-        }, "image/png");
+        encodeObfuscateOutput(canvas, {
+          format: outputFormat,
+          direction,
+          input: file,
+          marker,
+          transparent: hasTransparency(processed),
+        }).then((blob) => {
+          resolve({ blob, url: URL.createObjectURL(blob) });
+        }, reject);
         } catch (error) { reject(error); }
       };
 
@@ -728,7 +738,7 @@ export function ImageObfuscateTool() {
     for (const it of doneItems) {
       const prefix = direction === "scramble" ? "obfuscated" : "restored";
       const baseName = it.name.replace(/\.[^.]+$/, "");
-      zip.file(`${baseName}_${prefix}.png`, it.processedBlob!);
+      zip.file(`${baseName}_${prefix}.${extensionForMime(it.processedBlob!.type)}`, it.processedBlob!);
     }
 
     const zipBlob = await zip.generateAsync({ type: "blob" });
@@ -851,7 +861,7 @@ export function ImageObfuscateTool() {
               </Select>
             </label>
             <p>{tr("外部番茄图先选兼容版；本工具旧版生成的图请选择旧版。同一图片的混淆与解混淆必须使用相同版本。", "For external Tomato images, try compatible mode. For images made by older FurinaKit versions, select legacy. Encoding and decoding must use the same version.")}</p>
-            <p>{tr("保持原始像素尺寸，输出为 PNG。JPEG 有损压缩可能留下误差；处理完成不代表已确认恢复原图，多次混淆需要对应次数的解混淆。", "Keep original pixel dimensions. Output is PNG. Lossy JPEG can leave errors; processing completion does not verify restoration. Repeated scrambling requires the matching number of inverse operations.")}</p>
+            <p>{tr("保持原始像素尺寸，输出格式见下方「输出格式」。JPEG 有损压缩可能留下误差；处理完成不代表已确认恢复原图，多次混淆需要对应次数的解混淆。", "Keep original pixel dimensions. See Output format below. Lossy JPEG can leave errors; processing completion does not verify restoration. Repeated scrambling requires the matching number of inverse operations.")}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl bg-muted/30 p-3.5 border border-border/40">
@@ -916,6 +926,19 @@ export function ImageObfuscateTool() {
             </div>
           </div>
         )}
+
+        {/* 输出格式：解决「混淆再还原后文件变大」 */}
+        <div className="space-y-2 rounded-xl border border-border/40 bg-muted/30 p-3.5 text-xs text-muted-foreground">
+          <label className="block space-y-2"><span className="font-semibold text-foreground">{tr("输出格式", "Output format")}</span>
+            <Select value={outputFormat} onChange={e => setOutputFormat(e.target.value as ObfuscateOutputFormat)}>
+              <option value="auto">{tr("自动（推荐）· 混淆出无损 PNG，还原时恢复原图格式与体积", "Auto (recommended) · lossless PNG when scrambling, original format when restoring")}</option>
+              <option value="png">{tr("PNG · 无损，体积最大", "PNG · lossless, largest")}</option>
+              <option value="jpeg">{tr("JPG · 体积小（混淆时选它，还原后会有轻微色块）", "JPG · small (scrambling with it leaves slight artifacts after restore)")}</option>
+              <option value="webp">{tr("WebP · 体积小（混淆时选它，还原后会有轻微色块）", "WebP · small (scrambling with it leaves slight artifacts after restore)")}</option>
+            </Select>
+          </label>
+          <p>{tr("混淆后的图是打乱的像素，存成无损 PNG 会比原 JPG 大，这是正常的；用「自动」还原时会按原图格式输出，体积回到和原图差不多。", "Scrambled pixels stored as lossless PNG are larger than the source JPG; restoring in Auto mode writes the original format again at a similar size.")}</p>
+        </div>
       </div>
 
       {/* 主体交互区域：上传列表 + 对比展示 */}
@@ -1099,7 +1122,7 @@ export function ImageObfuscateTool() {
                 {currentItem.processedUrl && (
                   <a
                     href={currentItem.processedUrl}
-                    download={`${currentItem.name.replace(/\.[^.]+$/, "")}_${direction === "scramble" ? "obfuscated" : "restored"}.png`}
+                    download={`${currentItem.name.replace(/\.[^.]+$/, "")}_${direction === "scramble" ? "obfuscated" : "restored"}.${extensionForMime(currentItem.processedBlob?.type || "image/png")}`}
                   >
                     <Button size="sm" className="text-xs gap-1.5">
                       <Download className="mr-1.5 h-3.5 w-3.5" />

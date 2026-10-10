@@ -2,6 +2,7 @@ import {useLanguage} from "@/lib/language";
 import {RecorderPanel} from "@/components/recorder-panel";
 import {ThemeProvider} from "@/components/theme-provider";
 import {desktopBridge} from '@/bridge';
+import {UpdateResultNotice} from "@/components/layout/update-result-notice";
 "use client";
 
 // 应用的根：等价于原版的 `app/layout.tsx` + Next 的文件路由。
@@ -107,6 +108,7 @@ export default function App() {
   return (
     <Providers>
       <UtilityShortcuts/>
+      <UpdateResultNotice/>
       <PendingFilesProvider>
         <CaptureActionsProvider>
         <PendingFilesBanner />

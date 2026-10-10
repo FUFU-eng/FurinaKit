@@ -17,6 +17,7 @@ import {
 import { categoryIcon, getToolIcon } from "@/lib/tool-icons";
 import { SortableToolGrid } from "@/components/tools/sortable-grid";
 import { CATEGORY_COLOR } from "@/components/tools/tool-card";
+import { APP_VERSION } from "@/lib/version";
 import { trackAppLaunch } from "@/lib/analytics";
 import { Button } from "@/components/ui/primitives";
 import { useFavorites } from "@/lib/use-tool-prefs";
@@ -48,6 +49,7 @@ import { FeedbackModal } from "@/components/layout/feedback-modal";
  *  2. image-upscale: 图片高清强化
  *  3. image-obfuscate: 图片混淆
  *  4. image-to-pdf: 图片转 PDF
+ *  …… gacha-analysis: 抽卡记录分析
  * ─────────────────────────────────────────────────────────────────────────────
  */
 export const DEFAULT_HOT_TOOL_IDS: string[] = [
@@ -60,6 +62,7 @@ export const DEFAULT_HOT_TOOL_IDS: string[] = [
   "image-dedup",
   "batch-rename",
   "mind-map",
+  "gacha-analysis",
 ];
 
 /**
@@ -242,7 +245,7 @@ function HomeInner() {
               style={{ borderColor: `${colors.gold}40`, background: `${colors.gold}12`, color: colors.gold }}
             >
               <Sparkles size={13} />
-              <span>{__ui("FurinaKit 芙宁娜工具箱 v2.1.0")}</span>
+              <span>{__ui("FurinaKit 芙宁娜工具箱 v2.1.0").replace("2.1.0", APP_VERSION)}</span>
             </div>
             <h1 className="text-[23px] lg:text-[25px] font-extrabold tracking-tight" style={{ color: colors.text }}>
               {__ui("全能 · 纯净 · 高效的一站式轻量工具箱")}</h1>

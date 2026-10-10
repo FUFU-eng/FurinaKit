@@ -25,7 +25,7 @@ pub fn start_download(app:&tauri::AppHandle,id:&str)->Result<Value,String>{
  let m=model(id)?;let mut state=downloads().lock().map_err(|_|"下载状态异常")?;
  if state.get(id).map(|s|s["status"]=="downloading").unwrap_or(false){return Ok(json!({"ok":true,"message":"正在下载"}));}
  state.insert(id.into(),json!({"status":"downloading","received":0,"total":m.size,"error":null}));drop(state);
- let app=app.clone();let id=id.to_owned();std::thread::spawn(move||{let result=crate::api::download_component(&app,&format!("whisper-{id}"));downloads().lock().unwrap_or_else(|e|e.into_inner()).insert(id,match result{Ok(_)=>json!({"status":"done","error":null}),Err(error)=>json!({"status":"error","error":error})});});
+ let app=app.clone();let id=id.to_owned();std::thread::spawn(move||{let result=crate::api::download_component(&app,&format!("whisper-{id}"));downloads().lock().unwrap_or_else(|e|e.into_inner()).insert(id,match result{Ok(_)=>json!({"status":"done","error":null}),Err(error) if error==crate::api::COMPONENT_PAUSED=>json!({"status":"paused","error":null}),Err(error)=>json!({"status":"error","error":error})});});
  Ok(json!({"ok":true,"message":"真实模型下载已开始，可关闭此页面"}))
 }
 pub fn verify(file:&Path,model:&Model)->Result<(),String>{

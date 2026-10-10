@@ -23,6 +23,7 @@ import {
   Layers,
   Loader2,
   Palette,
+  Pause,
   RefreshCw,
   Sparkles,
   Trash2,
@@ -249,6 +250,12 @@ export function ComponentsManager() {
         ...m,
         [id]: data.message || (data.ok ? __ui("已就绪") : (data.error || __ui("操作未完成"))),
       }));
+      if (data.paused) {
+        // 用户主动暂停：断点已保留，不当作失败
+        toast({ title: __ui("下载已暂停"), description: data.message, variant: "info" });
+        await reload();
+        return;
+      }
       toast({
         title: data.ok ? (action === "download" ? __ui("模型就绪") : __ui("已删除模型")) : __ui("操作失败"),
         description: data.message || data.error,
@@ -349,9 +356,27 @@ export function ComponentsManager() {
     }
   };
 
+  // 暂停单个组件下载：停止下载进程，已下载部分保留；再点「继续下载」从断点接着下
+  const pauseItem = async (id: string) => {
+    try {
+      if (id.startsWith("tts-")) {
+        await ttsRequest("/api/tts/components", { id, action: "stop" });
+      } else {
+        const res = await fetch("/api/components", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, action: "pause" }) });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || data.message || __ui("暂停失败"));
+      }
+      setMessage((m) => ({ ...m, [id]: __ui("正在暂停，已下载部分会保留…") }));
+    } catch (err) {
+      toast({ title: __ui("暂停失败"), description: err instanceof Error ? err.message : String(err), variant: "error" });
+    }
+  };
+
   // 取消批量下载
   const handleCancelBatch = () => {
     abortBatchRef.current = true;
+    // 以前只是「等当前这个下完再停」，现在立刻暂停正在下载的那一个（断点保留）
+    for (const id of busyIds) void pauseItem(id);
     toast({
       title: "正在中止",
       description: tr("正在停止下载队列；已下载的数据将保留。", "Stopping the download queue; downloaded data will be kept."),
@@ -502,6 +527,7 @@ export function ComponentsManager() {
                   {__ui("删除模型")}</Button>
               </>
             ) : (
+              <>
               <Button
                 size="sm"
                 className="h-9 px-4 text-[12.5px] font-bold gap-1.5 bg-sky-500 hover:bg-sky-400 text-white shadow-xs active:scale-95 rounded-xl"
@@ -509,7 +535,19 @@ export function ComponentsManager() {
                 onClick={() => void act(it.id, "download")}
               >
                 {isBusy ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-                {isBusy ? __ui("正在下载…") : __ui("下载模型")}</Button>
+                {isBusy ? __ui("正在下载…") : it.downloadedSize > 0 ? __ui("继续下载") : __ui("下载模型")}</Button>
+              {isBusy && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-9 px-3 text-[12px] gap-1.5 rounded-xl"
+                  onClick={() => void pauseItem(it.id)}
+                  title={__ui("暂停下载，已下载部分会保留，之后可继续")}
+                >
+                  <Pause size={13} />
+                  {__ui("暂停")}</Button>
+              )}
+              </>
             )}
           </div>
         </div>

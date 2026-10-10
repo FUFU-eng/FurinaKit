@@ -294,6 +294,21 @@ pub fn window_frontend_ready(window: tauri::Window) -> Result<(), String> {
 }
 
 /// 在资源管理器里显示（目录就打开它，文件则选中它）
+fn explorer_path(path: &str) -> String {
+    if let Some(unc) = path.strip_prefix(r"\\?\UNC\") { format!(r"\\{unc}") }
+    else { path.strip_prefix(r"\\?\").unwrap_or(path).to_owned() }
+}
+
+#[cfg(test)]
+mod explorer_path_tests {
+    #[test]
+    fn strips_native_prefix_for_explorer() {
+        assert_eq!(super::explorer_path(r"\\?\C:\Users\测试\长图.png"),r"C:\Users\测试\长图.png");
+        assert_eq!(super::explorer_path(r"\\?\UNC\server\share\图.png"),r"\\server\share\图.png");
+        assert_eq!(super::explorer_path(r"C:\Users\a b\图.png"),r"C:\Users\a b\图.png");
+    }
+}
+
 #[tauri::command]
 pub fn open_path(app: tauri::AppHandle, path: String) -> Result<(), String> {
     use tauri_plugin_shell::ShellExt;
@@ -305,9 +320,9 @@ pub fn open_path(app: tauri::AppHandle, path: String) -> Result<(), String> {
     {
         let mut cmd = std::process::Command::new("explorer");
         if p.is_dir() {
-            cmd.arg(&p);
+            cmd.arg(explorer_path(&path));
         } else {
-            cmd.arg(format!("/select,{}", p.to_string_lossy()));
+            cmd.arg(format!("/select,{}", explorer_path(&path)));
         }
         no_window(&mut cmd);
         let _ = cmd.spawn().map_err(|e| format!("打开失败：{e}"))?;
@@ -334,14 +349,40 @@ pub fn open_path(app: tauri::AppHandle, path: String) -> Result<(), String> {
 /// 给定一个下载地址，列出可以依次尝试的候选（原地址 + 国内镜像）
 fn download_candidates(url: &str) -> Vec<String> {
     let mut list = vec![url.to_string()];
-    let looks_github = url.contains("github.com/") || url.contains("raw.githubusercontent.com");
-    if looks_github {
-        // 实测顺序：ghfast.top 通 → ghproxy.net（已挂，兜底）→ gh-proxy.com
+    let mut origin = url;
+    for prefix in ["https://ghfast.top/", "https://gh-proxy.com/", "https://ghproxy.net/"] {
+        if let Some(value) = origin.strip_prefix(prefix) { origin = value; break; }
+    }
+    if origin.starts_with("https://github.com/") || origin.starts_with("https://raw.githubusercontent.com/") {
+        // Switch mirrors using the original URL; never nest one proxy inside another.
         for prefix in ["https://ghfast.top/", "https://gh-proxy.com/", "https://ghproxy.net/"] {
-            list.push(format!("{prefix}{url}"));
+            let candidate = format!("{prefix}{origin}");
+            if !list.contains(&candidate) { list.push(candidate); }
         }
+        if !list.iter().any(|value| value == origin) { list.push(origin.to_string()); }
     }
     list
+}
+
+#[cfg(test)]
+mod update_mirror_tests {
+    use super::download_candidates;
+    #[test]
+    fn mirrored_download_falls_back_without_nesting_proxies() {
+        let origin = "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.1/FurinaKit.Setup.2.1.1.exe";
+        let requested = format!("https://gh-proxy.com/{origin}");
+        let candidates = download_candidates(&requested);
+        assert_eq!(candidates.len(), 4);
+        assert_eq!(candidates[0], requested);
+        assert!(candidates.contains(&origin.to_string()));
+        assert!(candidates.contains(&format!("https://ghfast.top/{origin}")));
+        assert!(!candidates.iter().any(|url| url.contains("/https://gh-")));
+    }
+    #[test]
+    fn custom_downloads_are_not_sent_to_github_proxies() {
+        let url = "https://example.com/releases/setup.exe?next=github.com/";
+        assert_eq!(download_candidates(url), vec![url.to_string()]);
+    }
 }
 
 /// 取远端文件大小（失败就返回 0，进度条会退化成"不确定"）
@@ -453,19 +494,97 @@ pub fn install_update(app: tauri::AppHandle, path: String) -> Result<serde_json:
     if !p.is_file() {
         return Err("没找到下载好的安装包，请重新下载".into());
     }
-    let mut cmd = std::process::Command::new(&p);
-    if let Some(dir) = p.parent() {
-        cmd.current_dir(dir);
+    // 静默自动更新（学 Arena AI）：不弹安装窗口。
+    //   /S       —— NSIS 静默安装
+    //   /UPDATE  —— 安装包沿用原安装目录、等本程序退出（超时会结束旧进程）、装完自动重新打开 FurinaKit
+    // 先记一笔「更新进行中」，下次启动据此判断成功（提示已更新）还是失败（给出手动安装入口）。
+    let pending = update_pending_path(&app)?;
+    let record = serde_json::json!({
+        "fromVersion": app.package_info().version.to_string(),
+        "installer": p.to_string_lossy(),
+        "startedAt": unix_now(),
+    });
+    if let Some(dir) = pending.parent() { let _ = fs::create_dir_all(dir); }
+    fs::write(&pending, serde_json::to_vec(&record).map_err(|e| e.to_string())?).map_err(|e| format!("无法记录更新状态：{e}"))?;
+    if let Err(error) = spawn_installer(&p, &["/S", "/UPDATE"]) {
+        let _ = fs::remove_file(&pending);
+        return Err(format!("启动安装程序失败：{error}"));
     }
-    // 安装程序要**可见**（用户要看到安装界面、点下一步），所以这里不加 no_window
-    cmd.spawn().map_err(|e| format!("启动安装程序失败：{e}"))?;
+    exit_soon(&app);
+    Ok(serde_json::json!({ "success": true, "silent": true }))
+}
 
+/// 静默更新没成功时的兜底：打开普通安装向导（/INTERACTIVE 让安装包不要再自动进入静默模式）。
+#[tauri::command]
+pub fn install_update_interactive(app: tauri::AppHandle, path: String) -> Result<serde_json::Value, String> {
+    if !application_updates_allowed(){return Err("Application updates are disabled in the isolated test profile".into());}
+    let p = std::path::PathBuf::from(&path);
+    if !p.is_file() {
+        return Err("没找到下载好的安装包，请重新下载".into());
+    }
+    spawn_installer(&p, &["/INTERACTIVE"]).map_err(|e| format!("启动安装程序失败：{e}"))?;
+    exit_soon(&app);
+    Ok(serde_json::json!({ "success": true }))
+}
+
+/// 启动时调用一次：上次的静默更新结果。status = none | updated | failed。读完即删除记录。
+#[tauri::command]
+pub fn take_update_result(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    if !application_updates_allowed() { return Ok(serde_json::json!({ "status": "none" })); }
+    let path = update_pending_path(&app)?;
+    let Ok(raw) = fs::read(&path) else { return Ok(serde_json::json!({ "status": "none" })); };
+    let _ = fs::remove_file(&path);
+    let record: serde_json::Value = serde_json::from_slice(&raw).unwrap_or(serde_json::Value::Null);
+    let from = record["fromVersion"].as_str().unwrap_or("").to_string();
+    let current = app.package_info().version.to_string();
+    let started = record["startedAt"].as_u64().unwrap_or(0);
+    // 太久以前的记录不再提示（比如更新时电脑断电，过了很多天才打开）
+    if from.is_empty() || unix_now().saturating_sub(started) > 7 * 24 * 3600 {
+        return Ok(serde_json::json!({ "status": "none" }));
+    }
+    if from != current {
+        return Ok(serde_json::json!({ "status": "updated", "from": from, "to": current }));
+    }
+    let installer = record["installer"].as_str().filter(|p| Path::new(p).is_file()).map(str::to_string);
+    Ok(serde_json::json!({ "status": "failed", "from": from, "installer": installer }))
+}
+
+fn update_pending_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    Ok(app.path().app_data_dir().map_err(|e| e.to_string())?.join("update-pending.json"))
+}
+
+fn unix_now() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+}
+
+/// 安装程序必须脱离本进程独立运行：本程序马上要退出，安装包还要等它退出后覆盖文件。
+fn spawn_installer(path: &Path, args: &[&str]) -> std::io::Result<()> {
+    let build = |flags: u32| {
+        let mut cmd = std::process::Command::new(path);
+        cmd.args(args);
+        if let Some(dir) = path.parent() { cmd.current_dir(dir); }
+        #[cfg(windows)]
+        { use std::os::windows::process::CommandExt; cmd.creation_flags(flags); }
+        #[cfg(not(windows))]
+        let _ = flags;
+        cmd
+    };
+    const DETACHED_PROCESS: u32 = 0x0000_0008;
+    const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+    const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
+    // 先尝试脱离作业对象（防止随本进程一起被结束）；系统不允许时退回普通的分离启动。
+    match build(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_BREAKAWAY_FROM_JOB).spawn() {
+        Ok(_) => Ok(()),
+        Err(_) => build(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP).spawn().map(|_| ()),
+    }
+}
+
+fn exit_soon(app: &tauri::AppHandle) {
     let handle = app.clone();
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(800));
         handle.exit(0);
     });
-    Ok(serde_json::json!({ "success": true }))
 }
 
 /// 读取待办文件（用于悬浮球拖拽文件流转到对应工具中）

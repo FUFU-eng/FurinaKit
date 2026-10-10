@@ -1,7 +1,7 @@
-export const APP_VERSION = "2.1.0";
+export const APP_VERSION = "2.1.1";
 export const APP_NAME = "FurinaKit 芙宁娜工具箱";
 export const APP_SUBTITLE = "轻量、优雅且全能的原神芙宁娜主题工具箱";
-export const RELEASE_DATE = "2026-09-22";
+export const RELEASE_DATE = "2026-10-10";
 
 export interface VersionInfo {
   version: string;
@@ -38,11 +38,63 @@ export interface ReleaseLog {
 /** 软件官方版本发布与更新日志 */
 export const APP_CHANGELOG: ReleaseLog[] = [
   {
+    version: "2.1.1",
+    releaseDate: "2026年10月10日",
+    title: "新增「抽卡记录分析」和「HTML 转 PDF / 图片」工具，更新改为后台静默安装，下载工具支持暂停与继续，修复艺术签名和图片混淆问题",
+    badge: "当前版本",
+    highlights: [
+      "新增「抽卡记录分析」工具（在生活办公里）：支持原神、崩坏：星穹铁道、绝区零、鸣潮（国服），能看到各卡池已经垫了多少抽、每个五星用了几抽、有没有歪，还有平均出金、不歪率和欧非评价；记录保存在本机，可以随时增量更新",
+      "抽卡分析界面重新整理：多通行证与角色存档分别管理，昵称下拉切换账号；单栏 / 双栏始终可切换，双栏支持更换卡池；长图保存后可定位文件，下拉框统一圆角风格",
+      "新增「HTML 转 PDF / 图片」工具（在文档工具里）：能把网页文件里内嵌的原图一张张提取出来，按顺序合成 PDF 或打包成图片，画质不变；普通文字网页也能按原样导出成 PDF / 长截图",
+      "自动更新改为后台静默安装：点「立即更新」后软件会自动关闭、在后台装好并自动重新打开，不再弹出安装窗口；万一没装上，下次打开会提示你手动安装",
+      "下载类工具新增「暂停 / 继续」：B站与推特视频下载、组件与 AI 模型下载、语音转文字模型下载都能随时暂停，继续时从断点接着下",
+      "修复「艺术签名」点了生成却出不来图的问题",
+      "修复「图片混淆」混淆后再还原，图片体积变大很多的问题：现在会还原回原来的格式（例如 JPG 还原后还是 JPG）",
+    ],
+    details: [
+      {
+        category: "新增工具",
+        items: [
+          "「抽卡记录分析」：原神、绝区零可以用米游社扫码登录后一键获取抽卡记录；星穹铁道在游戏里打开一次跃迁记录后读取游戏缓存，鸣潮在游戏里打开一次唤取记录后读取游戏日志，也可以直接粘贴抽卡链接",
+          "按卡池显示每个五星的抽数和是否歪了、当前垫抽、平均出金、小保底不歪率、总抽数折合原石，可生成长图分享；支持 UIGF / SRGF 记录导入导出",
+          "「HTML 转 PDF / 图片」：选一个 .html 文件，自动找出里面的所有图片（跳过缩略图和小图标、自动去重），可以勾选要哪些，再一键合成 PDF（每页一张、页面就是原图大小）或导出图片 ZIP",
+          "特别适合「图片转 HTML」生成的相册网页，想把它变回 PDF 或原图时直接用",
+          "以文字排版为主的网页可以切换到「按网页原样导出」，像浏览器打印一样导出 PDF 或长截图",
+        ],
+      },
+      {
+        category: "自动更新",
+        items: [
+          "学习主流软件的更新方式：下载完成后点一下「立即更新」，安装全程在后台完成，装完自动重新打开软件并提示「已自动更新完成」",
+          "安装时会等软件完全退出后再覆盖文件，不会出现「软件正在运行，请先关闭」的弹窗",
+          "如果你之前删掉了桌面快捷方式，自动更新不会再把它加回来",
+        ],
+      },
+      {
+        category: "暂停与继续下载",
+        items: [
+          "B站 / 推特视频下载、组件与 AI 模型下载、语音转文字模型下载都新增了暂停按钮（磁力下载原本就支持暂停）",
+          "暂停后已下载的部分会保留，点「继续」从断点接着下载，不用从头再来",
+        ],
+      },
+      {
+        category: "问题修复",
+        items: [
+          "修复「艺术签名」无法生成签名图片的问题",
+          "修复「图片混淆」还原后的图片变成体积很大的 PNG 的问题，现在会还原为原来的图片格式",
+          "修复「磁力下载」任务卡片上做种人数显示成一串代码的问题",
+          "「通用视频下载」新增「打开输出文件夹」按钮：在网站里下载的文件统一保存到输出目录，下载完成会弹出提示",
+          "修复「B站视频提取」部分视频（常见于手机 App 分享的 b23.tv 短链接、竖屏视频）一解析就提示失败的问题：现在会自动改用 B站接口获取，解析和下载（视频 / MP3 / 封面）都能正常完成",
+          "「B站视频提取」直接粘贴 BV 号、av 号或不带 https:// 的链接也能识别；竖屏视频的清晰度显示为「1080p 竖屏」这样的写法；解析失败时会显示具体原因，不再一律提示检查网络",
+        ],
+      },
+    ],
+  },
+  {
     version: "2.1.0",
     releaseDate: "2026年9月22日",
     title: "重写底层架构，客户端体积大幅缩减，新增大量全新工具并重做多款已有工具，新增悬浮球与快捷键自定义功能，更便捷的直达你需要的工具！",
-    badge: "当前版本",
-    highlights: [
+        highlights: [
       "新增悬浮球与全局快捷键，支持直接将文件拖入到悬浮球中，直达相关工具页面，支持自定义悬浮球小窗格工具，支持主界面与常用工具全局自定义快捷键",
       "后续更新将继续优化工具使用体验，并提供更多丰富的内容，也欢迎大家积极提供建议与反馈！",
     ],
@@ -332,10 +384,12 @@ export const APP_CHANGELOG: ReleaseLog[] = [
 ];
 
 /** 默认检查更新源地址（用户或开发者可在设置中自定义） */
-export const DEFAULT_UPDATE_ENDPOINT = "https://cdn.jsdelivr.net/gh/furinakit/releases@main/version.json";
+export const DEFAULT_UPDATE_ENDPOINT = "https://cdn.jsdelivr.net/gh/FUFU-eng/FurinaKit@main/version.json";
 
 /** 备用与国内加速更新源列表 */
 export const FALLBACK_UPDATE_ENDPOINTS = [
+  "https://gh-proxy.com/https://raw.githubusercontent.com/FUFU-eng/FurinaKit/main/version.json",
+  "https://ghfast.top/https://raw.githubusercontent.com/FUFU-eng/FurinaKit/main/version.json",
   "https://cdn.jsdelivr.net/gh/furinakit/releases@main/version.json",
   "https://raw.githubusercontent.com/furinakit/releases/main/version.json",
   "https://ghproxy.net/https://raw.githubusercontent.com/furinakit/releases/main/version.json",

@@ -52,8 +52,7 @@ fn preserve_invalid(path: &Path) -> Result<(), String> {
     }
     Ok(())
 }
-pub fn download(dir: &Path, resources: crate::resource_custody::SharedResource) -> Result<Value, String> {
-    let control=owned_tasks::Control { request: std::sync::atomic::AtomicU8::new(0), engine: "component-download".into() };
+pub fn download(dir: &Path, resources: crate::resource_custody::SharedResource, control: &owned_tasks::Control) -> Result<Value, String> {
     for model in MODELS {
         let target=dir.join(model.file); let part=dir.join(format!("{}.part",model.file));
         for path in [&target, &part] {
@@ -75,12 +74,14 @@ pub fn download(dir: &Path, resources: crate::resource_custody::SharedResource) 
                 let result=match OwnedProcess::spawn(&owned_tasks::system_tool("curl.exe")?,&args,dir) {
                     Ok(p) => {
                         let p=crate::resource_custody::Custody::new(p, resources.clone());
-                        let outcome=owned_tasks::wait(&p,&control,Duration::from_secs(3650));
+                        let outcome=owned_tasks::wait(&p,control,Duration::from_secs(3650));
                         // Never retry a mirror or mutate partial files under a live old tree.
                         p.after_exit(outcome)?
                     },
                     Err(error) => Err(error),
                 };
+                // 用户点了暂停：保留 .part，不再尝试其它镜像
+                if crate::api::component_pause_requested(control) { return Err(crate::api::COMPONENT_PAUSED.into()); }
                 if result.is_ok() && valid(&part,model,false) { completed=true; break; }
                 errors.push(result.err().unwrap_or_else(||"SHA-256校验失败 / Checksum mismatch".into()));
                 if fs::metadata(&part).map(|m|m.len()>=model.size).unwrap_or(false) { preserve_invalid(&part)?; }

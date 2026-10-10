@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>全能 · 纯净 · 高效的一站式轻量工具箱</strong><br>
-  220+ 款实用工具 · 无需登录 · 无广告 · 免费开源
+  231 款实用工具 · 无需登录 · 无广告 · 免费开源
 </p>
 
 <p align="center">
@@ -19,8 +19,8 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Release-v2.1.0-38bdf8?style=flat-square&logo=github" alt="Release" />
-  <img src="https://img.shields.io/badge/Tools-220%2B-00dc82?style=flat-square" alt="Tools" />
+  <img src="https://img.shields.io/badge/Release-v2.1.1-38bdf8?style=flat-square&logo=github" alt="Release" />
+  <img src="https://img.shields.io/badge/Tools-231-00dc82?style=flat-square" alt="Tools" />
   <img src="https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011%20x64-0078d7?style=flat-square&logo=windows" alt="Windows" />
   <img src="https://img.shields.io/badge/Tauri-v2-24c8db?style=flat-square&logo=tauri" alt="Tauri" />
   <img src="https://img.shields.io/badge/Rust-native-orange?style=flat-square&logo=rust" alt="Rust" />
@@ -33,7 +33,7 @@
 
 **FurinaKit** 是一款以《原神》芙宁娜为设计灵感的 Windows 桌面工具箱。
 
-平时处理图片、PDF、音视频、文本、计算、开发调试这些零碎的事，往往要装一堆小软件，或者去找满是广告、要登录、还限制文件大小的网站。FurinaKit 把 **220+ 款常用工具**放进一个软件里：打开就能用，不用注册，没有广告，工具箱本体免费使用。
+平时处理图片、PDF、音视频、文本、计算、开发调试这些零碎的事，往往要装一堆小软件，或者去找满是广告、要登录、还限制文件大小的网站。FurinaKit 把 **231 款常用工具**放进一个软件里：打开就能用，不用注册，没有广告，工具箱本体免费使用。
 
 v2.1.0 从 Electron 换成了 **Tauri v2 + Rust**，常用工具已改为原生实现，不再需要随包附带 Python 环境。
 
@@ -43,12 +43,13 @@ v2.1.0 从 Electron 换成了 **Tauri v2 + Rust**，常用工具已改为原生�
 
 | | |
 | :--- | :--- |
-| 🧰 **220+ 款工具** | 分成 11 个板块：图片、视频、音频、文档/PDF、生活办公、文本、数理计算、开发、编码安全、系统、AI |
+| 🧰 **231 款工具** | 分成 11 个板块：图片、视频、音频、文档/PDF、生活办公、文本、数理计算、开发、编码安全、系统、AI |
 | 🚪 **打开就能用** | 不用注册，也不用登录账号 |
 | 🚫 **无广告** | 没有弹窗和推广，也不捆绑其他软件 |
 | 🔒 **本地文件处理** | 离线图片、文档、音视频任务在本机完成；主动使用在线服务或提交反馈附件时另行联网 |
 | 🔍 **搜索、收藏、热门** | 首页可以搜索工具、收藏常用工具，还能看到热门工具 |
 | 🎈 **桌面悬浮球** | 把文件拖到悬浮球上就能打开对应工具，也可以自定义全局快捷键 |
+| 🎲 **抽卡分析与分享** | 原神、崩坏：星穹铁道、绝区零、鸣潮（国服）；本机保存多账号记录，单栏 / 双栏对比卡池，导出长图分享 |
 | 🎨 **三种主题** | 浅色、深色、护眼，可跟随系统 |
 
 ---
@@ -78,6 +79,14 @@ v2.1.0 从 Electron 换成了 **Tauri v2 + Rust**，常用工具已改为原生�
 </p>
 
 ### 特色工具
+
+**抽卡记录分析与分享**：支持原神、崩坏：星穹铁道、绝区零、鸣潮（国服）的记录导入与分析。按卡池展示垫抽、平均出金、UP 花费与保底结果，可以切换已提取的账号、自由选择双栏卡池，并将长图保存到输出目录。原神、绝区零支持米游社扫码获取；其他游戏也可使用客户端缓存、日志或抽卡链接。需要重新授权时会提示。通行证凭据在本机加密保存。
+
+以下为实际抽卡记录截图，UID 已打码。
+
+<p align="center">
+  <img src="./docs/image/gacha-analysis.png" alt="抽卡记录分析 - 多账号与双栏卡池（UID 已打码）" width="850">
+</p>
 
 **跨设备互传**：手机和电脑连同一个 Wi-Fi，手机扫码就能互传文件、同步剪贴板，手机上不用装 App。
 
@@ -125,15 +134,15 @@ v2.1.0 从 Electron 换成了 **Tauri v2 + Rust**，常用工具已改为原生�
 
 ## 🧰 工具一览
 
-当前版本共 **229** 款工具，各板块数量与软件内显示一致：
+当前版本共 **231** 款工具，各板块数量与软件内显示一致：
 
 | 板块 | 数量 | 部分工具 |
 | :--- | :---: | :--- |
 | 🖼️ 图片工具 | 36 | 图片压缩、格式转换、图片抠图、图片高清强化、AI 扩图、黑白上色、去水印、图片混淆、批量图片查重、文件伪装为图片 |
 | 🎬 视频工具 | 13 | 视频下载、B 站视频提取、磁力种子下载、视频转 GIF、视频压缩、录屏 |
 | 🎵 音频工具 | 13 | 音频格式转换、提取音频、音频剪切与合并、人声分离、音频降噪 |
-| 📄 文档工具 | 26 | PDF 合并与拆分、PDF 转 Word、Word 转 PDF、PDF 压缩、PDF 页面裁剪、PDF 加水印、添加页码、加密与解锁 |
-| 🎈 生活办公 | 45 | 跨设备互传、便签、时间管理（时钟/倒计时/闹钟/秒表）、思维导图、批量重命名、电子签名 |
+| 📄 文档工具 | 27 | PDF 合并与拆分、PDF 转 Word、Word 转 PDF、HTML 转 PDF / 图片、PDF 压缩、PDF 页面裁剪、PDF 加水印、添加页码、加密与解锁 |
+| 🎈 生活办公 | 46 | 跨设备互传、便签、时间管理（时钟/倒计时/闹钟/秒表）、思维导图、批量重命名、电子签名、抽卡记录分析 |
 | 📝 文本工具 | 17 | 文字与数字转换、字数统计、文本对比、查找替换、繁简转换 |
 | 📊 数理计算 | 18 | 科学计算器、函数图像（二维/三维）、高等数学运算、几何计算器、单位换算 |
 | 💻 开发工具 | 29 | JSON 工具箱、正则测试、正则速查表、JSON 格式化、JSON 转 TS 类型、CSS 样式生成器、cURL 转代码、时间戳转换 |
@@ -153,10 +162,18 @@ v2.1.0 从 Electron 换成了 **Tauri v2 + Rust**，常用工具已改为原生�
 
 | 文件 | 说明 |
 | :--- | :--- |
-| `FurinaKit.Setup.2.1.0.exe` | 安装版（推荐），约 115 MB |
-| `FurinaKit-v2.1.0-windows-x64.zip` | 免安装版，解压后运行 `FurinaKit.exe`，约 143 MB |
+| `FurinaKit.Setup.2.1.1.exe` | 安装版（推荐），约 120.5 MiB |
+| `FurinaKit-v2.1.1-windows-x64.zip` | 免安装版，解压后运行 `FurinaKit.exe`，约 150.3 MiB |
 
-从 2.0.6 升级到 2.1.0 使用**完整安装包**，不能使用旧的 Electron 增量补丁。软件内检查更新会按发布清单选择完整包并启动安装向导。升级前请完成正在进行的任务；手动运行安装包时，先从托盘退出旧客户端。安装程序会检测旧安装位置，新版会只读导入支持的旧版设置、收藏及工具数据，不覆盖已有的新配置。
+2.1.1 使用**完整安装包**，同时提供便携 ZIP；这次不提供跨架构增量补丁。已安装版从应用内更新时，安装包会识别旧版更新入口，在后台安装并自动重新打开，保留设置、收藏和抽卡存档。手动运行安装包则显示正常安装向导。
+
+兼容 2.0.3–2.1.0 的应用内更新入口。2.0.2 的旧更新仓库已失效，2.0.1 没有更新入口；这些更早版本、便携版或安装登记缺失时，请手动下载完整安装包。旧版若为“所有用户”安装，自动更新会为当前用户安装新版，保留共享的旧程序，避免要求管理员授权。升级前请完成正在进行的任务。
+
+国内下载沿用上一版的 **gh-proxy 加速线路**，另提供 ghfast 备用线路；安装包仍来自 GitHub Release，校验值见 `SHA256SUMS.txt`。
+
+- [安装版：国内加速](https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.1/FurinaKit.Setup.2.1.1.exe)
+- [安装版：备用加速](https://ghfast.top/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.1/FurinaKit.Setup.2.1.1.exe)
+- [便携版：国内加速](https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.1/FurinaKit-v2.1.1-windows-x64.zip)
 
 ---
 

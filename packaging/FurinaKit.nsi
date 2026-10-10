@@ -1,4 +1,4 @@
-﻿; Generated payload inventory is fixed for v2.1.0. Define the five paths/size values at compile time.
+﻿; Generated payload inventory is fixed for v2.1.1. Define the five paths/size values at compile time.
 Unicode true
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
@@ -6,7 +6,7 @@ Unicode true
 !include "x64.nsh"
 !include "WinVer.nsh"
 
-Name "FurinaKit v2.1.0"
+Name "FurinaKit v2.1.1"
 OutFile "${OUTPUT_FILE}"
 InstallDir "$LOCALAPPDATA\Programs\FurinaKit"
 InstallDirRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\furinakit" "InstallLocation"
@@ -17,11 +17,11 @@ SetCompressorDictSize 64
 ShowInstDetails show
 ShowUninstDetails show
 
-VIProductVersion "2.1.0.0"
+VIProductVersion "2.1.1.0"
 VIAddVersionKey "ProductName" "FurinaKit"
-VIAddVersionKey "ProductVersion" "2.1.0"
-VIAddVersionKey "FileVersion" "2.1.0"
-VIAddVersionKey "FileDescription" "FurinaKit v2.1.0 安装程序"
+VIAddVersionKey "ProductVersion" "2.1.1"
+VIAddVersionKey "FileVersion" "2.1.1"
+VIAddVersionKey "FileDescription" "FurinaKit v2.1.1 安装程序"
 VIAddVersionKey "CompanyName" "FUFU-eng"
 VIAddVersionKey "LegalCopyright" "Copyright (c) 2026 FurinaKit Contributors"
 
@@ -30,8 +30,8 @@ VIAddVersionKey "LegalCopyright" "Copyright (c) 2026 FurinaKit Contributors"
 !define MUI_ABORTWARNING
 
 ; Welcome Page
-!define MUI_WELCOMEPAGE_TITLE "欢迎使用 FurinaKit v2.1.0 安装向导"
-!define MUI_WELCOMEPAGE_TEXT "FurinaKit（芙宁娜工具箱）是一款轻量、优雅且全能的现代化 Windows 桌面工具箱。$\r$\n$\r$\n★ v2.1.0 架构升级亮点：$\r$\n1. 全新原生架构，已内置 FFmpeg 音视频引擎，装好即用$\r$\n2. 无需注册登录，无广告；离线文件在本机处理$\r$\n3. 集成 220+ 款常用工具，部分 AI 模型按需下载$\r$\n4. 全新桌面悬浮球与全局快捷键直达$\r$\n$\r$\n点击“下一步”继续安装。"
+!define MUI_WELCOMEPAGE_TITLE "欢迎使用 FurinaKit v2.1.1 安装向导"
+!define MUI_WELCOMEPAGE_TEXT "FurinaKit（芙宁娜工具箱）是一款轻量、优雅且全能的现代化 Windows 桌面工具箱。$\r$\n$\r$\n★ 主要特点：$\r$\n1. 全新原生架构，已内置 FFmpeg 音视频引擎，装好即用$\r$\n2. 无需注册登录，无广告；离线文件在本机处理$\r$\n3. 集成 231 款常用工具，部分 AI 模型按需下载$\r$\n4. 全新桌面悬浮球与全局快捷键直达$\r$\n$\r$\n点击“下一步”继续安装。"
 !insertmacro MUI_PAGE_WELCOME
 
 ; License Page
@@ -50,7 +50,7 @@ VIAddVersionKey "LegalCopyright" "Copyright (c) 2026 FurinaKit Contributors"
 
 ; Finish Page
 !define MUI_FINISHPAGE_TITLE "安装完成"
-!define MUI_FINISHPAGE_TEXT "FurinaKit v2.1.0 已成功安装到您的计算机。$\r$\n$\r$\n点击“完成”退出安装向导。"
+!define MUI_FINISHPAGE_TEXT "FurinaKit v2.1.1 已成功安装到您的计算机。$\r$\n$\r$\n点击“完成”退出安装向导。"
 !define MUI_FINISHPAGE_RUN "$INSTDIR\FurinaKit.exe"
 !define MUI_FINISHPAGE_RUN_TEXT "立即启动 FurinaKit 芙宁娜工具箱"
 !insertmacro MUI_PAGE_FINISH
@@ -71,6 +71,8 @@ VIAddVersionKey "LegalCopyright" "Copyright (c) 2026 FurinaKit Contributors"
 Var LegacyUninst
 Var LegacyDir
 Var LegacyAllUsers
+; 静默自动更新模式（学 Arena AI：不弹安装窗口，装完自动重新打开）
+Var UpdateMode
 
 ; 从 UninstallString（形如 "X:\dir\Uninstall FurinaKit.exe" /currentuser）取出 exe 路径
 Function LegacyParseUninst
@@ -219,12 +221,12 @@ FunctionEnd
 Function .onInit
   SetShellVarContext current
   ${IfNot} ${RunningX64}
-    MessageBox MB_OK|MB_ICONSTOP "FurinaKit 需要 64 位 Windows 系统 (Windows x64)。"
+    MessageBox MB_OK|MB_ICONSTOP "FurinaKit 需要 64 位 Windows 系统 (Windows x64)。" /SD IDOK
     SetErrorLevel 2
     Abort
   ${EndIf}
   ${IfNot} ${AtLeastWin10}
-    MessageBox MB_OK|MB_ICONSTOP "FurinaKit 需要 Windows 10 或 Windows 11。"
+    MessageBox MB_OK|MB_ICONSTOP "FurinaKit 需要 Windows 10 或 Windows 11。" /SD IDOK
     SetErrorLevel 2
     Abort
   ${EndIf}
@@ -235,14 +237,90 @@ Function .onInit
   ${AndIf} $LegacyAllUsers == "0"
     StrCpy $INSTDIR $LegacyDir
   ${EndIf}
+
+  ; ── 静默自动更新 ──
+  ; 触发条件：命令行带 /UPDATE（新版应用内更新），或安装包文件名就是 FurinaKit-Setup-Update.exe
+  ; （2.1.0 的应用内更新会把安装包下载成这个固定文件名、并且不带参数启动，这样老用户这一次也能静默更新）。
+  ; 带 /INTERACTIVE 时强制显示普通安装向导（静默更新失败后的「手动安装」入口）。
+  StrCpy $UpdateMode "0"
+  ${GetParameters} $R0
+  ClearErrors
+  ${GetOptions} $R0 "/UPDATE" $R1
+  ${IfNot} ${Errors}
+    StrCpy $UpdateMode "1"
+  ${EndIf}
+  ${GetFileName} "$EXEPATH" $R2
+  ${If} $R2 == "FurinaKit-Setup-Update.exe"
+    StrCpy $UpdateMode "1"
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $R0 "/INTERACTIVE" $R1
+  ${IfNot} ${Errors}
+    StrCpy $UpdateMode "0"
+  ${EndIf}
+  ${If} $UpdateMode == "1"
+    ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\furinakit" "InstallLocation"
+    ${If} $0 != ""
+    ${AndIf} ${FileExists} "$0\FurinaKit.exe"
+      StrCpy $INSTDIR $0
+      SetSilent silent
+    ${ElseIf} $LegacyDir != ""
+    ${AndIf} ${FileExists} "$LegacyDir\FurinaKit.exe"
+      ; Electron 2.0.x uses the same updater filename without command-line arguments.
+      ; Current-user installations keep their location; all-user installs migrate to HKCU
+      ; without requesting elevation or removing the shared installation in silent mode.
+      SetSilent silent
+    ${Else}
+      ; 本机没有已安装的 FurinaKit：不是「更新」，走普通安装向导
+      StrCpy $UpdateMode "0"
+    ${EndIf}
+  ${EndIf}
+FunctionEnd
+
+; 更新模式：应用自己会先退出；最多等 20 秒，还没退出就结束旧进程，再等最多 10 秒
+Function WaitAppExitForUpdate
+  StrCpy $1 0
+  update_wait:
+    ClearErrors
+    FileOpen $2 "$INSTDIR\FurinaKit.exe" a
+    ${IfNot} ${Errors}
+      FileClose $2
+      Return
+    ${EndIf}
+    IntOp $1 $1 + 1
+    ${If} $1 == 40
+      DetailPrint "FurinaKit 未在 20 秒内退出，正在结束旧进程…"
+      InitPluginsDir
+      File /oname=$PLUGINSDIR\installer-running-check.ps1 "${PROJECT_ROOT}\scripts\installer-running-check.ps1"
+      nsExec::Exec 'powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\installer-running-check.ps1" -Executable "$INSTDIR\FurinaKit.exe" -StopRunning'
+      Pop $0
+    ${EndIf}
+    ${If} $1 > 60
+      DetailPrint "旧程序仍占用安装文件，更新已终止；请退出软件后重试。"
+      SetErrorLevel 4
+      Abort
+    ${EndIf}
+    Sleep 500
+    Goto update_wait
+FunctionEnd
+
+; 静默更新完成后自动重新打开 FurinaKit
+Function .onInstSuccess
+  ${If} $UpdateMode == "1"
+    Exec '"$INSTDIR\FurinaKit.exe"'
+  ${EndIf}
 FunctionEnd
 
 Function EnsureNotRunning
+  ${If} $UpdateMode == "1"
+    Call WaitAppExitForUpdate
+    Return
+  ${EndIf}
 check_again:
   System::Call 'kernel32::OpenMutexW(i 0x00100000, i 0, w "furinakit-single-instance-normal") p.r0'
   ${If} $0 != 0
     System::Call 'kernel32::CloseHandle(p r0)'
-    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "FurinaKit 正在运行中。$\r$\n$\r$\n请从系统托盘右键退出 FurinaKit 后点击“重试”；$\r$\n本程序不会强制关闭您的其它软件或未保存任务。" IDRETRY check_again
+    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "FurinaKit 正在运行中。$\r$\n$\r$\n请从系统托盘右键退出 FurinaKit 后点击“重试”；$\r$\n本程序不会强制关闭您的其它软件或未保存任务。" /SD IDCANCEL IDRETRY check_again
     SetErrorLevel 2
     Abort
   ${EndIf}
@@ -800,11 +878,15 @@ Section "FurinaKit" Main
   ; Create Shortcuts
   CreateDirectory "$SMPROGRAMS\FurinaKit"
   CreateShortcut "$SMPROGRAMS\FurinaKit\FurinaKit.lnk" "$INSTDIR\FurinaKit.exe" "" "$INSTDIR\FurinaKit.exe" 0
-  CreateShortcut "$DESKTOP\FurinaKit.lnk" "$INSTDIR\FurinaKit.exe" "" "$INSTDIR\FurinaKit.exe" 0
+  ; 静默更新时不重新创建用户已经删掉的桌面快捷方式
+  ${If} $UpdateMode != "1"
+  ${OrIf} ${FileExists} "$DESKTOP\FurinaKit.lnk"
+    CreateShortcut "$DESKTOP\FurinaKit.lnk" "$INSTDIR\FurinaKit.exe" "" "$INSTDIR\FurinaKit.exe" 0
+  ${EndIf}
 
   ; Add/Remove Programs Registry Keys
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\furinakit" "DisplayName" "FurinaKit 芙宁娜工具箱"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\furinakit" "DisplayVersion" "2.1.0"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\furinakit" "DisplayVersion" "2.1.1"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\furinakit" "Publisher" "FUFU-eng"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\furinakit" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\furinakit" "DisplayIcon" "$INSTDIR\FurinaKit.exe,0"

@@ -150,6 +150,7 @@ export function Select({
    *   空间不够时自动向上弹。
    */
   const panelRef = useRef<HTMLDivElement>(null);
+  const panelId = React.useId();
   const [panelPos, setPanelPos] = useState<{ left: number; top?: number; bottom?: number; width: number } | null>(null);
 
   const openPanel = () => {
@@ -222,7 +223,7 @@ export function Select({
   };
 
   return (
-    <div ref={containerRef} className={cn("relative w-full", className)} style={style}>
+    <div ref={containerRef} className={cn("fk-select relative w-full", className)} style={style}>
       {/* 隐藏原生 select，以保留表单原生属性与兼容性 */}
       <select
         id={id ? `${id}-native` : undefined}
@@ -247,11 +248,12 @@ export function Select({
         aria-labelledby={props["aria-labelledby"]}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
         title={props.title}
-        onKeyDown={e=>{if(["ArrowDown","ArrowUp","Home","End"].includes(e.key)){e.preventDefault();e.stopPropagation();if(!open)openPanel();}}}
+        onKeyDown={e=>{if(e.key==="Escape" && open){e.preventDefault();e.stopPropagation();setOpen(false);}else if(["ArrowDown","ArrowUp","Home","End"].includes(e.key)){e.preventDefault();e.stopPropagation();if(!open)openPanel();}}}
         onClick={() => (open ? setOpen(false) : openPanel())}
         className={cn(
-          "flex h-11 w-full items-center justify-between rounded-xl border border-input bg-card px-3.5 py-2 text-sm text-foreground transition-all duration-200",
+          "fk-select-trigger flex h-11 w-full items-center justify-between rounded-xl border border-input bg-card px-3.5 py-2 text-sm text-foreground transition-all duration-200",
           "hover:border-primary/50 focus:border-primary/60 focus:outline-none focus:ring-4 focus:ring-primary/10",
           open && "border-primary/70 ring-4 ring-primary/10 shadow-sm",
           disabled && "cursor-not-allowed opacity-50 bg-muted/40",
@@ -279,6 +281,7 @@ export function Select({
             <div
               ref={panelRef}
               role="listbox"
+              id={panelId}
               aria-label={props["aria-label"]}
               onKeyDown={e=>{if(["ArrowDown","ArrowUp","Home","End"].includes(e.key)){e.preventDefault();e.stopPropagation();const opts=Array.from(panelRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")||[]);const i=opts.indexOf(document.activeElement as HTMLButtonElement);const n=e.key==="Home"?0:e.key==="End"?opts.length-1:Math.max(0,Math.min(opts.length-1,i+(e.key==="ArrowDown"?1:-1)));opts[n]?.focus();}else if(e.key==="Escape"){e.preventDefault();e.stopPropagation();setOpen(false);containerRef.current?.querySelector<HTMLButtonElement>("button")?.focus();}else if(e.key==="Tab"){setOpen(false);containerRef.current?.querySelector<HTMLButtonElement>("button")?.focus();}}}
               style={{
@@ -306,7 +309,7 @@ export function Select({
                       disabled={opt.disabled}
                       onClick={() => !opt.disabled && handleSelect(opt.value)}
                       className={cn(
-                        "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                        "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40",
                         isSelected
                           ? "bg-primary/15 text-primary font-medium"
                           : "text-foreground hover:bg-accent hover:text-accent-foreground",

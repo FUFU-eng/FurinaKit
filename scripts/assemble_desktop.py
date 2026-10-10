@@ -34,7 +34,8 @@ def write_json(path, value):
 
 def assemble(executable, output, channel):
     layout = json.loads((ROOT/'scripts/runtime-layout.json').read_text(encoding='utf-8'))
-    if layout['schema'] != 1 or layout['version'] != '2.1.0':
+    version = json.loads((ROOT/'src-tauri/tauri.conf.json').read_text(encoding='utf-8'))['version']
+    if layout['schema'] != 1 or layout['version'] != version:
         raise ValueError('Unknown runtime layout')
     if not output.resolve().is_relative_to((ROOT/'release-work').resolve()):
         raise ValueError('Keep generated output inside the project release-work directory')
@@ -70,11 +71,13 @@ def assemble(executable, output, channel):
         shutil.copy2(source, target)
     shutil.copy2(executable, output/'FurinaKit.exe')
     runtime = json.loads((ROOT/'scripts/runtime-template.json').read_text(encoding='utf-8'))
+    if runtime['version'] != version:
+        raise ValueError('Runtime template version differs from the desktop build')
     runtime['packageChannel'] = channel
     runtime['releaseReady'] = channel == 'stable'
     write_json(output/'FurinaKit-runtime.json', runtime)
     (output/'README.txt').write_text(
-        '\ufeffFurinaKit v2.1.0\n\n'
+        f'\ufeffFurinaKit v{version}\n\n'
         '请保留完整目录运行 FurinaKit.exe；运行前先从托盘退出旧版本。\n'
         '音视频引擎与基础 OCR / 轻量超分资源已内置，设置中可下载的模型仍按需下载。\n'
         'ARCHPR 是第三方商业软件，无授权环境为 Trial，本包不含激活信息。\n'

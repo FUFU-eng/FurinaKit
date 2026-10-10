@@ -71,6 +71,8 @@ import { ImageMetadataCleanTool, ImageFilterTool } from "@/components/tools/imag
 import { KinshipTool, SubtitleConvertTool } from "@/components/tools/life-family-tools";
 import { BatteryHealthTool } from "@/components/tools/system-battery-tool";
 import { MediaInfoTool, WebExportTool } from "@/components/tools/system-media-tools";
+import { HtmlToPdfTool } from "@/components/tools/html-to-pdf-tool";
+import { GachaAnalysisTool } from "@/components/tools/gacha-analysis-tool";
 import { MemeMakerTool } from "@/components/tools/meme-tool";
 import { ScreenshotTranslateTool } from "@/components/tools/translate-tool";
 import { ImageCropTool } from "@/components/tools/image-crop-tool";
@@ -229,6 +231,8 @@ const CLIENT_TOOL_COMPONENTS: Record<string, React.ComponentType> = {
   "battery-health": BatteryHealthTool,
   "media-info": MediaInfoTool,
   "web-export": WebExportTool,
+  "html-to-pdf": HtmlToPdfTool,
+  "gacha-analysis": GachaAnalysisTool,
   "meme-maker": MemeMakerTool,
   "screenshot-translate": ScreenshotTranslateTool,
   "json-formatter": JsonFormatterTool,

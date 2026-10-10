@@ -40,7 +40,7 @@ pub fn extract_url(text: &str) -> String {
         (Some(a), Some(b)) => a.min(b),
         (Some(a), None) => a,
         (None, Some(b)) => b,
-        (None, None) => return t.to_string(),
+        (None, None) => return no_scheme_target(t),
     };
     let rest = &t[start..];
     let end = rest.find(char::is_whitespace).unwrap_or(rest.len());
@@ -54,6 +54,48 @@ pub fn extract_url(text: &str) -> String {
         }
     }
     url
+}
+
+/// 没写 http(s) 的情况：省略了协议的网址（www.bilibili.com/video/…、b23.tv/…）、BV 号、av 号。
+/// 以前这些会原样交给 yt-dlp，被当成"不是网址"，界面上只显示一句"请检查链接或网络代理"，容易误以为是网络问题。
+fn no_scheme_target(t: &str) -> String {
+    let trim_punct = |w: &str| w.trim_matches(|c: char| ".,;:!?）)】」》\"'".contains(c)).to_string();
+    for word in t.split(|c: char| c.is_whitespace() || "【】「」《》，。（）".contains(c)) {
+        let w = trim_punct(word);
+        let host = w.split('/').next().unwrap_or("");
+        let tld_ok = host.rsplit('.').next().map(|tld| tld.len() >= 2 && tld.chars().all(|c| c.is_ascii_alphabetic())).unwrap_or(false);
+        if host.contains('.') && tld_ok && host.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-') {
+            return format!("https://{w}");
+        }
+    }
+    if let Some(i) = t.find("BV").or_else(|| t.find("bv")) {
+        let id: String = t[i + 2..].chars().take_while(|c| c.is_ascii_alphanumeric()).collect();
+        if id.len() == 10 {
+            return format!("https://www.bilibili.com/video/BV{id}");
+        }
+    }
+    let lower = t.to_ascii_lowercase();
+    if let Some(i) = lower.find("av") {
+        let n: String = lower[i + 2..].chars().take_while(|c| c.is_ascii_digit()).collect();
+        if n.len() >= 3 {
+            return format!("https://www.bilibili.com/video/av{n}");
+        }
+    }
+    t.to_string()
+}
+
+/// 认不出的报错：把 yt-dlp 的原话（最后一条 ERROR）带上，别再一律说成"网络问题"
+fn raw_error_detail(raw: &str) -> String {
+    const FALLBACK: &str = "视频解析失败，请检查链接是否完整、能否在浏览器里打开";
+    let line = raw.lines().rev().map(str::trim).find(|l| l.starts_with("ERROR:"))
+        .or_else(|| raw.lines().rev().map(str::trim).find(|l| !l.is_empty() && !l.starts_with("WARNING:")));
+    let Some(line) = line else { return FALLBACK.into() };
+    let mut d = line.trim_start_matches("ERROR:").trim().to_string();
+    if d.starts_with('[') {
+        if let Some(i) = d.find(']') { d = d[i + 1..].trim().to_string(); }
+    }
+    let d: String = d.chars().take(160).collect();
+    if d.is_empty() { FALLBACK.into() } else { format!("视频解析失败：{d}") }
 }
 
 fn is_domestic(url: &str) -> bool {
@@ -165,8 +207,10 @@ pub(crate) fn friendly_error(raw: &str) -> String {
         "该视频受到地区版权限制，请尝试切换代理节点"
     } else if hit("unsupported url") {
         "不支持该链接格式，请确认输入正确的视频或推文链接"
+    } else if hit("is not a valid url") {
+        "链接格式不对，请粘贴完整的视频链接（例如 https://www.bilibili.com/video/BV…）"
     } else {
-        "视频解析失败，请检查链接或网络代理设置"
+        return raw_error_detail(raw);
     }
     .to_string()
 }
@@ -244,13 +288,20 @@ pub fn info(app: &tauri::AppHandle, raw_url: &str) -> Result<Value, String> {
     if status.is_none() {
         return Err("获取视频信息超时（超过 60 秒），请检查网络或代理".into());
     }
-    if !status.map(|s| s.success()).unwrap_or(false) || stdout.trim().is_empty() {
-        // yt-dlp 把真正的错误写在 stderr
-        return Err(friendly_error(&stderr));
-    }
-
-    let info: Value = serde_json::from_str(&stdout)
-        .map_err(|e| format!("解析 yt-dlp 的输出失败：{e}"))?;
+    let info: Value = if !status.map(|s| s.success()).unwrap_or(false) || stdout.trim().is_empty() {
+        // yt-dlp 把真正的错误写在 stderr。
+        // B站：yt-dlp 的解析器对部分视频（手机分享的竖屏/story 链接等）会失效，改用 B站公开接口兜底。
+        if !crate::bili_api::is_bilibili(&url) {
+            return Err(friendly_error(&stderr));
+        }
+        match crate::bili_api::build_info(&url) {
+            Ok(v) => v,
+            Err(e) if crate::bili_api::ytdlp_extractor_broken(&stderr) => return Err(e),
+            Err(_) => return Err(friendly_error(&stderr)),
+        }
+    } else {
+        serde_json::from_str(&stdout).map_err(|e| format!("解析 yt-dlp 的输出失败：{e}"))?
+    };
 
     // 画质选项：高度 ≥360、按高度去重、从高到低（与原版一致）
     let mut qualities: Vec<Value> = Vec::new();
@@ -262,9 +313,12 @@ pub fn info(app: &tauri::AppHandle, raw_url: &str) -> Result<Value, String> {
                 continue;
             }
             seen.push(h);
+            // 竖屏视频（宽 < 高）：按习惯用短边称呼清晰度，比如 1080×1920 显示「1080p 竖屏」，值仍然是高度
+            let w = fmt.get("width").and_then(|v| v.as_i64()).unwrap_or(0);
+            let label = if w > 0 && w < h { format!("{w}p 竖屏") } else { format!("{h}p") };
             qualities.push(json!({
                 "height": h,
-                "label": format!("{h}p"),
+                "label": label,
                 "format_id": fmt.get("format_id").and_then(|v| v.as_str()).unwrap_or(""),
             }));
         }

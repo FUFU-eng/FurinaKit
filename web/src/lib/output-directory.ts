@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { stageFormData, discardStagedUploads } from "./native-upload";
 
+let lastSavedPath: string | undefined;
+
 export function isDesktopOutput(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
@@ -18,7 +20,11 @@ export async function ensureOutputDirectory(): Promise<string> {
 export async function openOutputDirectory(): Promise<void> {
   if (!isDesktopOutput()) throw new Error("打开输出目录仅适用于桌面版");
   await ensureOutputDirectory();
-  await invoke("open_output_directory");
+  await invoke("open_output_directory", { lastSavedPath });
+}
+export async function revealOutputFile(path: string): Promise<void> {
+  if (!isDesktopOutput()) throw new Error("定位文件仅适用于桌面版");
+  await invoke("open_path", { path });
 }
 export async function saveOutputBlob(blob: Blob, filename: string): Promise<string> {
   await ensureOutputDirectory();
@@ -29,7 +35,10 @@ export async function saveOutputBlob(blob: Blob, filename: string): Promise<stri
     const files = staged.__files as { uploadToken: string }[] | undefined;
     const token = files?.[0]?.uploadToken;
     if (!token) throw new Error("结果文件暂存失败");
-    return await invoke<string>("export_upload", { token });
+    const path = await invoke<string>("export_upload", { token });
+    if (typeof path !== "string" || !path.trim()) throw new Error("保存未返回文件位置，请重试");
+    lastSavedPath = path;
+    return path;
   } finally { await discardStagedUploads(staged); }
 }
 export function reportOutputError(error: unknown): void {
@@ -38,6 +47,7 @@ export function reportOutputError(error: unknown): void {
   }));
 }
 export function reportOutputSaved(path?: string): void {
+  if (path?.trim()) lastSavedPath = path;
   window.dispatchEvent(new CustomEvent("fk-download-saved", { detail: path || "可点击“打开输出目录”查看结果；同名文件会自动编号。" }));
 }
 
