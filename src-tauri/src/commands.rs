@@ -339,23 +339,25 @@ pub fn open_path(app: tauri::AppHandle, path: String) -> Result<(), String> {
 // ══════════════════════════════════════════════════════════════════════
 // 在线更新（下载安装包 → 启动安装程序）
 //
-// ★ 关键点：**用户绝大多数没有代理**。作者的 version.json 里给国内用户准备的镜像是
-//   ghproxy.net，但 2026-09 实测它已经超时不通了，而 GitHub 官方直链普通用户又连不上
-//   —— 两条路都走不通就等于"更新功能对用户失效"。
-//   所以这里下载时**自动把所有可用的国内镜像都试一遍**（ghfast.top 实测能通，排最前），
-//   哪个通用哪个。作者以后改 version.json 也不用担心镜像失效。
+// ★ 关键点：**用户绝大多数没有代理**，GitHub 官方直链普通用户基本连不上。
+//   所以下载时先用 version.json 给的地址，失败/过慢再**自动把国内镜像都试一遍**，
+//   最后才是官方直链；作者以后改 version.json 也不用担心某个镜像失效。
 // ══════════════════════════════════════════════════════════════════════
 
-/// 给定一个下载地址，列出可以依次尝试的候选（原地址 + 国内镜像）
+/// GitHub 国内镜像，按 2026-10-10 无代理实测速度排序（吉林联通，126 MB 安装包）：
+///   gh-proxy.com ≈ 1.6 MB/s ｜ ghproxy.net ≈ 60 KB/s ｜ GitHub 直连 ≈ 12 KB/s ｜ ghfast.top ≈ 9 KB/s（HEAD 超时）
+const GITHUB_MIRRORS: [&str; 3] = ["https://gh-proxy.com/", "https://ghproxy.net/", "https://ghfast.top/"];
+
+/// 给定一个下载地址，列出可以依次尝试的候选（原地址 + 国内镜像 + 官方直链）
 fn download_candidates(url: &str) -> Vec<String> {
     let mut list = vec![url.to_string()];
     let mut origin = url;
-    for prefix in ["https://ghfast.top/", "https://gh-proxy.com/", "https://ghproxy.net/"] {
+    for prefix in GITHUB_MIRRORS {
         if let Some(value) = origin.strip_prefix(prefix) { origin = value; break; }
     }
     if origin.starts_with("https://github.com/") || origin.starts_with("https://raw.githubusercontent.com/") {
         // Switch mirrors using the original URL; never nest one proxy inside another.
-        for prefix in ["https://ghfast.top/", "https://gh-proxy.com/", "https://ghproxy.net/"] {
+        for prefix in GITHUB_MIRRORS {
             let candidate = format!("{prefix}{origin}");
             if !list.contains(&candidate) { list.push(candidate); }
         }
@@ -364,9 +366,63 @@ fn download_candidates(url: &str) -> Vec<String> {
     list
 }
 
+/// 从 `curl -D` 写出的响应头中取**最终**响应（跟随重定向后的最后一段）对应的**完整文件**大小。
+/// 200 看 Content-Length；206（断点续传）看 Content-Range 的 `/总大小`。重定向段不算。读不到返回 0。
+fn final_total_size(headers: &str) -> u64 {
+    let (mut status, mut length, mut range_total) = (0u16, 0u64, 0u64);
+    for line in headers.lines() {
+        let line = line.trim();
+        if line.starts_with("HTTP/") {
+            status = line.split_whitespace().nth(1).and_then(|code| code.parse().ok()).unwrap_or(0);
+            length = 0;
+            range_total = 0;
+        } else if let Some((name, value)) = line.split_once(':') {
+            let name = name.trim();
+            if name.eq_ignore_ascii_case("content-length") {
+                length = value.trim().parse().unwrap_or(0);
+            } else if name.eq_ignore_ascii_case("content-range") {
+                range_total = value.trim().rsplit('/').next().and_then(|t| t.trim().parse().ok()).unwrap_or(0);
+            }
+        }
+    }
+    match status { 200 => length, 206 => range_total, _ => 0 }
+}
+
+/// 并行试下每条线路的前 1 MB（每条最多 6 秒），返回各线路实测速度（字节/秒，不通为 0）。
+/// 只按「能不能通」切换不够：ghfast.top 这类线路能通但只有 10~60 KB/s，126 MB 要下一两个小时，
+/// 用户看到的就是进度长期停在 0~2%。
+fn probe_speeds(candidates: &[String]) -> Vec<f64> {
+    if candidates.len() < 2 { return vec![1.0; candidates.len()]; }
+    let sink = if cfg!(windows) { "NUL" } else { "/dev/null" };
+    let probes: Vec<_> = candidates.iter().cloned().map(|url| std::thread::spawn(move || {
+        let mut cmd = std::process::Command::new("curl");
+        cmd.args(["-s", "-L", "--ssl-no-revoke", "--fail", "--connect-timeout", "5", "--max-time", "6",
+                  "-r", "0-1048575", "-o", sink, "-w", "%{http_code} %{speed_download}", &url]);
+        no_window(&mut cmd);
+        cmd.stderr(std::process::Stdio::null());
+        // 6 秒预算用完时 curl 以 28 退出，但测得的速度仍然有效，所以不看退出码。
+        let Ok(out) = cmd.output() else { return 0.0 };
+        let text = String::from_utf8_lossy(&out.stdout);
+        let mut parts = text.split_whitespace();
+        let ok = matches!(parts.next(), Some("200") | Some("206"));
+        if ok { parts.next().and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0) } else { 0.0 }
+    })).collect();
+    probes.into_iter().map(|p| p.join().unwrap_or(0.0)).collect()
+}
+
+/// 选当前最快、且没被判定为坏的线路；有别的可选时避开 `avoid`。同速时保持原顺序（version.json 的地址优先）。
+fn pick_source(speeds: &[f64], bad: &[bool], avoid: Option<usize>) -> Option<usize> {
+    let usable: Vec<usize> = (0..speeds.len()).filter(|&i| !bad[i]).collect();
+    let pool: Vec<usize> = if usable.len() > 1 { usable.iter().copied().filter(|&i| Some(i) != avoid).collect() } else { usable };
+    pool.into_iter().fold(None, |best: Option<usize>, i| match best {
+        Some(b) if speeds[b] >= speeds[i] => Some(b),
+        _ => Some(i),
+    })
+}
+
 #[cfg(test)]
 mod update_mirror_tests {
-    use super::download_candidates;
+    use super::{download_candidates, final_total_size, pick_source};
     #[test]
     fn mirrored_download_falls_back_without_nesting_proxies() {
         let origin = "https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.1/FurinaKit.Setup.2.1.1.exe";
@@ -374,7 +430,8 @@ mod update_mirror_tests {
         let candidates = download_candidates(&requested);
         assert_eq!(candidates.len(), 4);
         assert_eq!(candidates[0], requested);
-        assert!(candidates.contains(&origin.to_string()));
+        assert_eq!(candidates[1], format!("https://ghproxy.net/{origin}"));
+        assert_eq!(candidates[3], origin.to_string());
         assert!(candidates.contains(&format!("https://ghfast.top/{origin}")));
         assert!(!candidates.iter().any(|url| url.contains("/https://gh-")));
     }
@@ -383,106 +440,232 @@ mod update_mirror_tests {
         let url = "https://example.com/releases/setup.exe?next=github.com/";
         assert_eq!(download_candidates(url), vec![url.to_string()]);
     }
-}
-
-/// 取远端文件大小（失败就返回 0，进度条会退化成"不确定"）
-fn remote_size(url: &str) -> u64 {
-    let mut cmd = std::process::Command::new("curl");
-    cmd.args(["-sIL", "--ssl-no-revoke", "--max-time", "20", url]);
-    no_window(&mut cmd);
-    let Ok(out) = cmd.output() else { return 0 };
-    let text = String::from_utf8_lossy(&out.stdout);
-    // 取最后一个 content-length（重定向后才是真实大小）
-    text.lines()
-        .filter(|l| l.to_lowercase().starts_with("content-length:"))
-        .filter_map(|l| l.split(':').nth(1)?.trim().parse::<u64>().ok())
-        .last()
-        .unwrap_or(0)
+    #[test]
+    fn size_comes_from_the_final_response_after_redirects() {
+        let headers = "HTTP/1.1 302 Found\r\nContent-Length: 0\r\nLocation: https://x/\r\n\r\nHTTP/1.1 200 OK\r\ncontent-length: 126356517\r\n\r\n";
+        assert_eq!(final_total_size(headers), 126356517);
+        assert_eq!(final_total_size("HTTP/1.1 302 Found\r\nContent-Length: 5\r\n\r\n"), 0);
+        assert_eq!(final_total_size("HTTP/2 200\r\n\r\n"), 0);
+        assert_eq!(final_total_size(""), 0);
+    }
+    #[test]
+    fn resumed_download_reports_the_full_file_size() {
+        let headers = "HTTP/1.1 302 Found\r\n\r\nHTTP/1.1 206 Partial Content\r\nContent-Length: 121356517\r\nContent-Range: bytes 5000000-126356516/126356517\r\n\r\n";
+        assert_eq!(final_total_size(headers), 126356517);
+    }
+    #[test]
+    fn picks_fastest_usable_source_and_avoids_the_failing_one() {
+        let speeds = [1_600_000.0, 60_000.0, 9_000.0, 12_000.0];
+        assert_eq!(pick_source(&speeds, &[false; 4], None), Some(0));
+        assert_eq!(pick_source(&speeds, &[false; 4], Some(0)), Some(1));
+        assert_eq!(pick_source(&speeds, &[true, true, false, false], None), Some(3));
+        assert_eq!(pick_source(&speeds, &[true, true, true, false], Some(3)), Some(3));
+        assert_eq!(pick_source(&speeds, &[true; 4], None), None);
+        assert_eq!(pick_source(&[0.0, 0.0], &[false; 2], None), Some(0));
+    }
 }
 
 /// 下载更新安装包；一边下一边把进度发给界面
+///
+/// ★ 必须是 async + spawn_blocking：Tauri 的同步命令跑在主线程（Windows 消息循环）上。
+///   2.1.0 / 2.1.1 首发版这里是同步命令 —— 下载期间窗口整个卡死、进度事件发不出去，
+///   用户看到的就是「点了更新，进度一直是 0」。
 #[tauri::command]
-pub fn download_update(app: tauri::AppHandle, url: String, sha256: Option<String>) -> Result<serde_json::Value, String> {
+pub async fn download_update(app: tauri::AppHandle, url: String, sha256: Option<String>) -> Result<serde_json::Value, String> {
     if !application_updates_allowed(){return Err("Application updates are disabled in the isolated test profile".into());}
+    tauri::async_runtime::spawn_blocking(move || download_update_blocking(app, url, sha256))
+        .await.map_err(|e| format!("更新下载任务失败：{e}"))?
+}
+
+static UPDATE_DOWNLOADING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+struct UpdateDownloadGuard;
+impl Drop for UpdateDownloadGuard {
+    fn drop(&mut self) { UPDATE_DOWNLOADING.store(false, std::sync::atomic::Ordering::Release); }
+}
+
+fn download_update_blocking(app: tauri::AppHandle, url: String, sha256: Option<String>) -> Result<serde_json::Value, String> {
     use tauri::Emitter;
+    use std::time::{Duration, Instant};
     if url.trim().is_empty() {
         return Err("下载链接为空".into());
     }
+    if UPDATE_DOWNLOADING.compare_exchange(false, true, std::sync::atomic::Ordering::AcqRel, std::sync::atomic::Ordering::Acquire).is_err() {
+        return Err("已有更新正在下载，请稍候".into());
+    }
+    let _guard = UpdateDownloadGuard;
     let temp_dir = std::env::temp_dir();
     let target = temp_dir.join("FurinaKit-Setup-Update.exe");
+    let header_file = temp_dir.join("FurinaKit-Setup-Update.headers");
     let _ = fs::remove_file(&target);
+    let file_len = || fs::metadata(&target).map(|m| m.len()).unwrap_or(0);
 
+    let candidates = download_candidates(url.trim());
+    let count = candidates.len();
+    let emit = |percent: u32, got: u64, total: u64, stage: &str, index: usize| {
+        let _ = app.emit("update-download-progress", serde_json::json!({
+            "percent": percent, "receivedBytes": got, "totalBytes": total, "stage": stage,
+            "sourceIndex": index + 1, "sourceCount": count,
+        }));
+    };
+    emit(0, 0, 0, "probing", 0);
+    let mut speeds = probe_speeds(&candidates);
+    let mut last_probe = Instant::now();
+    let mut bad = vec![false; count];
+    let mut failures = vec![0u32; count];
+    let mut current = pick_source(&speeds, &bad, None);
+    let mut known_total = 0u64;
     let mut last_err = String::new();
-    for candidate in download_candidates(url.trim()) {
-        let total = remote_size(&candidate);
+    // 发布者替换过安装包、而本机拿到的是 CDN 缓存里的旧更新清单时，每条线路下载到的都是“新文件”，SHA-256 全部对不上。
+    // 两条线路都这样就不再浪费流量换线路了，直接报 UPDATE_SHA_MISMATCH，让界面去重新获取最新的更新清单。
+    let mut sha_failures = 0u32;
+
+    // 多线路 + 断点续传：换线路时保留已下载部分（-C -），最后统一做长度 / PE / SHA-256 校验。
+    for _attempt in 0..12 {
+        let Some(index) = current else { break };
+        let candidate = &candidates[index];
+        let partial = file_len();
+        if known_total > 0 && partial == known_total {
+            // 上一条线路恰好在收尾时被中断，文件其实已经完整。
+            match crate::update_integrity::validate(&target, known_total, sha256.as_deref()) {
+                Ok(()) => { emit(100, partial, partial, "completed", index); return Ok(serde_json::json!({ "success": true, "filePath": target.to_string_lossy(), "size": partial })); }
+                Err(_) => { let _ = fs::remove_file(&target); known_total = 0; continue; }
+            }
+        }
+        emit(if known_total > 0 { ((partial as f64 / known_total as f64) * 100.0) as u32 } else { 0 }, partial, known_total,
+             if partial == 0 { "connecting" } else { "downloading" }, index);
+        let _ = fs::remove_file(&header_file);
         let mut cmd = std::process::Command::new("curl");
-        cmd.args([
-            "-sS",
-            "-L",
-            "--ssl-no-revoke",
-            "--fail",
-            "--max-time",
-            "3600",
-            "-o",
-            &target.to_string_lossy(),
-            &candidate,
-        ]);
+        cmd.args(["-sS", "-L", "--ssl-no-revoke", "--fail", "--connect-timeout", "10",
+                  // 只兜底「几乎不动」的连接；慢线路切换由下面的测速逻辑负责。
+                  "--speed-limit", "1024", "--speed-time", "60", "--max-time", "7200"]);
+        if partial > 0 { cmd.args(["-C", "-"]); }
+        cmd.arg("-D").arg(&header_file).arg("-o").arg(&target).arg(candidate);
         no_window(&mut cmd);
+        cmd.stderr(std::process::Stdio::piped());
         let mut child = match cmd.spawn() {
             Ok(c) => c,
-            Err(e) => {
-                last_err = format!("启动下载失败：{e}");
-                continue;
-            }
+            Err(e) => { last_err = format!("启动下载失败：{e}"); break; }
         };
 
         // A file larger than 1 KB is NOT evidence of a successful download.
-        let mut transfer_ok = false;
+        let mut exit_status = None;
+        let mut switch_to = None;
+        let mut transfer_error = None;
+        let mut total = 0u64;
+        let mut last_bytes = partial;
+        let mut last_progress = Instant::now();
+        let (mut window_start, mut window_bytes) = (Instant::now(), partial);
         loop {
             match child.try_wait() {
-                Ok(Some(status)) => { transfer_ok = status.success(); break; },
+                Ok(Some(status)) => { exit_status = Some(status); break; }
                 Ok(None) => {
-                    let got = fs::metadata(&target).map(|m| m.len()).unwrap_or(0);
-                    let percent = if total > 0 {
-                        ((got as f64 / total as f64) * 100.0).min(99.0) as u32
-                    } else {
-                        0
-                    };
-                    let _ = app.emit(
-                        "update-download-progress",
-                        serde_json::json!({ "percent": percent, "receivedBytes": got, "totalBytes": total }),
-                    );
-                    std::thread::sleep(std::time::Duration::from_millis(300));
+                    let got = file_len();
+                    if got != last_bytes { last_bytes = got; last_progress = Instant::now(); }
+                    if total == 0 && got > partial {
+                        total = fs::read_to_string(&header_file).map(|h| final_total_size(&h)).unwrap_or(0);
+                        if total > 0 { known_total = total; }
+                    }
+                    let stall_limit = if got > partial { 45 } else { 25 };
+                    if last_progress.elapsed().as_secs() >= stall_limit {
+                        transfer_error = Some("下载线路长时间没有数据".to_string());
+                        let _ = child.kill(); let _ = child.wait();
+                        break;
+                    }
+                    // 每 30 秒看一次实际速度：低于 150 KB/s 时（126 MB 要 15 分钟以上）重新测速，
+                    // 有快 3 倍以上的线路就续传切换过去。
+                    if window_start.elapsed() >= Duration::from_secs(30) {
+                        let speed = (got.saturating_sub(window_bytes)) as f64 / window_start.elapsed().as_secs_f64();
+                        window_start = Instant::now(); window_bytes = got;
+                        if count > 1 && speed < 150.0 * 1024.0 && last_probe.elapsed() >= Duration::from_secs(60) {
+                            speeds = probe_speeds(&candidates);
+                            last_probe = Instant::now();
+                            if let Some(best) = pick_source(&speeds, &bad, Some(index)) {
+                                if best != index && speeds[best] > 3.0 * speed.max(1024.0) {
+                                    switch_to = Some(best);
+                                    let _ = child.kill(); let _ = child.wait();
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    let shown_total = if total > 0 { total } else { known_total };
+                    let percent = if shown_total > 0 { ((got as f64 / shown_total as f64) * 100.0).min(99.0) as u32 } else { 0 };
+                    emit(percent, got, shown_total, if got == 0 { "connecting" } else { "downloading" }, index);
+                    std::thread::sleep(Duration::from_millis(300));
                 }
                 Err(e) => {
-                    last_err = format!("等待下载失败：{e}");
+                    transfer_error = Some(format!("等待下载失败：{e}"));
                     let _ = child.kill(); let _ = child.wait();
                     break;
                 }
             }
         }
 
-        let ok = transfer_ok && crate::update_integrity::validate(&target, total, sha256.as_deref()).is_ok();
-        if ok {
-            let _ = app.emit(
-                "update-download-progress",
-                serde_json::json!({ "percent": 100, "receivedBytes": fs::metadata(&target).map(|m| m.len()).unwrap_or(0),
-                                    "totalBytes": fs::metadata(&target).map(|m| m.len()).unwrap_or(0) }),
-            );
-            return Ok(serde_json::json!({
-                "success": true,
-                "filePath": target.to_string_lossy(),
-                "size": fs::metadata(&target).map(|m| m.len()).unwrap_or(0),
-            }));
+        if let Some(next) = switch_to {
+            current = Some(next);
+            continue;
         }
-        last_err = format!("这个下载源不行：{candidate}");
-        let _ = fs::remove_file(&target);
+        if exit_status.map(|s| s.success()).unwrap_or(false) {
+            if total == 0 { total = fs::read_to_string(&header_file).map(|h| final_total_size(&h)).unwrap_or(0); }
+            let expected = if total > 0 { total } else { known_total };
+            let got = file_len();
+            emit(99, got, expected.max(got), "verifying", index);
+            let _ = fs::remove_file(&header_file);
+            match crate::update_integrity::validate(&target, expected, sha256.as_deref()) {
+                Ok(()) => {
+                    emit(100, got, got, "completed", index);
+                    return Ok(serde_json::json!({ "success": true, "filePath": target.to_string_lossy(), "size": got }));
+                }
+                Err(e) => {
+                    // 内容不对（镜像返回了网页 / 旧文件）：这条线路作废，从头下。
+                    last_err = format!("线路 {} / {}：{e}", index + 1, count);
+                    if e.contains("SHA-256 校验失败") {
+                        sha_failures += 1;
+                        if sha_failures >= 2 {
+                            let _ = fs::remove_file(&target);
+                            return Err("下载失败（UPDATE_SHA_MISMATCH）：多条线路下载到的安装包都和更新信息里的 SHA-256 不一致，可能是安装包刚更新过、更新信息还是旧的缓存".into());
+                        }
+                    }
+                    bad[index] = true;
+                    let _ = fs::remove_file(&target);
+                    known_total = 0;
+                    current = pick_source(&speeds, &bad, None);
+                    continue;
+                }
+            }
+        }
+        let code = exit_status.and_then(|s| s.code());
+        let stderr_text = {
+            use std::io::Read;
+            let mut text = String::new();
+            if let Some(mut pipe) = child.stderr.take() { let _ = pipe.read_to_string(&mut text); }
+            text
+        };
+        last_err = format!("线路 {} / {}：{}", index + 1, count, transfer_error.unwrap_or_else(||
+            if stderr_text.trim().is_empty() { "网络连接失败".into() } else { stderr_text.trim().chars().take(300).collect() }));
+        if partial > 0 && matches!(code, Some(33) | Some(36)) {
+            // 该线路不支持断点续传：丢掉已下载部分，同一线路从头再来一次。
+            let _ = fs::remove_file(&target);
+            known_total = 0;
+            failures[index] += 1;
+            if failures[index] >= 2 { bad[index] = true; current = pick_source(&speeds, &bad, None); }
+            continue;
+        }
+        failures[index] += 1;
+        if failures[index] >= 2 { bad[index] = true; }
+        if last_probe.elapsed() >= Duration::from_secs(20) {
+            speeds = probe_speeds(&candidates);
+            last_probe = Instant::now();
+        }
+        current = pick_source(&speeds, &bad, Some(index));
     }
-
+    let _ = fs::remove_file(&header_file);
+    let _ = fs::remove_file(&target);
     Err(if last_err.is_empty() {
         "下载失败，请检查网络".to_string()
     } else {
-        format!("下载失败（所有镜像都试过了）：{last_err}")
+        let marker = if sha_failures > 0 { "（UPDATE_SHA_MISMATCH）" } else { "" };
+        format!("下载失败（所有线路都试过了）{marker}：{last_err}")
     })
 }
 

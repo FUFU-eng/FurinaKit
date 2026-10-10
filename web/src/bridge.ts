@@ -121,27 +121,13 @@ function defineBridge() {
     downloadUpdate: (url: string, sha256?: string): Promise<{ success: boolean; filePath?: string; error?: string }> =>
       invoke("download_update", { url, sha256: sha256 || null }),
     /** 订阅下载进度（返回取消订阅的函数） */
-    onUpdateDownloadProgress: (
-      cb: (data: { percent: number; receivedBytes: number; totalBytes: number }) => void,
-    ): (() => void) => {
-      let unlisten: (() => void) | null = null;
-      let cancelled = false;
-      import("@tauri-apps/api/event")
-        .then(({ listen }) =>
-          listen<{ percent: number; receivedBytes: number; totalBytes: number }>(
-            "update-download-progress",
-            (e) => cb(e.payload),
-          ),
-        )
-        .then((un) => {
-          if (cancelled) un();
-          else unlisten = un;
-        })
-        .catch(() => {});
-      return () => {
-        cancelled = true;
-        unlisten?.();
-      };
+    onUpdateDownloadProgress: async (
+      cb: (data: { percent: number; receivedBytes: number; totalBytes: number; stage?: string; sourceIndex?: number; sourceCount?: number }) => void,
+    ): Promise<() => void> => {
+      const { listen } = await import("@tauri-apps/api/event");
+      return listen<{ percent: number; receivedBytes: number; totalBytes: number; stage?: string; sourceIndex?: number; sourceCount?: number }>(
+        "update-download-progress", (e) => cb(e.payload),
+      );
     },
     /** 启动安装程序并退出本程序 */
     installUpdate: (path: string): Promise<{ success: boolean; error?: string }> =>

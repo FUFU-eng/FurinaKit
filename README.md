@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Release-v2.1.1-38bdf8?style=flat-square&logo=github" alt="Release" />
+  <img src="https://img.shields.io/badge/Release-v2.1.2-38bdf8?style=flat-square&logo=github" alt="Release" />
   <img src="https://img.shields.io/badge/Tools-231-00dc82?style=flat-square" alt="Tools" />
   <img src="https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011%20x64-0078d7?style=flat-square&logo=windows" alt="Windows" />
   <img src="https://img.shields.io/badge/Tauri-v2-24c8db?style=flat-square&logo=tauri" alt="Tauri" />
@@ -162,20 +162,20 @@ v2.1.0 从 Electron 换成了 **Tauri v2 + Rust**，常用工具已改为原生�
 
 | 文件 | 说明 |
 | :--- | :--- |
-| `FurinaKit.Setup.2.1.1.exe` | 安装版（推荐），约 120.5 MiB |
-| `FurinaKit-v2.1.1-windows-x64.zip` | 免安装版，解压后运行 `FurinaKit.exe`，约 150.3 MiB |
+| `FurinaKit.Setup.2.1.2.exe` | 安装版（推荐），约 120.5 MiB |
+| `FurinaKit-v2.1.2-windows-x64.zip` | 免安装版，解压后运行 `FurinaKit.exe`，约 150.3 MiB |
 
-2.1.1 使用**完整安装包**，同时提供便携 ZIP；这次不提供跨架构增量补丁。已安装版从应用内更新时，安装包会识别旧版更新入口，在后台安装并自动重新打开，保留设置、收藏和抽卡存档。手动运行安装包则显示正常安装向导。
+2.1.2 使用**完整安装包**，同时提供便携 ZIP；这次不提供跨架构增量补丁。已安装版从应用内更新时，安装包会识别旧版更新入口，在后台安装并自动重新打开，保留设置、收藏和抽卡存档。手动运行安装包则显示正常安装向导。
 
-2026-10-10 已更新 2.1.1 安装包，修复带 `zh-Hans / zh-Hant` 语言前缀的 B站视频链接下载失败。已安装首发 2.1.1 的用户请重新下载下方最新安装包覆盖安装；同版本不会触发自动升级提示，账号与存档会保留。
+2026-10-11 发布 2.1.2：修复应用内更新下载时窗口卡住、进度一直为 0 的问题，下载改为后台进行并自动选择最快线路。从 2.1.0 / 2.1.1 升级这一次窗口可能一两分钟没有反应，请耐心等待，下载完成后会自动安装；账号与存档会保留。
 
 兼容 2.0.3–2.1.0 的应用内更新入口。2.0.2 的旧更新仓库已失效，2.0.1 没有更新入口；这些更早版本、便携版或安装登记缺失时，请手动下载完整安装包。旧版若为“所有用户”安装，自动更新会为当前用户安装新版，保留共享的旧程序，避免要求管理员授权。升级前请完成正在进行的任务。
 
 国内下载沿用上一版的 **gh-proxy 加速线路**，另提供 ghfast 备用线路；安装包仍来自 GitHub Release，校验值见 `SHA256SUMS.txt`。
 
-- [安装版：国内加速](https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.1/FurinaKit.Setup.2.1.1.exe?updated=20261010-bili)
-- [安装版：备用加速](https://ghfast.top/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.1/FurinaKit.Setup.2.1.1.exe?updated=20261010-bili)
-- [便携版：国内加速](https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.1/FurinaKit-v2.1.1-windows-x64.zip?updated=20261010-bili)
+- [安装版：国内加速](https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.2/FurinaKit.Setup.2.1.2.exe)
+- [安装版：备用加速](https://ghfast.top/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.2/FurinaKit.Setup.2.1.2.exe)
+- [便携版：国内加速](https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.2/FurinaKit-v2.1.2-windows-x64.zip)
 
 ---
 

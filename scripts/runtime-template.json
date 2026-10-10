@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "version": "2.1.1",
+  "version": "2.1.2",
   "runtime": "native-rust",
   "profile": "native-base",
   "migrationComplete": true,
@@ -125,7 +125,7 @@
     "redistributionRightsConfirmed": true
   },
   "repairBuild": {
-    "id": "20261010-2.1.1-publication",
+    "id": "20261011-2.1.2-publication",
     "cleanWindowsAcceptance": false,
     "publicRedistributionApproval": "user-confirmed-2026-09-26",
     "sourceChecks": "See the release verification record; clean-Windows acceptance remains separate."

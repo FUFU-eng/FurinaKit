@@ -17,7 +17,7 @@ def digest(file):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--payload', type=Path, required=True)
-    p.add_argument('--output', type=Path, default=Path('release-work/local-installer/FurinaKit.Setup.2.1.1.exe'))
+    p.add_argument('--output', type=Path, default=Path('release-work/local-installer/FurinaKit.Setup.2.1.2.exe'))
     p.add_argument('--makensis', type=Path)
     p.add_argument('--webview-bootstrapper', type=Path)
     a = p.parse_args()

@@ -31,6 +31,21 @@ interface UpdateModalProps {
   initialTab?: "check" | "changelog";
 }
 
+/** 绕过 jsDelivr 缓存，直接从 GitHub 原始文件（经国内加速线路）重新取一次更新信息；取不到返回 null。 */
+async function fetchFreshUpdateInfo(): Promise<UpdateCheckResult | null> {
+  for (const endpoint of [
+    "https://gh-proxy.com/https://raw.githubusercontent.com/FUFU-eng/FurinaKit/main/version.json",
+    "https://ghfast.top/https://raw.githubusercontent.com/FUFU-eng/FurinaKit/main/version.json",
+    "https://raw.githubusercontent.com/FUFU-eng/FurinaKit/main/version.json",
+  ]) {
+    try {
+      const res = await checkForUpdates(endpoint);
+      if (res.hasUpdate) return res;
+    } catch { /* 换下一个地址 */ }
+  }
+  return null;
+}
+
 export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check" }: UpdateModalProps) {
   const __locale = __useLanguage();
   const { colors } = useTheme();
@@ -46,6 +61,9 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
   const [updateStepText, setUpdateStepText] = useState("");
   const [updateFinished, setUpdateFinished] = useState(false);
   const [downloadedInstallerPath, setDownloadedInstallerPath] = useState<string | null>(null);
+  const [installing, setInstalling] = useState(false);
+  const [updateTotalKnown, setUpdateTotalKnown] = useState(false);
+  const updateBusyRef = useRef(false);
   const [selectedVersion, setSelectedVersion] = useState<string>(APP_VERSION);
   const [packageType, setPackageType] = useState<"patch" | "full">("patch");
   const versionStripRef = useRef<HTMLDivElement>(null);
@@ -81,6 +99,7 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
   }, [open, initialTab]);
 
   const startOneClickUpdate = async () => {
+    if (updateBusyRef.current) return;
     const targetUrl = activeTargetUrl;
     if (!targetUrl) {
       toast({ title: "未获取到下载链接", variant: "error" });
@@ -93,34 +112,71 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
       ? (window as unknown as {
           furinakit?: {
             downloadUpdate?: (url: string, sha256?: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;
-            onUpdateDownloadProgress?: (cb: (data: { percent: number; receivedBytes: number; totalBytes: number }) => void) => () => void;
+            onUpdateDownloadProgress?: (cb: (data: { percent: number; receivedBytes: number; totalBytes: number; stage?: string; sourceIndex?: number; sourceCount?: number }) => void) => (() => void) | Promise<() => void>;
             installUpdate?: (path: string) => Promise<{ success: boolean; error?: string }>;
           };
         })
       : null;
 
     if (electronWin?.furinakit?.downloadUpdate) {
+      updateBusyRef.current = true;
       setUpdating(true);
+      setUpdateFinished(false);
+      setDownloadedInstallerPath(null);
+      setUpdateTotalKnown(false);
       setUpdateProgress(0);
       setUpdateStepText(`正在连接高速通道下载${isPatch ? "增量补丁包" : "完整安装包"}...`);
 
       let unsubscribe: (() => void) | null = null;
+      try {
       if (electronWin.furinakit.onUpdateDownloadProgress) {
-        unsubscribe = electronWin.furinakit.onUpdateDownloadProgress((data) => {
+        unsubscribe = await electronWin.furinakit.onUpdateDownloadProgress((data) => {
           setUpdateProgress(data.percent);
+          setUpdateTotalKnown(data.totalBytes > 0);
+          if (data.stage === "probing") {
+            setUpdateStepText("正在测速，自动选择最快的下载线路...");
+            return;
+          }
+          if (data.stage === "verifying") {
+            setUpdateStepText("下载完成，正在校验安装包完整性...");
+            return;
+          }
+          if (data.stage === "connecting" && data.receivedBytes === 0) {
+            setUpdateStepText(`正在连接下载线路 ${data.sourceIndex || 1} / ${data.sourceCount || 1}，超时将自动切换...`);
+            return;
+          }
           if (data.totalBytes > 0) {
             const mbRecv = (data.receivedBytes / (1024 * 1024)).toFixed(1);
             const mbTotal = (data.totalBytes / (1024 * 1024)).toFixed(1);
             setUpdateStepText(`正在下载${isPatch ? "增量补丁" : "安装包"} (${mbRecv}MB / ${mbTotal}MB)...`);
           } else {
-            setUpdateStepText("正在接收数据流...");
+            setUpdateStepText(`正在下载安装包，已接收 ${(data.receivedBytes / (1024 * 1024)).toFixed(1)} MB...`);
           }
         });
       }
 
-      try {
         const expectedHash = isPatch ? result?.patchSha256 : (result?.fullSha256 || result?.sha256);
-        const res = await electronWin.furinakit.downloadUpdate(targetUrl, expectedHash);
+        type DownloadResult = { success: boolean; filePath?: string; error?: string };
+        const download = (url: string, hash?: string): Promise<DownloadResult> =>
+          electronWin.furinakit!.downloadUpdate!(url, hash).catch((e: unknown): DownloadResult => ({ success: false, error: e instanceof Error ? e.message : String(e) }));
+        let res: DownloadResult = await download(targetUrl, expectedHash);
+        if (!res.success && !isPatch && /UPDATE_SHA_MISMATCH|SHA-256 校验失败/.test(res.error || "")) {
+          // 发布者替换过安装包、而本机拿到的是 CDN 缓存里的旧更新信息时，每条线路都会校验失败。
+          // 绕过 CDN 重新取一次更新信息：哈希变了就按新信息自动重下一次；没变就给出看得懂的提示。
+          setUpdateProgress(0);
+          setUpdateTotalKnown(false);
+          setUpdateStepText("安装包和更新信息对不上，正在重新获取最新的更新信息...");
+          const fresh = await fetchFreshUpdateInfo();
+          const freshHash = fresh?.fullSha256 || fresh?.sha256;
+          const freshUrl = fresh?.fullDownloadUrl || fresh?.downloadUrl;
+          if (fresh?.hasUpdate && freshHash && freshUrl && freshHash.toLowerCase() !== (expectedHash || "").toLowerCase()) {
+            setResult(fresh);
+            setUpdateStepText("已拿到最新的更新信息，正在重新下载...");
+            res = await download(freshUrl, freshHash);
+          } else {
+            res = { success: false, error: "安装包刚刚更新过，下载线路上的缓存还没刷新。请过 10～30 分钟再点更新，或用浏览器下载安装包。" };
+          }
+        }
         if (unsubscribe) unsubscribe();
 
         if (res.success && res.filePath) {
@@ -135,9 +191,11 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
       } catch (err: unknown) {
         if (unsubscribe) unsubscribe();
         setUpdating(false);
-        const errorMsg = err instanceof Error ? err.message : "下载失败";
+        const errorMsg = (err instanceof Error ? err.message : String(err || "下载失败")).replace(/（UPDATE_SHA_MISMATCH）/g, "");
         toast({ title: "自动下载更新失败", description: errorMsg || "请尝试使用备用镜像或浏览器下载", variant: "error" });
-        handleDownload(targetUrl);
+      } finally {
+        unsubscribe?.();
+        updateBusyRef.current = false;
       }
     } else {
       // 浏览器环境 fallback
@@ -145,7 +203,8 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
     }
   };
 
-  const handleRestartAndInstall = () => {
+  const handleRestartAndInstall = async () => {
+    if (installing) return;
     const electronWin = typeof window !== "undefined"
       ? (window as unknown as {
           furinakit?: {
@@ -155,8 +214,14 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
       : null;
 
     if (downloadedInstallerPath && electronWin?.furinakit?.installUpdate) {
-      electronWin.furinakit.installUpdate(downloadedInstallerPath);
-      onClose();
+      setInstalling(true);
+      try {
+        const res = await electronWin.furinakit.installUpdate(downloadedInstallerPath);
+        if (!res.success) throw new Error(res.error || "无法启动安装程序");
+        onClose();
+      } catch (err) {
+        toast({ title: "后台安装未能启动", description: String(err), variant: "error" });
+      } finally { setInstalling(false); }
     } else {
       handleDownload();
       onClose();
@@ -433,12 +498,12 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
                           )}
                           {updateStepText}
                         </span>
-                        <span className="font-mono font-bold text-primary">{updateProgress}%</span>
+                        <span className="font-mono font-bold text-primary">{updateFinished || updateTotalKnown ? `${updateProgress}%` : "连接中"}</span>
                       </div>
                       <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
                         <div
-                          className="h-full rounded-full bg-primary transition-all duration-300"
-                          style={{ width: `${updateProgress}%` }}
+                          className={cn("h-full rounded-full bg-primary transition-all duration-300", !updateFinished && !updateTotalKnown && "animate-pulse")}
+                          style={{ width: updateFinished || updateTotalKnown ? `${updateProgress}%` : "25%" }}
                         />
                       </div>
                     </div>
@@ -497,17 +562,18 @@ export function UpdateModal({ open, onClose, customEndpoint, initialTab = "check
                         updateFinished ? (
                           <button
                             onClick={handleRestartAndInstall}
+                            disabled={installing}
                             className="flex h-9 items-center gap-1.5 rounded-xl bg-emerald-600 px-5 text-xs font-semibold text-white shadow-sm hover:brightness-110 transition-all"
                           >
                             <CheckCircle2 size={14} />
-                            {__ui("立即更新（自动重启）")}</button>
+                            {installing ? __ui("正在启动后台安装...") : __ui("立即更新（自动重启）")}</button>
                         ) : (
                           <button
                             disabled
                             className="flex h-9 items-center gap-1.5 rounded-xl bg-primary/70 px-5 text-xs font-semibold text-white shadow-sm cursor-not-allowed"
                           >
                             <RefreshCw size={14} className="animate-spin" />
-                            {__ui("正在全自动升级中...")}</button>
+                            {__ui("正在下载安装包...")}</button>
                         )
                       ) : (
                         <button

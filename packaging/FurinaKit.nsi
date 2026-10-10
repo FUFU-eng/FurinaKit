@@ -1,4 +1,4 @@
-﻿; Generated payload inventory is fixed for v2.1.1. Define the five paths/size values at compile time.
+﻿; Generated payload inventory is fixed for v2.1.2. Define the five paths/size values at compile time.
 Unicode true
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
@@ -6,7 +6,7 @@ Unicode true
 !include "x64.nsh"
 !include "WinVer.nsh"
 
-Name "FurinaKit v2.1.1"
+Name "FurinaKit v2.1.2"
 OutFile "${OUTPUT_FILE}"
 InstallDir "$LOCALAPPDATA\Programs\FurinaKit"
 InstallDirRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\furinakit" "InstallLocation"
@@ -17,11 +17,11 @@ SetCompressorDictSize 64
 ShowInstDetails show
 ShowUninstDetails show
 
-VIProductVersion "2.1.1.0"
+VIProductVersion "2.1.2.0"
 VIAddVersionKey "ProductName" "FurinaKit"
-VIAddVersionKey "ProductVersion" "2.1.1"
-VIAddVersionKey "FileVersion" "2.1.1"
-VIAddVersionKey "FileDescription" "FurinaKit v2.1.1 安装程序"
+VIAddVersionKey "ProductVersion" "2.1.2"
+VIAddVersionKey "FileVersion" "2.1.2"
+VIAddVersionKey "FileDescription" "FurinaKit v2.1.2 安装程序"
 VIAddVersionKey "CompanyName" "FUFU-eng"
 VIAddVersionKey "LegalCopyright" "Copyright (c) 2026 FurinaKit Contributors"
 
@@ -30,7 +30,7 @@ VIAddVersionKey "LegalCopyright" "Copyright (c) 2026 FurinaKit Contributors"
 !define MUI_ABORTWARNING
 
 ; Welcome Page
-!define MUI_WELCOMEPAGE_TITLE "欢迎使用 FurinaKit v2.1.1 安装向导"
+!define MUI_WELCOMEPAGE_TITLE "欢迎使用 FurinaKit v2.1.2 安装向导"
 !define MUI_WELCOMEPAGE_TEXT "FurinaKit（芙宁娜工具箱）是一款轻量、优雅且全能的现代化 Windows 桌面工具箱。$\r$\n$\r$\n★ 主要特点：$\r$\n1. 全新原生架构，已内置 FFmpeg 音视频引擎，装好即用$\r$\n2. 无需注册登录，无广告；离线文件在本机处理$\r$\n3. 集成 231 款常用工具，部分 AI 模型按需下载$\r$\n4. 全新桌面悬浮球与全局快捷键直达$\r$\n$\r$\n点击“下一步”继续安装。"
 !insertmacro MUI_PAGE_WELCOME
 
@@ -50,7 +50,7 @@ VIAddVersionKey "LegalCopyright" "Copyright (c) 2026 FurinaKit Contributors"
 
 ; Finish Page
 !define MUI_FINISHPAGE_TITLE "安装完成"
-!define MUI_FINISHPAGE_TEXT "FurinaKit v2.1.1 已成功安装到您的计算机。$\r$\n$\r$\n点击“完成”退出安装向导。"
+!define MUI_FINISHPAGE_TEXT "FurinaKit v2.1.2 已成功安装到您的计算机。$\r$\n$\r$\n点击“完成”退出安装向导。"
 !define MUI_FINISHPAGE_RUN "$INSTDIR\FurinaKit.exe"
 !define MUI_FINISHPAGE_RUN_TEXT "立即启动 FurinaKit 芙宁娜工具箱"
 !insertmacro MUI_PAGE_FINISH
@@ -886,7 +886,7 @@ Section "FurinaKit" Main
 
   ; Add/Remove Programs Registry Keys
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\furinakit" "DisplayName" "FurinaKit 芙宁娜工具箱"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\furinakit" "DisplayVersion" "2.1.1"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\furinakit" "DisplayVersion" "2.1.2"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\furinakit" "Publisher" "FUFU-eng"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\furinakit" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\furinakit" "DisplayIcon" "$INSTDIR\FurinaKit.exe,0"
