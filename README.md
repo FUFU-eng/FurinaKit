@@ -167,13 +167,15 @@ v2.1.0 从 Electron 换成了 **Tauri v2 + Rust**，常用工具已改为原生�
 
 2.1.1 使用**完整安装包**，同时提供便携 ZIP；这次不提供跨架构增量补丁。已安装版从应用内更新时，安装包会识别旧版更新入口，在后台安装并自动重新打开，保留设置、收藏和抽卡存档。手动运行安装包则显示正常安装向导。
 
+2026-10-10 已更新 2.1.1 安装包，修复带 `zh-Hans / zh-Hant` 语言前缀的 B站视频链接下载失败。已安装首发 2.1.1 的用户请重新下载下方最新安装包覆盖安装；同版本不会触发自动升级提示，账号与存档会保留。
+
 兼容 2.0.3–2.1.0 的应用内更新入口。2.0.2 的旧更新仓库已失效，2.0.1 没有更新入口；这些更早版本、便携版或安装登记缺失时，请手动下载完整安装包。旧版若为“所有用户”安装，自动更新会为当前用户安装新版，保留共享的旧程序，避免要求管理员授权。升级前请完成正在进行的任务。
 
 国内下载沿用上一版的 **gh-proxy 加速线路**，另提供 ghfast 备用线路；安装包仍来自 GitHub Release，校验值见 `SHA256SUMS.txt`。
 
-- [安装版：国内加速](https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.1/FurinaKit.Setup.2.1.1.exe)
-- [安装版：备用加速](https://ghfast.top/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.1/FurinaKit.Setup.2.1.1.exe)
-- [便携版：国内加速](https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.1/FurinaKit-v2.1.1-windows-x64.zip)
+- [安装版：国内加速](https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.1/FurinaKit.Setup.2.1.1.exe?updated=20261010-bili)
+- [安装版：备用加速](https://ghfast.top/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.1/FurinaKit.Setup.2.1.1.exe?updated=20261010-bili)
+- [便携版：国内加速](https://gh-proxy.com/https://github.com/FUFU-eng/FurinaKit/releases/download/v2.1.1/FurinaKit-v2.1.1-windows-x64.zip?updated=20261010-bili)
 
 ---
 

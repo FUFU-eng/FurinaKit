@@ -40,7 +40,7 @@ pub fn extract_url(text: &str) -> String {
         (Some(a), Some(b)) => a.min(b),
         (Some(a), None) => a,
         (None, Some(b)) => b,
-        (None, None) => return no_scheme_target(t),
+        (None, None) => return normalize_site_url(no_scheme_target(t)),
     };
     let rest = &t[start..];
     let end = rest.find(char::is_whitespace).unwrap_or(rest.len());
@@ -53,7 +53,31 @@ pub fn extract_url(text: &str) -> String {
             break;
         }
     }
-    url
+    normalize_site_url(url)
+}
+
+/// B站的语言前缀链接会被 yt-dlp 误当作普通网页，甚至把播放器 HTML 当媒体。
+/// 只改真正的视频路径；query / fragment 原样保留（尤其是分 P 参数）。
+fn normalize_site_url(original: String) -> String {
+    let Ok(mut parsed) = url::Url::parse(&original) else { return original };
+    if !matches!(parsed.host_str(), Some("bilibili.com" | "www.bilibili.com" | "m.bilibili.com")) {
+        return original;
+    }
+    let path = parsed.path().trim_matches('/');
+    let segments: Vec<&str> = path.split('/').collect();
+    if segments.len() != 3 || segments[1] != "video" {
+        return original;
+    }
+    let locale = segments[0];
+    let id = segments[2];
+    let is_locale = locale.split('-').all(|part| (2..=8).contains(&part.len()) && part.bytes().all(|b| b.is_ascii_alphabetic()));
+    let is_video = id.strip_prefix("BV").map(|v| v.len() == 10 && v.bytes().all(|b| b.is_ascii_alphanumeric())).unwrap_or(false)
+        || id.strip_prefix("av").map(|v| !v.is_empty() && v.bytes().all(|b| b.is_ascii_digit())).unwrap_or(false);
+    if !is_locale || !is_video { return original; }
+    let canonical_path = format!("/video/{id}/");
+    parsed.set_path(&canonical_path);
+    let _ = parsed.set_host(Some("www.bilibili.com"));
+    parsed.to_string()
 }
 
 /// 没写 http(s) 的情况：省略了协议的网址（www.bilibili.com/video/…、b23.tv/…）、BV 号、av 号。
@@ -346,4 +370,35 @@ pub fn info(app: &tauri::AppHandle, raw_url: &str) -> Result<Value, String> {
         "qualities": qualities,
         "url": url,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn localized_bilibili_share_uses_site_extractor_url() {
+        let share = "【We Never (Remix) (若如初见)】 https://www.bilibili.com/zh-Hans/video/BV134Ho6qENu/?share_source=copy_web&vd_source=test-share-token";
+        assert_eq!(extract_url(share), "https://www.bilibili.com/video/BV134Ho6qENu/?share_source=copy_web&vd_source=test-share-token");
+    }
+
+    #[test]
+    fn localized_bilibili_preserves_selected_part_and_timestamp() {
+        assert_eq!(extract_url("https://www.bilibili.com/zh-Hant/video/BV134Ho6qENu/?p=3&t=42#reply"), "https://www.bilibili.com/video/BV134Ho6qENu/?p=3&t=42#reply");
+        assert_eq!(extract_url("www.bilibili.com/en/video/av170001/?p=2"), "https://www.bilibili.com/video/av170001/?p=2");
+    }
+
+    #[test]
+    fn normalization_leaves_other_sites_and_non_video_links_unchanged() {
+        for url in [
+            "https://www.bilibili.com/video/BV134Ho6qENu/?p=2",
+            "https://www.bilibili.com/zh-Hans/bangumi/play/ep123",
+            "https://b23.tv/abc123",
+            "https://example.com/zh-Hans/video/BV134Ho6qENu/",
+            "https://www.bilibili.com.evil.example/zh-Hans/video/BV134Ho6qENu/",
+            "https://www.bilibili.com/zh-Hans/video/not-a-video/",
+        ] { assert_eq!(extract_url(url), url); }
+        assert_eq!(extract_url("原视频 BV134Ho6qENu"), "https://www.bilibili.com/video/BV134Ho6qENu");
+        assert_eq!(extract_url("原视频 av170001"), "https://www.bilibili.com/video/av170001");
+    }
 }

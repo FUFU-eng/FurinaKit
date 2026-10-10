@@ -121,7 +121,8 @@ fn run(app: &tauri::AppHandle, id: &str, payload: &Value, component_resources:cr
     let format = payload["format"].as_str().unwrap_or("mp4");
     let quality = payload["quality"].as_str().unwrap_or("best");
     let codec = payload["codec"].as_str().unwrap_or("h264");
-    let url = payload["url"].as_str().ok_or("缺少网址")?;
+    // Also normalize persisted tasks when resuming a download created by an older build.
+    let url = crate::video::extract_url(payload["url"].as_str().ok_or("缺少网址")?);
     let ffmpeg = std::env::var("FURINAKIT_FFMPEG_PATH").ok().map(PathBuf::from)
         .filter(|p| p.is_file()).or_else(|| ["apps/web/ffmpeg.exe", "resources/ffmpeg.exe", "services/worker/ffmpeg.exe", "ffmpeg.exe", "resources/worker/ffmpeg.exe"].iter().map(|p| root.join(p)).find(|p| p.is_file()))
         .or_else(|| crate::runtime_layout::find_media_tool("ffmpeg", &root));
@@ -136,12 +137,12 @@ fn run(app: &tauri::AppHandle, id: &str, payload: &Value, component_resources:cr
         .arg("-o").arg(dir.join("%(title).100s-%(id)s.%(ext)s"))
         .args(format_args(format, quality, codec))
         // Explicit empty proxy overrides inherited proxy env vars for domestic sites.
-        .arg("--proxy").arg(crate::video::system_proxy(url).unwrap_or_default())
+        .arg("--proxy").arg(crate::video::system_proxy(&url).unwrap_or_default())
         .env("PYTHONIOENCODING", "utf-8").env("PYTHONUTF8", "1")
         .stdin(Stdio::null()).stdout(Stdio::from(log.try_clone().map_err(|e| e.to_string())?))
         .stderr(Stdio::from(log));
     // Options have to precede the -- URL delimiter.
-    if let Some(f) = info_file { cmd.arg("--load-info-json").arg(f); } else { cmd.arg("--").arg(url); }
+    if let Some(f) = info_file { cmd.arg("--load-info-json").arg(f); } else { cmd.arg("--").arg(&url); }
     if let Some(ffmpeg) = ffmpeg {
         cmd.env("PATH", format!("{};{}", ffmpeg.parent().unwrap_or(&root).display(), std::env::var("PATH").unwrap_or_default()));
     }
@@ -210,7 +211,7 @@ fn run(app: &tauri::AppHandle, id: &str, payload: &Value, component_resources:cr
                     }
                 }
                 if !status.success() {
-                    if info_file.is_none() && crate::bili_api::is_bilibili(url) && crate::bili_api::ytdlp_extractor_broken(&all) { return Err(BILI_FALLBACK.into()); }
+                    if info_file.is_none() && crate::bili_api::is_bilibili(&url) && crate::bili_api::ytdlp_extractor_broken(&all) { return Err(BILI_FALLBACK.into()); }
                     return Err(crate::video::friendly_error(&all));
                 }
                 break;
